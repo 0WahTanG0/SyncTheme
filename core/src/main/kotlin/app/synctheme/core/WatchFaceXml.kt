@@ -5,7 +5,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Генерирует watchface.xml в формате Watch Face Format (v1) по теме.
+ * Генерирует watchface.xml в формате Watch Face Format (v1) по настройкам часов.
  *
  * Фон (уже затемнённый и обрезанный под круг) телефон кладёт в ресурс [BG_RESOURCE],
  * стрелки — белые PNG в шаблоне, перекрашиваются через tintColor.
@@ -19,12 +19,17 @@ object WatchFaceXml {
 
     private const val C = SIZE / 2
 
-    fun generate(theme: Theme): String {
+    /** Внешний радиус делений и кольца секунд: почти у самого края экрана. */
+    private const val EDGE = 222f
+
+    fun generate(theme: Theme): String = generate(theme.watchSettings())
+
+    fun generate(w: WatchSettings): String {
         val x = Xml()
-        val text = color(theme.textColor)
-        val accent = color(theme.accentColor)
-        val weight = weight(theme.fontWeight)
-        val clockType = if (theme.clockStyle == ClockStyle.ANALOG) "ANALOG" else "DIGITAL"
+        val text = color(w.textColor)
+        val accent = color(w.accentColor)
+        val weight = weight(w.fontWeight)
+        val clockType = if (w.clockStyle == ClockStyle.ANALOG) "ANALOG" else "DIGITAL"
 
         x.line("""<?xml version="1.0" encoding="utf-8"?>""")
         x.open("""WatchFace width="$SIZE" height="$SIZE" clipShape="CIRCLE"""")
@@ -38,10 +43,10 @@ object WatchFaceXml {
         x.line("""<Image resource="$BG_RESOURCE"/>""")
         x.close("PartImage")
 
-        when (theme.clockStyle) {
-            ClockStyle.DIGITAL -> digital(x, theme, text, accent, weight)
-            ClockStyle.STACKED -> stacked(x, theme, text, accent, weight)
-            ClockStyle.ANALOG -> analog(x, theme, text, accent)
+        when (w.clockStyle) {
+            ClockStyle.DIGITAL -> digital(x, w, text, accent, weight)
+            ClockStyle.STACKED -> stacked(x, w, text, accent, weight)
+            ClockStyle.ANALOG -> analog(x, w, text, accent, weight)
         }
 
         x.close("Scene")
@@ -49,9 +54,9 @@ object WatchFaceXml {
         return x.toString()
     }
 
-    private fun digital(x: Xml, theme: Theme, text: String, accent: String, weight: String) {
-        if (theme.showSeconds) secondsRing(x, theme.accentColor)
-        if (theme.showDate) {
+    private fun digital(x: Xml, w: WatchSettings, text: String, accent: String, weight: String) {
+        if (w.showSeconds) secondsRing(x, w.accentColor)
+        if (w.showDate) {
             dateText(x, 75, 92, 300, 44, 30f, accent, "%s %d %s", "[DAY_OF_WEEK_S]", "[DAY]", "[MONTH_S]")
         }
         x.open("""DigitalClock x="15" y="140" width="420" height="150"""")
@@ -59,14 +64,14 @@ object WatchFaceXml {
         x.line("""<Font family="SYNC_TO_DEVICE" size="132" weight="$weight" color="$text"/>""")
         x.close("TimeText")
         x.close("DigitalClock")
-        if (theme.watchComplications) {
-            complication(x, 0, 117, 300, 96, theme, "WATCH_BATTERY", "RANGED_VALUE")
-            complication(x, 1, 237, 300, 96, theme, "STEP_COUNT", "SHORT_TEXT")
+        if (w.complications) {
+            complication(x, 0, 117, 300, 96, w, "WATCH_BATTERY", "RANGED_VALUE")
+            complication(x, 1, 237, 300, 96, w, "STEP_COUNT", "SHORT_TEXT")
         }
     }
 
-    private fun stacked(x: Xml, theme: Theme, text: String, accent: String, weight: String) {
-        if (theme.showSeconds) secondsRing(x, theme.accentColor)
+    private fun stacked(x: Xml, w: WatchSettings, text: String, accent: String, weight: String) {
+        if (w.showSeconds) secondsRing(x, w.accentColor)
         x.open("""DigitalClock x="100" y="58" width="250" height="170"""")
         x.open("""TimeText x="0" y="0" width="250" height="170" format="hh" hourFormat="SYNC_TO_DEVICE" align="CENTER"""")
         x.line("""<Font family="SYNC_TO_DEVICE" size="168" weight="$weight" color="$text"/>""")
@@ -77,54 +82,81 @@ object WatchFaceXml {
         x.line("""<Font family="SYNC_TO_DEVICE" size="168" weight="$weight" color="$accent"/>""")
         x.close("TimeText")
         x.close("DigitalClock")
-        if (theme.showDate) {
+        if (w.showDate) {
             dateText(x, 125, 382, 200, 36, 26f, text, "%s %d", "[DAY_OF_WEEK_S]", "[DAY]")
         }
-        if (theme.watchComplications) {
-            complication(x, 0, 18, 177, 90, theme, "WATCH_BATTERY", "RANGED_VALUE")
-            complication(x, 1, 342, 177, 90, theme, "STEP_COUNT", "SHORT_TEXT")
+        if (w.complications) {
+            complication(x, 0, 18, 177, 90, w, "WATCH_BATTERY", "RANGED_VALUE")
+            complication(x, 1, 342, 177, 90, w, "STEP_COUNT", "SHORT_TEXT")
         }
     }
 
-    private fun analog(x: Xml, theme: Theme, text: String, accent: String) {
-        // Деления: 60 минутных + 12 часовых, акцентом — 12/3/6/9.
+    private fun analog(x: Xml, w: WatchSettings, text: String, accent: String, weight: String) {
         x.open("""PartDraw x="0" y="0" width="$SIZE" height="$SIZE" name="ticks"""")
         x.line("""<Variant mode="AMBIENT" target="alpha" value="150"/>""")
         for (i in 0 until 60) {
             val main = i % 15 == 0
             val hour = i % 5 == 0
-            val outer = 214f
-            val len = when { main -> 30f; hour -> 20f; else -> 7f }
-            val thickness = when { main -> 8f; hour -> 5f; else -> 2f }
-            val col = when {
-                main -> accent
-                hour -> color(withAlpha(theme.textColor, 0xE6))
-                else -> color(withAlpha(theme.textColor, 0x80))
+            val (len, thickness, col) = when (w.dialStyle) {
+                // Деления: 60 минутных + 12 часовых, акцентом — 12/3/6/9.
+                DialStyle.TICKS -> when {
+                    main -> Triple(30f, 8f, accent)
+                    hour -> Triple(20f, 5f, color(withAlpha(w.textColor, 0xE6)))
+                    else -> Triple(7f, 2f, color(withAlpha(w.textColor, 0x80)))
+                }
+                // Цифры по кругу + тонкие минутные деления у края.
+                DialStyle.NUMBERS -> if (hour) Triple(8f, 3f, color(withAlpha(w.textColor, 0xB3)))
+                    else Triple(5f, 1.5f, color(withAlpha(w.textColor, 0x66)))
+                // Только четыре метки на 12/3/6/9.
+                DialStyle.MINIMAL -> if (main) Triple(26f, 7f, accent) else continue
             }
             val a = Math.toRadians(i * 6.0)
-            val sx = C + outer * sin(a)
-            val sy = C - outer * cos(a)
-            val ex = C + (outer - len) * sin(a)
-            val ey = C - (outer - len) * cos(a)
+            val sx = C + EDGE * sin(a)
+            val sy = C - EDGE * cos(a)
+            val ex = C + (EDGE - len) * sin(a)
+            val ey = C - (EDGE - len) * cos(a)
             x.open("""Line startX="${f(sx)}" startY="${f(sy)}" endX="${f(ex)}" endY="${f(ey)}"""")
             x.line("""<Stroke color="$col" thickness="${f(thickness)}" cap="ROUND"/>""")
             x.close("Line")
         }
         x.close("PartDraw")
 
-        if (theme.showDate) {
-            dateText(x, 268, 205, 120, 40, 26f, accent, "%s %d", "[DAY_OF_WEEK_S]", "[DAY]")
-        }
-        if (theme.watchComplications) {
-            complication(x, 0, 62, 177, 96, theme, "WATCH_BATTERY", "RANGED_VALUE")
-            complication(x, 1, 177, 292, 96, theme, "STEP_COUNT", "SHORT_TEXT")
+        if (w.dialStyle == DialStyle.NUMBERS) {
+            for (h in 1..12) {
+                val a = Math.toRadians(h * 30.0)
+                val r = 186.0
+                val cx = (C + r * sin(a)).toInt()
+                val cy = (C - r * cos(a)).toInt()
+                val col = if (h % 3 == 0) accent else text
+                x.open("""PartText x="${cx - 30}" y="${cy - 24}" width="60" height="48" name="n$h"""")
+                x.line("""<Variant mode="AMBIENT" target="alpha" value="150"/>""")
+                x.open("""Text align="CENTER"""")
+                x.line("""<Font family="SYNC_TO_DEVICE" size="38" weight="$weight" color="$col">$h</Font>""")
+                x.close("Text")
+                x.close("PartText")
+            }
+            if (w.showDate) {
+                dateText(x, 165, 112, 120, 40, 26f, accent, "%s %d", "[DAY_OF_WEEK_S]", "[DAY]")
+            }
+            if (w.complications) {
+                complication(x, 0, 116, 262, 84, w, "WATCH_BATTERY", "RANGED_VALUE")
+                complication(x, 1, 250, 262, 84, w, "STEP_COUNT", "SHORT_TEXT")
+            }
+        } else {
+            if (w.showDate) {
+                dateText(x, 268, 205, 120, 40, 26f, accent, "%s %d", "[DAY_OF_WEEK_S]", "[DAY]")
+            }
+            if (w.complications) {
+                complication(x, 0, 62, 177, 96, w, "WATCH_BATTERY", "RANGED_VALUE")
+                complication(x, 1, 177, 292, 96, w, "STEP_COUNT", "SHORT_TEXT")
+            }
         }
 
         val shadow = "#59000000"
         x.open("""AnalogClock x="0" y="0" width="$SIZE" height="$SIZE"""")
         // Тени стрелок для читаемости на светлых фото.
-        hands(x, dx = 3, tintHour = shadow, tintMinute = shadow, tintSecond = shadow, seconds = theme.showSeconds, ambientHidden = true)
-        hands(x, dx = 0, tintHour = text, tintMinute = text, tintSecond = accent, seconds = theme.showSeconds, ambientHidden = false)
+        hands(x, dx = 3, tintHour = shadow, tintMinute = shadow, tintSecond = shadow, seconds = w.showSeconds, ambientHidden = true)
+        hands(x, dx = 0, tintHour = text, tintMinute = text, tintSecond = accent, seconds = w.showSeconds, ambientHidden = false)
         x.close("AnalogClock")
 
         x.open("""PartDraw x="211" y="211" width="28" height="28" name="cap"""")
@@ -157,10 +189,11 @@ object WatchFaceXml {
     private fun secondsRing(x: Xml, accentColor: Int) {
         x.open("""PartDraw x="0" y="0" width="$SIZE" height="$SIZE" name="secondsRing"""")
         x.line("""<Variant mode="AMBIENT" target="alpha" value="0"/>""")
-        x.open("""Arc centerX="$C" centerY="$C" width="434" height="434" startAngle="0" endAngle="360"""")
+        val d = f(EDGE * 2 - 3)
+        x.open("""Arc centerX="$C" centerY="$C" width="$d" height="$d" startAngle="0" endAngle="360"""")
         x.line("""<Stroke color="${color(withAlpha(accentColor, 0x40))}" thickness="4"/>""")
         x.close("Arc")
-        x.open("""Arc centerX="$C" centerY="$C" width="434" height="434" startAngle="0" endAngle="0"""")
+        x.open("""Arc centerX="$C" centerY="$C" width="$d" height="$d" startAngle="0" endAngle="0"""")
         x.line("""<Stroke color="${color(accentColor)}" thickness="6" cap="ROUND"/>""")
         x.line("""<Transform target="endAngle" value="[SECOND] * 6"/>""")
         x.close("Arc")
@@ -184,14 +217,14 @@ object WatchFaceXml {
 
     /** Мини-виджет (complication) в стиле темы; пользователь может сменить источник на часах. */
     private fun complication(
-        x: Xml, id: Int, px: Int, py: Int, s: Int, theme: Theme,
+        x: Xml, id: Int, px: Int, py: Int, s: Int, w: WatchSettings,
         provider: String, providerType: String,
     ) {
-        val text = color(theme.textColor)
-        val accent = color(theme.accentColor)
-        val track = color(withAlpha(theme.textColor, 0x40))
+        val text = color(w.textColor)
+        val accent = color(w.accentColor)
+        val track = color(withAlpha(w.textColor, 0x40))
         // Подложка под мини-виджет: тёмная для светлых цифр, светлая — для тёмных.
-        val disc = if (isLight(theme.textColor)) "#66000000" else "#80FFFFFF"
+        val disc = if (isLight(w.textColor)) "#66000000" else "#80FFFFFF"
         val half = s / 2f
         x.open(
             """ComplicationSlot x="$px" y="$py" width="$s" height="$s" slotId="$id" """ +

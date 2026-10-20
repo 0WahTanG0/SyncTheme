@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">SyncTheme</string>
     <string name="widget_clock">Часы SyncTheme</string>
-    <string name="widget_analog">Стрелочные часы SyncTheme</string>
     <string name="widget_date">Дата SyncTheme</string>
+    <string name="widget_calendar">Календарь SyncTheme</string>
+    <string name="widget_weather">Погода SyncTheme</string>
     <string name="widget_battery">Батарея SyncTheme</string>
-    <string name="widget_clock_desc">Крупные часы и дата в цветах вашей темы</string>
-    <string name="widget_analog_desc">Стрелочные часы в цветах вашей темы</string>
-    <string name="widget_date_desc">День недели, число и месяц</string>
+    <string name="widget_clock_desc">Цифровые и стрелочные часы — стиль, шрифт и подложка настраиваются</string>
+    <string name="widget_date_desc">День недели, число и месяц в нескольких стилях</string>
+    <string name="widget_calendar_desc">Месяц и ближайшие события</string>
+    <string name="widget_weather_desc">Погода сейчас, по часам и на 5 дней</string>
     <string name="widget_battery_desc">Заряд телефона</string>
+    <string name="app_name">SyncTheme</string>
+    <string name="weather_my_location">Моё местоположение</string>
 </resources>

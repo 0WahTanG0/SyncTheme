@@ -39,7 +39,7 @@ object Presets {
             id = "forest", name = "Лес",
             background = Background(BackgroundType.LINEAR, listOf(c(0xFF0B3D2E), c(0xFF134E3A), c(0xFF5A8F29)), angle = 200f),
             textColor = c(0xFFF1F8E9), accentColor = c(0xFFC5E1A5),
-            clockStyle = ClockStyle.ANALOG, fontWeight = FontWeight.LIGHT,
+            clockStyle = ClockStyle.ANALOG, fontWeight = FontWeight.LIGHT, dialStyle = DialStyle.NUMBERS,
         ),
         Theme(
             id = "sakura", name = "Сакура",
@@ -51,7 +51,7 @@ object Presets {
             id = "mono", name = "Минимал",
             background = Background(BackgroundType.SOLID, listOf(c(0xFF000000))),
             textColor = c(0xFFFFFFFF), accentColor = c(0xFFFF3B30),
-            clockStyle = ClockStyle.ANALOG, fontWeight = FontWeight.THIN, dim = 0f,
+            clockStyle = ClockStyle.ANALOG, fontWeight = FontWeight.THIN, dialStyle = DialStyle.MINIMAL, dim = 0f,
         ),
     )
 

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Белая подложка: цвет и прозрачность задаются из кода (setColorFilter / setImageAlpha). -->
+<!-- Сгенерировано scripts/gen_widget_resources.py — не редактировать вручную. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#FFFFFFFF" />
     <corners android:radius="28dp" />
-    <size android:width="96dp" android:height="96dp" />
 </shape>

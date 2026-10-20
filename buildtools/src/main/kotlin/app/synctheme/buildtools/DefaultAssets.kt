@@ -50,9 +50,10 @@ object DefaultAssets {
         val img = BufferedImage(size, size, BufferedImage.TYPE_INT_RGB)
         val g = img.createGraphics()
         g.smooth()
-        paintBackground(g, theme.background, size)
-        if (theme.dim > 0f) {
-            g.color = Color(0f, 0f, 0f, theme.dim.coerceIn(0f, 0.8f))
+        paintBackground(g, theme.watchBackground(), size)
+        val dim = theme.watchSettings().dim
+        if (dim > 0f) {
+            g.color = Color(0f, 0f, 0f, dim.coerceIn(0f, 0.8f))
             g.fillRect(0, 0, size, size)
         }
         g.dispose()
@@ -114,8 +115,9 @@ object DefaultAssets {
         g.smooth()
         g.clip = Ellipse2D.Float(0f, 0f, size.toFloat(), size.toFloat())
         g.drawImage(bg, 0, 0, null)
-        g.color = Color(theme.textColor, true)
-        if (theme.clockStyle == ClockStyle.ANALOG) {
+        val w = theme.watchSettings()
+        g.color = Color(w.textColor, true)
+        if (w.clockStyle == ClockStyle.ANALOG) {
             g.stroke = BasicStroke(14f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
             g.drawLine(225, 225, 225 - 70, 225 - 80)
             g.stroke = BasicStroke(9f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)

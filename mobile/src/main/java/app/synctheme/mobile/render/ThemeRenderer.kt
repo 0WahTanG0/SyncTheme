@@ -16,8 +16,10 @@ import android.graphics.Typeface
 import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
+import app.synctheme.core.DialStyle
 import app.synctheme.core.FontWeight
 import app.synctheme.core.Theme
+import app.synctheme.core.WatchSettings
 import app.synctheme.core.WatchFaceXml
 import app.synctheme.mobile.data.ThemeRepository
 import java.text.SimpleDateFormat
@@ -43,29 +45,39 @@ object ThemeRenderer {
         Triple(0.35f, 0.95f, 0.8f),
     )
 
-    private var photoCache: Pair<String, Bitmap>? = null
+    /** Небольшой кэш фото: фоны рабочего стола, экрана блокировки и часов могут быть разными. */
+    private val photoCache = LinkedHashMap<String, Bitmap>()
 
     @Synchronized
-    private fun photo(context: Context, theme: Theme): Bitmap? {
-        val name = theme.background.photoFile?.takeIf { theme.background.type == BackgroundType.PHOTO } ?: return null
-        photoCache?.let { (cached, bmp) -> if (cached == name) return bmp }
+    private fun photo(context: Context, bg: Background): Bitmap? {
+        val name = bg.photoFile?.takeIf { bg.type == BackgroundType.PHOTO } ?: return null
+        photoCache[name]?.let { return it }
         val file = ThemeRepository.get(context).photoFile(name)
         val bmp = BitmapFactory.decodeFile(file.absolutePath) ?: return null
-        photoCache = name to bmp
+        photoCache[name] = bmp
+        while (photoCache.size > 3) photoCache.remove(photoCache.keys.first())
         return bmp
     }
 
-    fun background(context: Context, theme: Theme, width: Int, height: Int): Bitmap {
+    fun background(context: Context, bg: Background, dim: Float, width: Int, height: Int): Bitmap {
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        drawBackground(canvas, theme.background, width.toFloat(), height.toFloat(), photo(context, theme))
-        if (theme.dim > 0f) canvas.drawColor(Colors.withAlpha(Color.BLACK, theme.dim.coerceIn(0f, 0.8f)))
+        drawBackground(canvas, bg, width.toFloat(), height.toFloat(), photo(context, bg))
+        if (dim > 0f) canvas.drawColor(Colors.withAlpha(Color.BLACK, dim.coerceIn(0f, 0.8f)))
         return bmp
     }
+
+    /** Обои рабочего стола. */
+    fun background(context: Context, theme: Theme, width: Int, height: Int): Bitmap =
+        background(context, theme.background, theme.dim, width, height)
+
+    /** Обои экрана блокировки (свои или как на рабочем столе). */
+    fun lockBackground(context: Context, theme: Theme, width: Int, height: Int): Bitmap =
+        background(context, theme.lockScreenBackground(), theme.lockScreenDim(), width, height)
 
     /** Квадратный фон для часов (фото обрезается по центру). */
     fun watchBackground(context: Context, theme: Theme): Bitmap =
-        background(context, theme, WatchFaceXml.SIZE, WatchFaceXml.SIZE)
+        background(context, theme.watchBackground(), theme.watchSettings().dim, WatchFaceXml.SIZE, WatchFaceXml.SIZE)
 
     private fun drawBackground(canvas: Canvas, bg: Background, w: Float, h: Float, photo: Bitmap?) {
         val colors = bg.colors.ifEmpty { listOf(Color.BLACK) }
@@ -124,7 +136,7 @@ object ThemeRenderer {
 
     // ---------- Превью циферблата (приближение того, что нарисует Wear OS) ----------
 
-    fun watchPreview(theme: Theme, watchBg: Bitmap, sizePx: Int): Bitmap {
+    fun watchPreview(theme: WatchSettings, watchBg: Bitmap, sizePx: Int): Bitmap {
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.scale(sizePx / WATCH, sizePx / WATCH)
@@ -166,8 +178,8 @@ object ThemeRenderer {
     private fun dateString(pattern: String) =
         SimpleDateFormat(pattern, Locale.getDefault()).format(Date()).replace(".", "")
 
-    private fun secondsRing(canvas: Canvas, theme: Theme) {
-        val oval = RectF(8f, 8f, WATCH - 8f, WATCH - 8f)
+    private fun secondsRing(canvas: Canvas, theme: WatchSettings) {
+        val oval = RectF(4.5f, 4.5f, WATCH - 4.5f, WATCH - 4.5f)
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 4f }
         p.color = Colors.withAlpha(theme.accentColor, 0x40 / 255f)
         canvas.drawArc(oval, 0f, 360f, false, p)
@@ -177,7 +189,7 @@ object ThemeRenderer {
         canvas.drawArc(oval, -90f, 32 * 6f, false, p)
     }
 
-    private fun complication(canvas: Canvas, theme: Theme, cx: Float, cy: Float, r: Float, ranged: Boolean, label: String) {
+    private fun complication(canvas: Canvas, theme: WatchSettings, cx: Float, cy: Float, r: Float, ranged: Boolean, label: String) {
         val disc = if (WatchFaceXml.isLight(theme.textColor)) 0x66000000 else 0x80FFFFFF.toInt()
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = disc }
         canvas.drawCircle(cx, cy, r, p)
@@ -194,50 +206,81 @@ object ThemeRenderer {
         canvas.textCentered(label, cx, cy, textPaint(theme.textColor, r * 0.46f, Typeface.create(Typeface.DEFAULT, 600, false)))
     }
 
-    private fun drawDigital(canvas: Canvas, theme: Theme) {
+    private fun drawDigital(canvas: Canvas, theme: WatchSettings) {
         if (theme.showSeconds) secondsRing(canvas, theme)
         if (theme.showDate) canvas.textCentered(dateString("EEE d MMM"), 225f, 114f, textPaint(theme.accentColor, 30f))
         canvas.textCentered("10:08", 225f, 215f, textPaint(theme.textColor, 132f, typeface(theme.fontWeight)))
-        if (theme.watchComplications) {
+        if (theme.complications) {
             complication(canvas, theme, 165f, 348f, 48f, true, "80%")
             complication(canvas, theme, 285f, 348f, 48f, false, "6241")
         }
     }
 
-    private fun drawStacked(canvas: Canvas, theme: Theme) {
+    private fun drawStacked(canvas: Canvas, theme: WatchSettings) {
         if (theme.showSeconds) secondsRing(canvas, theme)
         val tf = typeface(theme.fontWeight)
         canvas.textCentered("10", 225f, 143f, textPaint(theme.textColor, 168f, tf))
         canvas.textCentered("08", 225f, 297f, textPaint(theme.accentColor, 168f, tf))
         if (theme.showDate) canvas.textCentered(dateString("EEE d"), 225f, 400f, textPaint(theme.textColor, 26f))
-        if (theme.watchComplications) {
+        if (theme.complications) {
             complication(canvas, theme, 63f, 222f, 45f, true, "80%")
             complication(canvas, theme, 387f, 222f, 45f, false, "6241")
         }
     }
 
-    private fun drawAnalog(canvas: Canvas, theme: Theme) {
+    private fun drawAnalog(canvas: Canvas, theme: WatchSettings) {
         val c = WATCH / 2
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
+        val edge = 222f
         for (i in 0 until 60) {
             val main = i % 15 == 0
             val hour = i % 5 == 0
-            val len = if (main) 30f else if (hour) 20f else 7f
-            p.strokeWidth = if (main) 8f else if (hour) 5f else 2f
-            p.color = when {
-                main -> theme.accentColor
-                hour -> Colors.withAlpha(theme.textColor, 0.9f)
-                else -> Colors.withAlpha(theme.textColor, 0.5f)
+            val len: Float
+            when (theme.dialStyle) {
+                DialStyle.TICKS -> {
+                    len = if (main) 30f else if (hour) 20f else 7f
+                    p.strokeWidth = if (main) 8f else if (hour) 5f else 2f
+                    p.color = when {
+                        main -> theme.accentColor
+                        hour -> Colors.withAlpha(theme.textColor, 0.9f)
+                        else -> Colors.withAlpha(theme.textColor, 0.5f)
+                    }
+                }
+                DialStyle.NUMBERS -> {
+                    len = if (hour) 8f else 5f
+                    p.strokeWidth = if (hour) 3f else 1.5f
+                    p.color = Colors.withAlpha(theme.textColor, if (hour) 0.7f else 0.4f)
+                }
+                DialStyle.MINIMAL -> {
+                    if (!main) continue
+                    len = 26f
+                    p.strokeWidth = 7f
+                    p.color = theme.accentColor
+                }
             }
             val a = Math.toRadians(i * 6.0)
             val s = sin(a).toFloat()
             val co = cos(a).toFloat()
-            canvas.drawLine(c + 214 * s, c - 214 * co, c + (214 - len) * s, c - (214 - len) * co, p)
+            canvas.drawLine(c + edge * s, c - edge * co, c + (edge - len) * s, c - (edge - len) * co, p)
         }
+        if (theme.dialStyle == DialStyle.NUMBERS) {
+            val tf = typeface(theme.fontWeight)
+            for (h in 1..12) {
+                val a = Math.toRadians(h * 30.0)
+                val col = if (h % 3 == 0) theme.accentColor else theme.textColor
+                canvas.textCentered("$h", c + 186 * sin(a).toFloat(), c - 186 * cos(a).toFloat(), textPaint(col, 38f, tf))
+            }
+            if (theme.showDate) canvas.textCentered(dateString("EEE d"), 225f, 132f, textPaint(theme.accentColor, 26f))
+            if (theme.complications) {
+                complication(canvas, theme, 158f, 304f, 42f, true, "80%")
+                complication(canvas, theme, 292f, 304f, 42f, false, "6241")
+            }
+        } else {
         if (theme.showDate) canvas.textCentered(dateString("EEE d"), 328f, 225f, textPaint(theme.accentColor, 26f))
-        if (theme.watchComplications) {
+        if (theme.complications) {
             complication(canvas, theme, 110f, 225f, 48f, true, "80%")
             complication(canvas, theme, 225f, 340f, 48f, false, "6241")
+        }
         }
         fun hand(angle: Float, length: Float, tail: Float, width: Float, color: Int, offset: Float) {
             val a = Math.toRadians(angle.toDouble())
@@ -304,6 +347,20 @@ object ThemeRenderer {
         val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Color.WHITE, 0.85f) }
         val dockY = height - 14 * u
         for (i in 0 until 4) canvas.drawCircle((20 + i * 20) * u, dockY, 6.5f * u, icon)
+        return bmp
+    }
+
+    /** Превью экрана блокировки: обои блокировки и крупные часы One UI сверху. */
+    fun lockPreview(context: Context, theme: Theme, width: Int, height: Int): Bitmap {
+        val bmp = lockBackground(context, theme, width, height)
+        val canvas = Canvas(bmp)
+        val u = width / 100f
+        val white = Color.WHITE
+        canvas.textCentered(dateString("EEE, d MMMM"), 50 * u, 22 * u, textPaint(white, 4.6f * u))
+        canvas.textCentered("10:08", 50 * u, 40 * u, textPaint(white, 26 * u, typeface(FontWeight.LIGHT)))
+        val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Color.BLACK, 0.35f) }
+        canvas.drawCircle(14 * u, height - 14 * u, 7 * u, icon)
+        canvas.drawCircle(86 * u, height - 14 * u, 7 * u, icon)
         return bmp
     }
 }

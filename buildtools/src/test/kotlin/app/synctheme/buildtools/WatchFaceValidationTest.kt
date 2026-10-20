@@ -1,6 +1,9 @@
 package app.synctheme.buildtools
 
+import app.synctheme.core.Background
+import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
+import app.synctheme.core.DialStyle
 import app.synctheme.core.Presets
 import app.synctheme.core.SyncProtocol
 import app.synctheme.core.Theme
@@ -39,6 +42,20 @@ class WatchFaceValidationTest {
                 add(Presets.default.copy(id = "min-$style", clockStyle = style, showSeconds = false, showDate = false, watchComplications = false))
                 add(Presets.default.copy(id = "max-$style", clockStyle = style, showSeconds = true, showDate = true, watchComplications = true))
             }
+            for (dial in DialStyle.entries) {
+                add(Presets.default.copy(id = "dial-$dial", clockStyle = ClockStyle.ANALOG, dialStyle = dial))
+                add(Presets.default.copy(id = "dial-min-$dial", clockStyle = ClockStyle.ANALOG, dialStyle = dial, showDate = false, watchComplications = false, showSeconds = false))
+            }
+            // Отдельные настройки часов: свой фон, цвета и стиль.
+            add(
+                Presets.all[1].copy(
+                    id = "watch-override",
+                    watch = Presets.all[1].followPhone().copy(
+                        background = Background(BackgroundType.SOLID, listOf(0xFF101010.toInt())),
+                        clockStyle = ClockStyle.ANALOG, dialStyle = DialStyle.NUMBERS, accentColor = 0xFF00E5FF.toInt(),
+                    ),
+                )
+            )
         }
         val failures = themes.mapNotNull { theme ->
             val apk = build(theme)

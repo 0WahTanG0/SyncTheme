@@ -21,6 +21,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        val initialTab = runCatching { Tab.valueOf(intent.getStringExtra(EXTRA_TAB).orEmpty()) }.getOrDefault(Tab.THEME)
         setContent {
             var showInstaller by rememberSaveable { mutableStateOf(false) }
             val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -32,7 +33,7 @@ class MainActivity : ComponentActivity() {
                 BackHandler(onBack = close)
                 WatchInstallerScreen(installerViewModel, theme.accentColor, onClose = close)
             } else {
-                SyncThemeScreen(viewModel, onOpenInstaller = { showInstaller = true })
+                SyncThemeScreen(viewModel, initialTab, onOpenInstaller = { showInstaller = true })
             }
         }
     }
@@ -40,5 +41,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.refreshWatch()
+        viewModel.refreshPlaced()
+    }
+
+    companion object {
+        const val EXTRA_TAB = "tab"
+        val TAB_WIDGETS = Tab.WIDGETS.name
     }
 }

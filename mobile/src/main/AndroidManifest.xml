@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Обновление приложения «поверх» прямо из него самого. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Погода по местоположению и события в виджете календаря (по желанию пользователя). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
 
     <application
         android:name=".mobile.SyncThemeApp"
@@ -51,6 +54,10 @@
             android:name=".mobile.update.UpdateReceiver"
             android:exported="false" />
 
+
+
+
+
         <receiver
             android:name=".mobile.widget.ClockWidget"
             android:exported="false"
@@ -61,18 +68,6 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_clock_info" />
-        </receiver>
-
-        <receiver
-            android:name=".mobile.widget.AnalogClockWidget"
-            android:exported="false"
-            android:label="@string/widget_analog">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_analog_info" />
         </receiver>
 
         <receiver
@@ -88,6 +83,30 @@
         </receiver>
 
         <receiver
+            android:name=".mobile.widget.CalendarWidget"
+            android:exported="false"
+            android:label="@string/widget_calendar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_calendar_info" />
+        </receiver>
+
+        <receiver
+            android:name=".mobile.widget.WeatherWidget"
+            android:exported="false"
+            android:label="@string/widget_weather">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_weather_info" />
+        </receiver>
+
+        <receiver
             android:name=".mobile.widget.BatteryWidget"
             android:exported="false"
             android:label="@string/widget_battery">
@@ -98,5 +117,16 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_battery_info" />
         </receiver>
+
+        <!-- Настройка виджета: при добавлении, по «Настройки» у виджета и из приложения. -->
+        <activity
+            android:name=".mobile.widget.WidgetConfigActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=".widgetconfig">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

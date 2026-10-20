@@ -14,11 +14,23 @@ object WallpaperApplier {
         // Рисуем в портретной ориентации в реальном разрешении экрана (на S25+ до 1440x3120).
         val w = minOf(bounds.width(), bounds.height())
         val h = maxOf(bounds.width(), bounds.height())
-        val bitmap = ThemeRenderer.background(context, theme, w, h)
-        var flags = 0
-        if (home) flags = flags or WallpaperManager.FLAG_SYSTEM
-        if (lock) flags = flags or WallpaperManager.FLAG_LOCK
-        WallpaperManager.getInstance(context).setBitmap(bitmap, null, true, flags)
-        bitmap.recycle()
+        val manager = WallpaperManager.getInstance(context)
+        val sameOnLock = theme.lockBackground == null && theme.lockDim == null
+        if (home && lock && sameOnLock) {
+            val bitmap = ThemeRenderer.background(context, theme, w, h)
+            manager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
+            bitmap.recycle()
+            return@withContext
+        }
+        if (home) {
+            val bitmap = ThemeRenderer.background(context, theme, w, h)
+            manager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
+            bitmap.recycle()
+        }
+        if (lock) {
+            val bitmap = ThemeRenderer.lockBackground(context, theme, w, h)
+            manager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
+            bitmap.recycle()
+        }
     }
 }

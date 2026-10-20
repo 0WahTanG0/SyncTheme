@@ -1,6 +1,8 @@
 package app.synctheme.mobile.ui
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
@@ -12,8 +14,10 @@ import androidx.palette.graphics.Palette
 import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.Theme
+import app.synctheme.core.WatchSettings
 import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.install.WatchAppInstaller
 import app.synctheme.mobile.update.UpdateInfo
 import app.synctheme.mobile.update.Updater
@@ -23,7 +27,9 @@ import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.watch.WatchFaceBuilder
 import app.synctheme.mobile.watch.WatchStatusStore
 import app.synctheme.mobile.watch.WatchSync
-import app.synctheme.mobile.widget.ThemedWidget
+import app.synctheme.mobile.widget.PlacedWidget
+import app.synctheme.mobile.widget.WidgetKind
+import app.synctheme.mobile.widget.WidgetScheduler
 import app.synctheme.mobile.widget.WidgetUpdater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -49,6 +55,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val phonePreview: StateFlow<ImageBitmap?> = _phonePreview.asStateFlow()
     private val _watchPreview = MutableStateFlow<ImageBitmap?>(null)
     val watchPreview: StateFlow<ImageBitmap?> = _watchPreview.asStateFlow()
+    private val _lockPreview = MutableStateFlow<ImageBitmap?>(null)
+    val lockPreview: StateFlow<ImageBitmap?> = _lockPreview.asStateFlow()
+
+    /** Виджеты SyncTheme, которые сейчас стоят на экранах. */
+    private val _placed = MutableStateFlow<List<PlacedWidget>>(emptyList())
+    val placed: StateFlow<List<PlacedWidget>> = _placed.asStateFlow()
 
     private val _connection = MutableStateFlow(WatchConnection())
     val connection: StateFlow<WatchConnection> = _connection.asStateFlow()
@@ -78,6 +90,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         refreshWatch()
         WidgetUpdater.updateAll(app)
+        WidgetScheduler.ensure(app)
+        refreshPlaced()
+        refreshAutoWeather()
         viewModelScope.launch(Dispatchers.IO) {
             _bundledWatchVersion.value = runCatching { WatchAppInstaller(app).bundledVersion }.getOrDefault(0L)
         }
@@ -137,10 +152,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private suspend fun renderPreviews(t: Theme) = withContext(Dispatchers.Default) {
         val phone = ThemeRenderer.phonePreview(app, t, 540, 1170)
+        val lock = ThemeRenderer.lockPreview(app, t, 540, 1170)
         val bg = ThemeRenderer.watchBackground(app, t)
-        val watch = ThemeRenderer.watchPreview(t, bg, 450)
+        val watch = ThemeRenderer.watchPreview(t.watchSettings(), bg, 450)
         bg.recycle()
         _phonePreview.value = phone.asImageBitmap()
+        _lockPreview.value = lock.asImageBitmap()
         _watchPreview.value = watch.asImageBitmap()
     }
 
@@ -153,8 +170,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         ApplyTargets.save(app, t)
     }
 
-    /** Фото из галереи: делаем фоном и подбираем цвета по палитре снимка. */
-    fun pickPhoto(uri: Uri) = viewModelScope.launch {
+    /**
+     * Фото из галереи. Для рабочего стола под снимок подстраиваются цвета цифр, акцента,
+     * виджетов и циферблата; для экрана блокировки и часов меняется только их фон.
+     */
+    fun pickPhoto(uri: Uri, target: BgTarget = BgTarget.HOME) = viewModelScope.launch {
         _busy.value = "Загружаю фото…"
         try {
             val name = repo.importPhoto(uri)
@@ -170,19 +190,55 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 palette.darkMutedSwatch?.rgb ?: dominant, palette.vibrantSwatch?.rgb, palette.lightMutedSwatch?.rgb,
             ).distinct()
             val light = ColorUtils.calculateLuminance(dominant) > 0.6
-            update {
-                it.copy(
-                    background = Background(BackgroundType.PHOTO, colors, photoFile = name),
-                    accentColor = accent,
-                    textColor = if (light) 0xFF1A1A1A.toInt() else 0xFFFFFFFF.toInt(),
-                    dim = if (light) 0f else maxOf(it.dim, 0.15f),
-                )
+            val photo = Background(BackgroundType.PHOTO, colors, photoFile = name)
+            when (target) {
+                BgTarget.HOME -> update {
+                    it.copy(
+                        background = photo,
+                        accentColor = accent,
+                        textColor = if (light) 0xFF1A1A1A.toInt() else 0xFFFFFFFF.toInt(),
+                        dim = if (light) 0f else maxOf(it.dim, 0.15f),
+                    )
+                }
+                BgTarget.LOCK -> update { it.copy(lockBackground = photo, lockDim = it.lockDim ?: it.dim) }
+                BgTarget.WATCH -> updateWatch { it.copy(background = photo) }
             }
         } catch (e: Exception) {
             _messages.tryEmit("Не удалось открыть фото: ${e.message}")
         } finally {
             _busy.value = null
         }
+    }
+
+    /** Отдельные обои экрана блокировки (по умолчанию — как на рабочем столе). */
+    fun setLockSeparate(enabled: Boolean) = update {
+        if (enabled) it.copy(lockBackground = it.background, lockDim = it.dim) else it.copy(lockBackground = null, lockDim = null)
+    }
+
+    /** Отдельные настройки циферблата (по умолчанию часы повторяют телефон). */
+    fun setWatchSeparate(enabled: Boolean) = update { it.copy(watch = if (enabled) it.followPhone() else null) }
+
+    fun updateWatch(transform: (WatchSettings) -> WatchSettings) = update { it.copy(watch = transform(it.watchSettings())) }
+
+    fun refreshPlaced() {
+        _placed.value = WidgetUpdater.placed(app)
+    }
+
+    /** Погода «по местоположению»: координаты обновляем, пока приложение открыто. */
+    private fun refreshAutoWeather() = viewModelScope.launch {
+        val weather = WeatherRepository(app)
+        val place = weather.place ?: return@launch
+        if (place.auto && app.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            weather.locate()?.let { weather.place = it }
+        }
+        runCatching { weather.refresh() }.onSuccess { WidgetUpdater.update(app, WidgetKind.WEATHER) }
+    }
+
+    /** Прозрачность подложки: по умолчанию для новых виджетов и сразу для всех размещённых. */
+    fun setOpacityForAll(opacity: Float) {
+        update { it.copy(widgetOpacity = opacity) }
+        WidgetUpdater.setOpacityForAll(app, opacity)
+        refreshPlaced()
     }
 
     fun saveCurrent() {
@@ -253,10 +309,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Добавляет виджет на рабочий стол сразу в цветах текущей темы. */
-    fun pinWidget(cls: Class<out ThemedWidget>) {
+    /** Добавляет виджет на рабочий стол; после добавления откроется его настройка. */
+    fun pinWidget(kind: WidgetKind) {
         repo.setApplied(theme.value)
         WidgetUpdater.updateAll(app)
-        if (!WidgetUpdater.requestPin(app, cls)) {
+        if (!WidgetUpdater.requestPin(app, kind)) {
             _messages.tryEmit("Добавьте вручную: долгое нажатие на рабочий стол → Виджеты → SyncTheme")
         }
     }

@@ -43,12 +43,19 @@ object WatchStatusStore {
         return flow.asStateFlow()
     }
 
-    fun onReport(context: Context, json: String) {
+    fun onReport(context: Context, json: String, nodeId: String) {
         val now = System.currentTimeMillis()
         flow.value = parse(json, now)
-        context.getSharedPreferences("watch_status", Context.MODE_PRIVATE).edit()
-            .putString("json", json).putLong("at", now).apply()
+        val prefs = context.getSharedPreferences("watch_status", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("json", json).putLong("at", now)
+            .putStringSet("app_nodes", knownAppNodes(context) + nodeId)
+            .apply()
     }
+
+    /** Часы, от которых уже приходили отчёты приложения SyncTheme. */
+    fun knownAppNodes(context: Context): Set<String> =
+        context.getSharedPreferences("watch_status", Context.MODE_PRIVATE).getStringSet("app_nodes", emptySet()).orEmpty()
 
     fun markPending(theme: String) {
         flow.value = flow.value.copy(state = "SENT", theme = theme, message = "", receivedAt = System.currentTimeMillis())
@@ -65,6 +72,6 @@ object WatchStatusStore {
 
 class WatchStatusService : WearableListenerService() {
     override fun onMessageReceived(event: MessageEvent) {
-        WatchStatusStore.onReport(applicationContext, String(event.data))
+        WatchStatusStore.onReport(applicationContext, String(event.data), event.sourceNodeId)
     }
 }

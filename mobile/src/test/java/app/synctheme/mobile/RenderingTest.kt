@@ -13,10 +13,14 @@ import app.synctheme.core.Presets
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.watch.WatchFaceBuilder
-import app.synctheme.mobile.widget.AnalogClockWidget
-import app.synctheme.mobile.widget.BatteryWidget
-import app.synctheme.mobile.widget.ClockWidget
-import app.synctheme.mobile.widget.DateWidget
+import app.synctheme.core.FontWeight
+import app.synctheme.mobile.data.WeatherRepository
+import app.synctheme.mobile.widget.WidgetAlign
+import app.synctheme.mobile.widget.WidgetConfig
+import app.synctheme.mobile.widget.WidgetKind
+import app.synctheme.mobile.widget.WidgetRenderer
+import app.synctheme.mobile.widget.WidgetShape
+import app.synctheme.mobile.widget.previewSize
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
@@ -41,29 +45,41 @@ class RenderingTest {
         for (theme in Presets.all) {
             ThemeRenderer.phonePreview(context, theme, 540, 1170).save("${theme.id}_phone.png")
             val bg = ThemeRenderer.watchBackground(context, theme)
-            ThemeRenderer.watchPreview(theme, bg, 450).save("${theme.id}_watch.png")
+            ThemeRenderer.watchPreview(theme.watchSettings(), bg, 450).save("${theme.id}_watch.png")
+            ThemeRenderer.lockPreview(context, theme, 540, 1170).save("${theme.id}_lock.png")
         }
     }
 
     @Test
-    fun widgetsInflateWithThemeColors() {
-        for (theme in listOf(Presets.all[0], Presets.all[1].copy(clockStyle = ClockStyle.STACKED), Presets.all[6])) {
-            ThemeRepository.get(context).setApplied(theme)
-            val widgets = listOf(
-                Triple("clock", ClockWidget().build(context, theme), 360 to 180),
-                Triple("analog", AnalogClockWidget().build(context, theme), 170 to 170),
-                Triple("date", DateWidget().build(context, theme), 170 to 170),
-                Triple("battery", BatteryWidget().build(context, theme), 170 to 170),
-            )
-            for ((name, views, size) in widgets) {
-                // apply() вызывает методы через рефлексию — упадёт, если метод нельзя вызывать из RemoteViews.
-                val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-                val host = FrameLayout(activity)
-                activity.setContentView(host)
-                val view = views.apply(activity, host)
-                host.addView(view)
-                shadowOf(Looper.getMainLooper()).idle()
-                render(view, size.first, size.second).save("widget_${theme.id}_$name.png")
+    fun allWidgetStylesRender() {
+        val weather = WeatherRepository.parseForecast(
+            javaClass.classLoader!!.getResource("forecast.json")!!.readText(), "Москва", System.currentTimeMillis(),
+        )
+        val themes = listOf(Presets.all[0], Presets.all[6])
+        for (theme in themes) {
+            for (kind in WidgetKind.entries) {
+                for (style in kind.styles) {
+                    val variants = buildList {
+                        add("" to WidgetConfig(style = style.id, opacity = 0.45f))
+                        if (theme == themes.first()) {
+                            add("_left" to WidgetConfig(style = style.id, align = WidgetAlign.START, shape = WidgetShape.SOFT, opacity = 0.8f,
+                                showSeconds = false, colorIcons = false, fontWeight = FontWeight.BOLD))
+                        }
+                    }
+                    for ((suffix, config) in variants) {
+                        // apply() вызывает методы через рефлексию — упадёт, если метод нельзя вызывать из RemoteViews.
+                        val views = WidgetRenderer.build(context, kind, config, theme, weather)
+                        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+                        val host = FrameLayout(activity)
+                        activity.setContentView(host)
+                        val view = views.apply(activity, host)
+                        host.addView(view)
+                        shadowOf(Looper.getMainLooper()).idle()
+                        val (w, h) = previewSize(kind, style.id)
+                        render(view, w.value.toInt(), h.value.toInt())
+                            .save("w_${theme.id}_${kind.name.lowercase()}_${style.id}$suffix.png")
+                    }
+                }
             }
         }
     }

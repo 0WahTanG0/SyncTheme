@@ -32,11 +32,14 @@ class WatchSync(private val context: Context) {
         val nodes = Wearable.getNodeClient(context).connectedNodes.await()
         val capable = Wearable.getCapabilityClient(context)
             .getCapability(SyncProtocol.CAPABILITY_WATCH, CapabilityClient.FILTER_REACHABLE).await().nodes
+        // Запасной признак: часы уже присылали отчёт — значит, приложение на них есть.
+        val reported = WatchStatusStore.knownAppNodes(context)
+        val withApp = (capable + nodes.filter { it.id in reported }).distinctBy { it.id }
         WatchConnection(
             checked = true,
             connectedNames = nodes.map { it.displayName },
-            appNodeIds = capable.map { it.id },
-            appNodeName = capable.firstOrNull()?.displayName,
+            appNodeIds = withApp.map { it.id },
+            appNodeName = withApp.firstOrNull()?.displayName,
         )
     }.getOrElse { WatchConnection(checked = true, error = it.message ?: it.toString()) }
 

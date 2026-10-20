@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widget_resources.py — не редактировать вручную. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_round"
+        android:tint="#D91B1B24" />
+
+    <AnalogClock
+        android:id="@+id/analog"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp"
+        android:dial="@drawable/dial_minimal"
+        android:hand_hour="@drawable/analog_hour"
+        android:hand_minute="@drawable/analog_minute" />
+</FrameLayout>

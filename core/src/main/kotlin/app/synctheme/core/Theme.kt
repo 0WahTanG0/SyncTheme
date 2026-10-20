@@ -15,6 +15,10 @@ enum class ClockStyle { DIGITAL, STACKED, ANALOG }
 @Serializable
 enum class FontWeight { THIN, LIGHT, REGULAR, BOLD }
 
+/** Оформление стрелочного циферблата часов. */
+@Serializable
+enum class DialStyle { TICKS, NUMBERS, MINIMAL }
+
 @Serializable
 data class Background(
     val type: BackgroundType = BackgroundType.AURORA,
@@ -26,6 +30,25 @@ data class Background(
     val photoFile: String? = null,
 )
 
+/**
+ * Настройки циферблата Galaxy Watch. Если в теме их нет (`Theme.watch == null`),
+ * часы повторяют стиль телефона — см. [Theme.watchSettings].
+ */
+@Serializable
+data class WatchSettings(
+    /** null — тот же фон, что на рабочем столе телефона. */
+    val background: Background? = null,
+    val textColor: Int,
+    val accentColor: Int,
+    val clockStyle: ClockStyle,
+    val fontWeight: FontWeight,
+    val dialStyle: DialStyle = DialStyle.TICKS,
+    val showSeconds: Boolean = true,
+    val showDate: Boolean = true,
+    val dim: Float = 0.15f,
+    val complications: Boolean = true,
+)
+
 @Serializable
 data class Theme(
     val id: String,
@@ -35,15 +58,44 @@ data class Theme(
     val accentColor: Int = 0xFFFFB86C.toInt(),
     val clockStyle: ClockStyle = ClockStyle.DIGITAL,
     val fontWeight: FontWeight = FontWeight.LIGHT,
+    val dialStyle: DialStyle = DialStyle.TICKS,
     val showSeconds: Boolean = true,
     val showDate: Boolean = true,
     /** Затемнение фона 0..0.8 — чтобы цифры читались на ярких фото. */
     val dim: Float = 0.15f,
-    /** Непрозрачность подложки виджетов 0..1. */
+    /** Непрозрачность подложки новых виджетов 0..1. */
     val widgetOpacity: Float = 0.35f,
     /** Показывать два мини-виджета (батарея, шаги) на циферблате часов. */
     val watchComplications: Boolean = true,
+    /** Отдельные обои экрана блокировки; null — как на рабочем столе. */
+    val lockBackground: Background? = null,
+    val lockDim: Float? = null,
+    /** Отдельные настройки часов; null — часы подстраиваются под телефон. */
+    val watch: WatchSettings? = null,
 ) {
+    /** Итоговые настройки циферблата: свои или повторяющие телефон. */
+    fun watchSettings(): WatchSettings = watch ?: followPhone()
+
+    /** Настройки часов, повторяющие телефон, — с них начинается «отдельная настройка». */
+    fun followPhone(): WatchSettings = WatchSettings(
+        background = null,
+        textColor = textColor,
+        accentColor = accentColor,
+        clockStyle = clockStyle,
+        fontWeight = fontWeight,
+        dialStyle = dialStyle,
+        showSeconds = showSeconds,
+        showDate = showDate,
+        dim = dim,
+        complications = watchComplications,
+    )
+
+    fun watchBackground(): Background = watchSettings().background ?: background
+
+    fun lockScreenBackground(): Background = lockBackground ?: background
+
+    fun lockScreenDim(): Float = lockDim ?: dim
+
     fun toJson(): String = json.encodeToString(serializer(), this)
 
     companion object {

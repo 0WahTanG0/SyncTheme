@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widget_resources.py — не редактировать вручную. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="48" android:viewportHeight="48">
+    <path android:fillColor="#FFFFC83D" android:pathData="M15.00,24.00a9,9 0 1,0 18,0a9,9 0 1,0 -18,0z" />
+    <path android:pathData="M36.00,24.00L40.00,24.00" android:strokeWidth="3" android:strokeColor="#FFFFC83D" android:strokeLineCap="round" />
+    <path android:pathData="M32.49,32.49L35.31,35.31" android:strokeWidth="3" android:strokeColor="#FFFFC83D" android:strokeLineCap="round" />
+    <path android:pathData="M24.00,36.00L24.00,40.00" android:strokeWidth="3" android:strokeColor="#FFFFC83D" android:strokeLineCap="round" />
+    <path android:pathData="M15.51,32.49L12.69,35.31" android:strokeWidth="3" android:strokeColor="#FFFFC83D" android:strokeLineCap="round" />
+    <path android:pathData="M12.00,24.00L8.00,24.00" android:strokeWidth="3" android:strokeColor="#FFFFC83D" android:strokeLineCap="round" />
+    <path android:pathData="M15.51,15.51L12.69,12.69" android:strokeWidth="3" android:strokeColor="#FFFFC83D" android:strokeLineCap="round" />
+    <path android:pathData="M24.00,12.00L24.00,8.00" android:strokeWidth="3" android:strokeColor="#FFFFC83D" android:strokeLineCap="round" />
+    <path android:pathData="M32.49,15.51L35.31,12.69" android:strokeWidth="3" android:strokeColor="#FFFFC83D" android:strokeLineCap="round" />
+</vector>
