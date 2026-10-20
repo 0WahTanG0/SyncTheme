@@ -40,6 +40,7 @@ class ScreenshotTest {
         name: String,
         tab: Tab,
         appearance: Appearance = Appearance(AppStyle.GLASS, AppMode.DARK),
+        lock: Boolean = false,
         prepare: (Application) -> Unit = {},
     ) {
         val app = ApplicationProvider.getApplicationContext<Application>()
@@ -47,17 +48,18 @@ class ScreenshotTest {
         ThemeRepository.get(app).setDraft(Presets.all[0])
         prepare(app)
         val vm = MainViewModel(app)
+        if (tab == Tab.WATCH) vm.wantStylePreviews()
         // Превью рендерятся в фоне после debounce на главном потоке — даём им время.
         repeat(6) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500))
             Thread.sleep(500)
         }
         val out = File(System.getProperty("previewsDir")!!, "$name.png")
-        captureRoboImage(out.absolutePath) { SyncThemeScreen(vm, tab) }
+        captureRoboImage(out.absolutePath) { SyncThemeScreen(vm, tab, initialLock = lock) }
     }
 
     @Test
-    fun mainScreen() = screen("screen_main", Tab.THEME)
+    fun mainScreen() = screen("screen_main", Tab.WALLPAPER)
 
     @Test
     fun widgetsTab() = screen("screen_widgets", Tab.WIDGETS)
@@ -69,12 +71,12 @@ class ScreenshotTest {
     @Test
     fun appearances() {
         for (style in AppStyle.entries) for (mode in listOf(AppMode.DARK, AppMode.LIGHT)) {
-            screen("look_${style.name.lowercase()}_${mode.name.lowercase()}", Tab.THEME, Appearance(style, mode))
+            screen("look_${style.name.lowercase()}_${mode.name.lowercase()}", Tab.WALLPAPER, Appearance(style, mode))
         }
     }
 
     @Test
-    fun lockTab() = screen("screen_lock", Tab.LOCK, Appearance(AppStyle.NEON, AppMode.DARK)) { app ->
+    fun lockTab() = screen("screen_lock", Tab.WALLPAPER, Appearance(AppStyle.NEON, AppMode.DARK), lock = true) { app ->
         val t = Presets.all[0]
         ThemeRepository.get(app).setDraft(t.copy(lockBackground = Presets.all[1].background, lockDim = 0.2f))
     }

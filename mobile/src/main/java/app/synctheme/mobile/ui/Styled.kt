@@ -291,27 +291,42 @@ fun StyledTabs(titles: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
     }
 }
 
-/** Главная кнопка («Применить»). */
+/** Главная кнопка («Применить»). quiet — спокойный вид, когда применять нечего. */
 @Composable
-fun AccentButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun AccentButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    quiet: Boolean = false,
+    height: Dp? = null,
+) {
     val look = LocalLook.current
     val shape = when (look.style) {
         AppStyle.GLASS -> CircleShape
         AppStyle.EXPRESSIVE -> RoundedCornerShape(22.dp)
         AppStyle.NEON -> RoundedCornerShape(14.dp)
     }
-    val height = if (look.style == AppStyle.EXPRESSIVE) 58.dp else 52.dp
+    val h = height ?: if (look.style == AppStyle.EXPRESSIVE) 58.dp else 52.dp
+    val loud = enabled && !quiet
     Box(
-        modifier.fillMaxWidth().height(height)
-            .then(if (enabled) Modifier.glow(look, shape, 18.dp) else Modifier)
+        modifier.fillMaxWidth().height(h)
+            .then(if (loud) Modifier.glow(look, shape, 18.dp) else Modifier)
             .clip(shape)
-            .background(if (enabled) look.primary else look.muted.copy(alpha = 0.3f))
+            .background(
+                when {
+                    !enabled -> look.muted.copy(alpha = 0.3f)
+                    quiet -> look.control
+                    else -> look.primary
+                },
+            )
+            .border(1.dp, if (quiet && enabled) look.primary.copy(alpha = 0.5f) else Color.Transparent, shape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             if (look.style == AppStyle.NEON) text.uppercase() else text,
-            color = look.onPrimary,
+            color = if (quiet && enabled) look.text else look.onPrimary,
             fontFamily = look.headings,
             fontWeight = if (look.style == AppStyle.GLASS) FontWeight.ExtraBold else FontWeight.Black,
             fontSize = if (look.style == AppStyle.NEON) 15.sp else 16.sp,

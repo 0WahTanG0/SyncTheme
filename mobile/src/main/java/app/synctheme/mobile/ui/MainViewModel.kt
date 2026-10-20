@@ -13,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.palette.graphics.Palette
 import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
+import app.synctheme.core.ClockStyle
 import app.synctheme.core.Theme
 import app.synctheme.core.WatchSettings
 import app.synctheme.mobile.data.ApplyTargets
@@ -41,6 +42,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,6 +54,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val sync = WatchSync(app)
 
     val theme: StateFlow<Theme> = repo.draft
+    /** Тема, которая сейчас стоит на устройствах: если отличается от черновика — есть что применить. */
+    val applied: StateFlow<Theme> = repo.applied
     val saved: StateFlow<List<Theme>> = repo.saved
     val watchReport = WatchStatusStore.observe(app)
 
@@ -85,10 +91,37 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages
 
+    /** Миниатюры всех стилей циферблата в цветах текущей темы — для галереи на вкладке «Часы». */
+    private val _stylePreviews = MutableStateFlow<Map<ClockStyle, ImageBitmap>>(emptyMap())
+    val stylePreviews: StateFlow<Map<ClockStyle, ImageBitmap>> = _stylePreviews.asStateFlow()
+    private val stylesWanted = MutableStateFlow(false)
+
+    /** Галерею открыли — начинаем рисовать миниатюры (и обновлять их при смене цветов). */
+    fun wantStylePreviews() {
+        stylesWanted.value = true
+    }
+
+    private suspend fun renderStylePreviews(t: Theme) = withContext(Dispatchers.Default) {
+        _stylePreviews.value = ClockStyle.entries.associateWith { style ->
+            val variant = t.watch?.let { t.copy(watch = it.copy(clockStyle = style)) } ?: t.copy(clockStyle = style)
+            val bg = ThemeRenderer.watchBackground(app, variant)
+            ThemeRenderer.watchPreview(app, variant.watchSettings(), bg, 200).asImageBitmap()
+        }
+    }
+
     init {
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
             theme.debounce(60).collectLatest { renderPreviews(it) }
+        }
+        // Стиль на миниатюры не влияет — перерисовываем, только когда меняется остальное.
+        @OptIn(FlowPreview::class)
+        viewModelScope.launch {
+            combine(theme, stylesWanted) { t, wanted -> if (wanted) t.watchSettings().copy(clockStyle = ClockStyle.DIGITAL) to t else null }
+                .filterNotNull()
+                .distinctUntilChanged { a, b -> a.first == b.first }
+                .debounce(300)
+                .collectLatest { (_, t) -> renderStylePreviews(t) }
         }
         refreshWatch()
         WidgetUpdater.updateAll(app)

@@ -54,13 +54,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.widget.WidgetConfigActivity
 
-enum class Tab(val title: String) { THEME("Тема"), WIDGETS("Виджеты"), LOCK("Блокировка"), WATCH("Часы"), MORE("Ещё") }
+/** Разделы нижнего меню. */
+enum class Tab(val title: String) { WALLPAPER("Обои"), WIDGETS("Виджеты"), WATCH("Часы"), MORE("Ещё") }
 
 /** Чей фон редактируется. */
 enum class BgTarget { HOME, LOCK, WATCH }
@@ -75,8 +79,14 @@ sealed interface ColorTarget {
 }
 
 @Composable
-fun SyncThemeScreen(vm: MainViewModel, initialTab: Tab = Tab.THEME, onOpenInstaller: () -> Unit = {}) {
+fun SyncThemeScreen(
+    vm: MainViewModel,
+    initialTab: Tab = Tab.WALLPAPER,
+    onOpenInstaller: () -> Unit = {},
+    initialLock: Boolean = false,
+) {
     val theme by vm.theme.collectAsStateWithLifecycle()
+    val applied by vm.applied.collectAsStateWithLifecycle()
     val phonePreview by vm.phonePreview.collectAsStateWithLifecycle()
     val lockPreview by vm.lockPreview.collectAsStateWithLifecycle()
     val watchPreview by vm.watchPreview.collectAsStateWithLifecycle()
@@ -89,6 +99,8 @@ fun SyncThemeScreen(vm: MainViewModel, initialTab: Tab = Tab.THEME, onOpenInstal
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
 
     var tab by rememberSaveable { mutableStateOf(initialTab) }
+    /** На вкладке «Обои»: редактируется рабочий стол или экран блокировки. */
+    var lock by rememberSaveable { mutableStateOf(initialLock) }
     var photoTarget by remember { mutableStateOf(BgTarget.HOME) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { vm.pickPhoto(it, photoTarget) }
@@ -112,36 +124,47 @@ fun SyncThemeScreen(vm: MainViewModel, initialTab: Tab = Tab.THEME, onOpenInstal
     }
     var colorTarget by remember { mutableStateOf<ColorTarget?>(null) }
 
+    val density = LocalDensity.current
+    val header = remember(density) { CollapsingHeader(with(density) { 224.dp.toPx() }, with(density) { 96.dp.toPx() }) }
+    LaunchedEffect(tab) { header.expand() }
+
     AppTheme(theme.accentColor) {
         AppBackdrop {
             Scaffold(
                 containerColor = Color.Transparent,
                 snackbarHost = { SnackbarHost(snackbar) },
-                bottomBar = { ApplyBar(targets, busy, vm::setTargets, vm::apply) },
+                bottomBar = {
+                    Column {
+                        if (tab != Tab.MORE) ApplyStrip(targets, busy, theme != applied, vm::setTargets, vm::apply)
+                        BottomNav(tab) { tab = it }
+                    }
+                },
             ) { padding ->
                 Column(
-                    Modifier.fillMaxSize()
+                    Modifier.fillMaxSize().nestedScroll(header)
                         .padding(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
                 ) {
-                    // Шапка, превью и вкладки закреплены — настройки прокручиваются под ними, изменения видны сразу.
+                    // Шапка и превью закреплены; превью сжимается при прокрутке, но изменения видны сразу.
                     Column(Modifier.padding(horizontal = 16.dp)) {
                         Header(connection, onOpenInstaller)
-                        PreviewRow(if (tab == Tab.LOCK) lockPreview else phonePreview, watchPreview)
-                        StyledTabs(Tab.entries.map { it.title }, tab.ordinal, { tab = Tab.entries[it] }, Modifier.padding(bottom = 4.dp))
+                        if (tab != Tab.MORE) {
+                            val height = with(density) { header.height.toDp() }
+                            when (tab) {
+                                Tab.WATCH -> PreviewRow(null, watchPreview, height)
+                                Tab.WALLPAPER -> PreviewRow(if (lock) lockPreview else phonePreview, watchPreview, height)
+                                else -> PreviewRow(phonePreview, watchPreview, height)
+                            }
+                        }
                     }
                     LazyColumn(
                         modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
                     ) {
                         when (tab) {
-                            Tab.THEME -> themeTab(theme, actions) { colorTarget = it }
+                            Tab.WALLPAPER -> wallpaperTab(theme, actions, lock, { lock = it }) { colorTarget = it }
                             Tab.WIDGETS -> widgetsTab(theme, actions)
-                            Tab.LOCK -> lockTab(theme, actions) { colorTarget = it }
                             Tab.WATCH -> watchTab(theme, actions) { colorTarget = it }
-                            Tab.MORE -> {
-                                item { AppearanceSection(theme.accentColor) }
-                                item { UpdateSection(vm) }
-                            }
+                            Tab.MORE -> moreTab(theme, actions) { UpdateSection(vm) }
                         }
                     }
                 }
@@ -189,6 +212,19 @@ class ScreenActions(
     val openInstaller: () -> Unit,
     val configureWidget: (Int) -> Unit,
 ) {
+    /** Меняет циферблат: в отдельных настройках часов или, если их нет, в общей теме. */
+    fun editWatchFace(transform: (app.synctheme.core.WatchSettings) -> app.synctheme.core.WatchSettings) {
+        val t = vm.theme.value
+        if (t.watch != null) return vm.updateWatch(transform)
+        val n = transform(t.followPhone())
+        vm.update {
+            it.copy(
+                clockStyle = n.clockStyle, dialStyle = n.dialStyle, fontWeight = n.fontWeight, showSeconds = n.showSeconds,
+                showDate = n.showDate, watchComplications = n.complications, digitFont = n.digitFont,
+            )
+        }
+    }
+
     fun editBackground(target: BgTarget, transform: (app.synctheme.core.Background) -> app.synctheme.core.Background) {
         when (target) {
             BgTarget.HOME -> vm.update { it.copy(background = transform(it.background)) }
@@ -216,7 +252,7 @@ private fun Header(connection: WatchConnection, onOpenInstaller: () -> Unit) {
 }
 
 @Composable
-private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?) {
+private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, height: Dp, showPhone: Boolean = true) {
     val look = LocalLook.current
     val outer = when (look.style) {
         AppStyle.GLASS -> RoundedCornerShape(28.dp)
@@ -228,8 +264,11 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?) {
         AppStyle.EXPRESSIVE -> Color.Transparent
         AppStyle.NEON -> look.accent.copy(alpha = 0.4f)
     }
+    // Без телефона (вкладка «Часы») часы крупнее.
+    val watchOnly = phone == null || !showPhone
+    val inner = height - 20.dp
     Box(
-        Modifier.fillMaxWidth().padding(vertical = 8.dp)
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).height(height)
             .glow(look, outer, 10.dp, 0.5f)
             .clip(outer).background(look.card).border(1.dp, frameBorder, outer),
     ) {
@@ -237,27 +276,29 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?) {
             Box(Modifier.align(Alignment.TopEnd).offset(x = 40.dp, y = (-50).dp).size(190.dp).clip(FlowerShape).background(look.highlight))
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            modifier = Modifier.fillMaxSize().padding(vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val phoneShape = RoundedCornerShape(if (look.style == AppStyle.EXPRESSIVE) 24.dp else 20.dp)
-            val phoneBorder = when (look.style) {
-                AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White
-                AppStyle.EXPRESSIVE -> Color.Transparent
-                AppStyle.NEON -> look.accent
-            }
-            Box(
-                Modifier
-                    .height(204.dp)
-                    .aspectRatio(540f / 1170f)
-                    .glow(look, phoneShape, 12.dp, 0.7f)
-                    .clip(phoneShape)
-                    .background(Color.Black)
-                    .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, phoneBorder, phoneShape),
-            ) {
-                phone?.let {
-                    Image(it, contentDescription = "Превью телефона", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (!watchOnly) {
+                val phoneShape = RoundedCornerShape(if (look.style == AppStyle.EXPRESSIVE) 24.dp else 20.dp)
+                val phoneBorder = when (look.style) {
+                    AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White
+                    AppStyle.EXPRESSIVE -> Color.Transparent
+                    AppStyle.NEON -> look.accent
+                }
+                Box(
+                    Modifier
+                        .height(inner)
+                        .aspectRatio(540f / 1170f)
+                        .glow(look, phoneShape, 12.dp, 0.7f)
+                        .clip(phoneShape)
+                        .background(Color.Black)
+                        .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, phoneBorder, phoneShape),
+                ) {
+                    phone?.let {
+                        Image(it, contentDescription = "Превью телефона", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    }
                 }
             }
             // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
@@ -266,9 +307,10 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?) {
                 AppStyle.EXPRESSIVE -> look.text
                 AppStyle.NEON -> Color(0xFF0C0C12)
             }
+            val watchSize = if (watchOnly) inner else minOf(inner * 0.68f, 140.dp)
             Box(
                 Modifier
-                    .size(140.dp)
+                    .size(watchSize)
                     .glow(look, CircleShape, 12.dp, 0.8f)
                     .clip(CircleShape)
                     .background(bezel)
@@ -286,32 +328,7 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?) {
 }
 
 @Composable
-private fun ApplyBar(targets: ApplyTargets, busy: String?, onTargets: (ApplyTargets) -> Unit, onApply: () -> Unit) {
-    val look = LocalLook.current
-    Column(
-        Modifier.fillMaxWidth().background(look.bar)
-            .drawBehind { if (look.cardBorder.alpha > 0f) drawLine(look.cardBorder, Offset.Zero, Offset(size.width, 0f), 1.dp.toPx()) }
-            .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        ChipRow {
-            FilterChip(targets.homeWallpaper, { onTargets(targets.copy(homeWallpaper = !targets.homeWallpaper)) }, label = { Text("Рабочий стол") })
-            FilterChip(targets.lockWallpaper, { onTargets(targets.copy(lockWallpaper = !targets.lockWallpaper)) }, label = { Text("Экран блокировки") })
-            FilterChip(targets.widgets, { onTargets(targets.copy(widgets = !targets.widgets)) }, label = { Text("Виджеты") })
-            FilterChip(targets.watch, { onTargets(targets.copy(watch = !targets.watch)) }, label = { Text("Часы") })
-        }
-        Spacer(Modifier.height(8.dp))
-        if (busy != null) {
-            Text(busy, style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(6.dp))
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-        } else {
-            AccentButton("Применить", onApply, enabled = targets.any)
-        }
-    }
-}
-
-@Composable
-private fun UpdateSection(vm: MainViewModel) {
+fun UpdateSection(vm: MainViewModel) {
     val state by vm.update.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var editRepo by remember { mutableStateOf(false) }

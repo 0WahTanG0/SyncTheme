@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        val initialTab = runCatching { Tab.valueOf(intent.getStringExtra(EXTRA_TAB).orEmpty()) }.getOrDefault(Tab.THEME)
+        val initialTab = runCatching { Tab.valueOf(intent.getStringExtra(EXTRA_TAB).orEmpty()) }.getOrDefault(Tab.WALLPAPER)
         setContent {
             var showInstaller by rememberSaveable { mutableStateOf(false) }
             val theme by viewModel.theme.collectAsStateWithLifecycle()

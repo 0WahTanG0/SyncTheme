@@ -1,6 +1,27 @@
 package app.synctheme.mobile.ui
 
 import androidx.compose.foundation.background
+import app.synctheme.mobile.widget.WidgetSize
+import app.synctheme.mobile.widget.WidgetPreview
+import app.synctheme.mobile.widget.WidgetConfig
+import app.synctheme.mobile.render.ThemeRenderer
+import app.synctheme.mobile.data.WeatherRepository
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,51 +82,154 @@ import app.synctheme.mobile.watch.WatchReport
 import app.synctheme.mobile.widget.WidgetKind
 import app.synctheme.core.FontWeight as ClockFont
 
-// ---------------------------------------------------------------- Тема
+// ---------------------------------------------------------------- Обои
 
-fun LazyListScope.themeTab(theme: Theme, a: ScreenActions, editColor: (ColorTarget) -> Unit) {
+fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, onLock: (Boolean) -> Unit, editColor: (ColorTarget) -> Unit) {
     item {
-        val saved by a.vm.saved.collectAsStateWithLifecycle()
-        PresetRow(Presets.all, saved, theme.id, a.vm::select, a.vm::delete)
-    }
-    item {
-        Section("Обои из галереи", highlight = true) {
-            Text(
-                "Выберите фото — цифры, акцент, виджеты и циферблат часов подстроятся под его цвета.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Button(onClick = { a.pickPhoto(BgTarget.HOME) }, modifier = Modifier.fillMaxWidth()) { Text("Выбрать фото") }
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            listOf(false to "Рабочий стол", true to "Экран блокировки").forEachIndexed { i, (isLock, label) ->
+                SegmentedButton(
+                    selected = lock == isLock, onClick = { onLock(isLock) },
+                    shape = SegmentedButtonDefaults.itemShape(i, 2), label = { Text(label, maxLines = 1) },
+                )
+            }
         }
     }
-    item { NameSection(theme, onRename = { name -> a.vm.update { it.copy(name = name) } }, onSave = a.vm::saveCurrent) }
-    item {
-        BackgroundEditor(
-            title = "Фон рабочего стола", bg = theme.background, dim = theme.dim,
-            onBg = { b -> a.vm.update { it.copy(background = b) } },
-            onDim = { d -> a.vm.update { it.copy(dim = d) } },
-            onPickPhoto = { a.pickPhoto(BgTarget.HOME) },
-            onEditColor = { editColor(ColorTarget.Gradient(BgTarget.HOME, it)) },
-        )
+    if (!lock) {
+        item {
+            val saved by a.vm.saved.collectAsStateWithLifecycle()
+            ThemeStrip(saved, theme.id, onPhoto = { a.pickPhoto(BgTarget.HOME) }, onSelect = a.vm::select, onDelete = a.vm::delete)
+        }
+        item {
+            ExpandableSection("Фон", summary = backgroundSummary(theme.background, theme.dim)) {
+                BackgroundEditorContent(
+                    bg = theme.background, dim = theme.dim,
+                    onBg = { b -> a.vm.update { it.copy(background = b) } },
+                    onDim = { d -> a.vm.update { it.copy(dim = d) } },
+                    onPickPhoto = { a.pickPhoto(BgTarget.HOME) },
+                    onEditColor = { editColor(ColorTarget.Gradient(BgTarget.HOME, it)) },
+                )
+            }
+        }
+        item {
+            ExpandableSection("Цвета", summary = "Цифры и акцент — для виджетов и часов", trailing = { SwatchPair(theme.textColor, theme.accentColor) }) {
+                ColorsContent(
+                    theme.textColor, theme.accentColor, theme.background.colors,
+                    onEditText = { editColor(ColorTarget.Text) },
+                    onEditAccent = { editColor(ColorTarget.Accent) },
+                    onAccent = { c -> a.vm.update { it.copy(accentColor = c) } },
+                )
+            }
+        }
+        item {
+            ExpandableSection("Сохранить как свою тему", summary = theme.name) {
+                NameRow(theme, onRename = { name -> a.vm.update { it.copy(name = name) } }, onSave = a.vm::saveCurrent)
+            }
+        }
+    } else {
+        item {
+            Section("Экран блокировки") {
+                SwitchRow("Свои обои для экрана блокировки", theme.lockBackground != null) { a.vm.setLockSeparate(it) }
+                Text(
+                    if (theme.lockBackground == null) "Сейчас на экране блокировки те же обои, что и на рабочем столе."
+                    else "Обои ниже ставятся только на экран блокировки.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (theme.lockBackground != null) {
+            item {
+                ExpandableSection("Фон блокировки", summary = backgroundSummary(theme.lockScreenBackground(), theme.lockScreenDim()), initiallyExpanded = true) {
+                    BackgroundEditorContent(
+                        bg = theme.lockScreenBackground(), dim = theme.lockScreenDim(),
+                        onBg = { b -> a.vm.update { it.copy(lockBackground = b) } },
+                        onDim = { d -> a.vm.update { it.copy(lockDim = d) } },
+                        onPickPhoto = { a.pickPhoto(BgTarget.LOCK) },
+                        onEditColor = { editColor(ColorTarget.Gradient(BgTarget.LOCK, it)) },
+                    )
+                }
+            }
+        }
+        item {
+            Text(
+                "Часы и дату на экране блокировки рисует One UI: их стиль меняется в «Настройки» → «Экран блокировки» → «Изменить». " +
+                    "Виджеты SyncTheme тоже можно поставить на экран блокировки там же.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+            )
+        }
     }
-    item {
-        ColorsSection(
-            "Цвета", theme.textColor, theme.accentColor, theme.background.colors,
-            onEditText = { editColor(ColorTarget.Text) },
-            onEditAccent = { editColor(ColorTarget.Accent) },
-            onAccent = { c -> a.vm.update { it.copy(accentColor = c) } },
-        )
+}
+
+private fun backgroundSummary(bg: Background, dim: Float): String {
+    val type = when (bg.type) {
+        BackgroundType.AURORA -> "Аврора"
+        BackgroundType.LINEAR -> "Градиент"
+        BackgroundType.RADIAL -> "Сияние"
+        BackgroundType.SOLID -> "Цвет"
+        BackgroundType.PHOTO -> "Фото"
     }
-    item {
-        ClockStyleSection(
-            title = "Циферблат часов",
-            note = if (theme.watch == null) "Так будет выглядеть циферблат Galaxy Watch." else null,
-            style = theme.clockStyle, dial = theme.dialStyle, font = theme.fontWeight,
-            seconds = theme.showSeconds, date = theme.showDate, complications = theme.watchComplications,
-            digitFont = theme.digitFont, onDigitFont = { font -> a.vm.update { it.copy(digitFont = font) } },
-            onChange = { s, d, f, sec, dt, c ->
-                a.vm.update { it.copy(clockStyle = s, dialStyle = d, fontWeight = f, showSeconds = sec, showDate = dt, watchComplications = c) }
-            },
+    val colors = if (bg.type == BackgroundType.PHOTO || bg.type == BackgroundType.SOLID) "" else " · цветов: ${bg.colors.size}"
+    return "$type$colors · затемнение ${(dim * 100).toInt()}%"
+}
+
+@Composable
+private fun SwatchPair(text: Int, accent: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+        ColorSwatch(text, size = 26.dp) {}
+        ColorSwatch(accent, size = 26.dp) {}
+    }
+}
+
+/** Лента тем: «+ Фото» из галереи, свои темы и готовые. */
+@Composable
+private fun ThemeStrip(
+    saved: List<Theme>, selectedId: String,
+    onPhoto: () -> Unit, onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit,
+) {
+    val look = LocalLook.current
+    Column(Modifier.padding(vertical = 6.dp)) {
+        Text(look.title("Темы"), style = look.sectionTitle, color = look.text)
+        Text(
+            "Нажмите тему или «Фото» — обои, виджеты и циферблат подстроятся под цвета.",
+            style = MaterialTheme.typography.bodySmall, color = look.muted,
         )
+        Spacer(Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item(key = "photo") {
+                Column(Modifier.width(76.dp).clickable(onClick = onPhoto), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(look.primary),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Default.Add, contentDescription = null, tint = look.onPrimary, modifier = Modifier.size(30.dp)) }
+                    Spacer(Modifier.height(4.dp))
+                    Text("Фото", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                }
+            }
+            items(saved, key = { "s" + it.id }) { t ->
+                Box {
+                    ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) })
+                    IconButton(
+                        onClick = { onDelete(t) },
+                        modifier = Modifier.align(Alignment.TopEnd).size(24.dp).clip(CircleShape).background(Color(0xCC000000)),
+                    ) { Icon(Icons.Default.Close, contentDescription = "Удалить", modifier = Modifier.size(14.dp), tint = Color.White) }
+                }
+            }
+            items(Presets.all, key = { it.id }) { t -> ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) }) }
+        }
+    }
+}
+
+@Composable
+private fun NameRow(theme: Theme, onRename: (String) -> Unit, onSave: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(value = theme.name, onValueChange = onRename, singleLine = true, label = { Text("Название") }, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
+        FilledTonalButton(onClick = onSave) {
+            Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Сохранить")
+        }
     }
 }
 
@@ -113,33 +237,41 @@ fun LazyListScope.themeTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
 
 fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
     item {
-        Section("Добавить виджет") {
+        val look = LocalLook.current
+        val context = LocalContext.current
+        val weather = remember { WeatherRepository(context).cached }
+        val wallpaper = remember(theme.background, theme.dim) { ThemeRenderer.background(context, theme, 360, 360).asImageBitmap() }
+        Column(Modifier.padding(vertical = 6.dp)) {
+            Text(look.title("Добавить виджет"), style = look.sectionTitle, color = look.text)
             Text(
-                "После добавления откроется настройка: стиль, подложка, цвета и что открывать по нажатию. " +
-                    "Растяните виджет на рабочем столе — он покажет больше: у погоды появятся город и прогноз, " +
-                    "у календаря — события и месяц. Изменить позже: зажмите виджет → «Настройки» или кнопка ниже.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                "Растяните виджет на рабочем столе — он покажет больше. Стиль, шрифт и цвета — в его настройке.",
+                style = MaterialTheme.typography.bodySmall, color = look.muted,
             )
-            WidgetKind.entries.forEach { kind ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.weight(1f)) {
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(WidgetKind.entries, key = { it.name }) { kind ->
+                    val shape = RoundedCornerShape(look.radius)
+                    Column(
+                        Modifier.width(186.dp).clip(shape).background(look.card).border(1.dp, look.cardBorder, shape).padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(Modifier.size(170.dp).clip(RoundedCornerShape(look.radius / 2)), contentAlignment = Alignment.Center) {
+                            Image(wallpaper, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                            WidgetPreview(kind, WidgetConfig(style = kind.defaultStyle, opacity = theme.widgetOpacity), theme, weather, WidgetSize.M)
+                        }
+                        Spacer(Modifier.height(6.dp))
                         Text(kind.title, style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            kind.description + " · стилей: ${kind.styles.size}",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text("стилей: ${kind.styles.size}", style = MaterialTheme.typography.bodySmall, color = look.muted)
+                        Spacer(Modifier.height(6.dp))
+                        FilledTonalButton(onClick = { a.vm.pinWidget(kind) }, modifier = Modifier.fillMaxWidth()) { Text("Добавить") }
                     }
-                    FilledTonalButton(onClick = { a.vm.pinWidget(kind) }) { Text("Добавить") }
                 }
             }
         }
     }
     item {
         val placed by a.vm.placed.collectAsStateWithLifecycle()
-        Section("На экране") {
-            if (placed.isEmpty()) {
-                Text("Виджетов SyncTheme пока нет.", style = MaterialTheme.typography.bodyMedium)
-            }
+        ExpandableSection("На экране", summary = if (placed.isEmpty()) "Виджетов SyncTheme пока нет" else "Виджетов: ${placed.size}", initiallyExpanded = placed.isNotEmpty()) {
             placed.forEach { w ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
@@ -157,127 +289,165 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
     }
     item {
         var opacity by remember(theme.widgetOpacity) { mutableFloatStateOf(theme.widgetOpacity) }
-        Section("Прозрачность всех виджетов") {
+        ExpandableSection("Прозрачность всех виджетов", summary = "Подложка ${(theme.widgetOpacity * 100).toInt()}%") {
             LabeledSlider("Подложка", opacity, 0f..1f, "${(opacity * 100).toInt()}%") { opacity = it }
             Button(onClick = { a.vm.setOpacityForAll(opacity) }) { Text("Применить ко всем виджетам") }
         }
     }
-    item { Section("Погода") { WeatherPlaceEditor() } }
     item {
-        Section("Экран блокировки") {
-            Text(
-                "Виджеты SyncTheme можно поставить и на экран блокировки, если это позволяет One UI: " +
-                    "«Настройки» → «Экран блокировки» → «Виджеты».",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-// ---------------------------------------------------------------- Блокировка
-
-fun LazyListScope.lockTab(theme: Theme, a: ScreenActions, editColor: (ColorTarget) -> Unit) {
-    item {
-        Section("Экран блокировки") {
-            SwitchRow("Отдельные обои для экрана блокировки", theme.lockBackground != null) { a.vm.setLockSeparate(it) }
-            Text(
-                if (theme.lockBackground == null) "Сейчас на экране блокировки те же обои, что и на рабочем столе."
-                else "Обои ниже ставятся только на экран блокировки.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-    if (theme.lockBackground != null) {
-        item {
-            BackgroundEditor(
-                title = "Фон экрана блокировки", bg = theme.lockScreenBackground(), dim = theme.lockScreenDim(),
-                onBg = { b -> a.vm.update { it.copy(lockBackground = b) } },
-                onDim = { d -> a.vm.update { it.copy(lockDim = d) } },
-                onPickPhoto = { a.pickPhoto(BgTarget.LOCK) },
-                onEditColor = { editColor(ColorTarget.Gradient(BgTarget.LOCK, it)) },
-            )
-        }
-    }
-    item {
-        Section("Часы на экране блокировки") {
-            Text(
-                "Часы и дату на экране блокировки рисует One UI. Их стиль и цвет меняются в " +
-                    "«Настройки» → «Экран блокировки» → «Изменить». SyncTheme меняет обои под ними.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        val context = LocalContext.current
+        val place = remember { WeatherRepository(context).place?.name }
+        ExpandableSection("Город для погоды", summary = place ?: "Не выбран") { WeatherPlaceEditor() }
     }
 }
 
 // ---------------------------------------------------------------- Часы
 
 fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarget) -> Unit) {
+    val w = theme.watchSettings()
     item {
         val connection by a.vm.connection.collectAsStateWithLifecycle()
         val report by a.vm.watchReport.collectAsStateWithLifecycle()
         val bundled by a.vm.bundledWatchVersion.collectAsStateWithLifecycle()
-        WatchSection(connection, report, bundled, a.vm::openOnWatch, a.vm::refreshWatch, a.openInstaller)
-    }
-    item {
-        val result by a.vm.timeCheck.collectAsStateWithLifecycle()
+        val time by a.vm.timeCheck.collectAsStateWithLifecycle()
         val checking by a.vm.timeChecking.collectAsStateWithLifecycle()
-        LaunchedEffect(Unit) { if (result == null) a.vm.checkTime() }
-        TimeSection(result, checking, a.vm::checkTime)
+        LaunchedEffect(connection.hasApp) { if (connection.hasApp && time == null) a.vm.checkTime() }
+        WatchCard(connection, report, bundled, time, checking, a.vm::openOnWatch, a.vm::refreshWatch, a.openInstaller, a.vm::checkTime)
     }
     item {
-        Section("Циферблат") {
-            SwitchRow("Настроить часы отдельно", theme.watch != null) { a.vm.setWatchSeparate(it) }
+        val previews by a.vm.stylePreviews.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { a.vm.wantStylePreviews() }
+        val look = LocalLook.current
+        Column(Modifier.padding(vertical = 6.dp)) {
+            Text(look.title("Циферблат"), style = look.sectionTitle, color = look.text)
+            Text(CLOCK_STYLE_NOTES.getValue(w.clockStyle), style = MaterialTheme.typography.bodySmall, color = look.muted)
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(CLOCK_STYLES, key = { it.first.name }) { (style, label) ->
+                    val on = style == w.clockStyle
+                    Column(
+                        Modifier.width(104.dp).clickable { a.editWatchFace { it.copy(clockStyle = style) } },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(
+                            Modifier.size(96.dp)
+                                .then(if (on) Modifier.glow(look, CircleShape, 10.dp) else Modifier)
+                                .clip(CircleShape)
+                                .background(Color.Black)
+                                .border(if (on) 3.dp else 1.dp, if (on) look.primary else look.cardBorder, CircleShape),
+                        ) {
+                            previews[style]?.let { Image(it, contentDescription = label, modifier = Modifier.fillMaxSize()) }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+    if (w.clockStyle.hasDigits) {
+        item {
+            Section("Шрифт цифр") {
+                DigitFontPicker(w.digitFont, w.clockStyle.defaultDigitFont ?: DigitFont.THIN) { font -> a.editWatchFace { it.copy(digitFont = font) } }
+            }
+        }
+    }
+    item {
+        val parts = listOfNotNull("секунды".takeIf { w.showSeconds }, "дата".takeIf { w.showDate }, "мини-виджеты".takeIf { w.complications })
+        ExpandableSection("На циферблате", summary = parts.joinToString(" · ").ifEmpty { "только время" }) {
+            if (w.clockStyle == ClockStyle.ANALOG) {
+                ChipRow {
+                    listOf(DialStyle.TICKS to "Деления", DialStyle.NUMBERS to "Цифры", DialStyle.MINIMAL to "Минимал").forEach { (d, label) ->
+                        FilterChip(w.dialStyle == d, { a.editWatchFace { it.copy(dialStyle = d) } }, label = { Text(label) })
+                    }
+                }
+            }
+            if (w.clockStyle.classic && (w.digitFont == null || w.clockStyle == ClockStyle.ANALOG)) {
+                ChipRow {
+                    listOf(ClockFont.THIN to "Тонкий", ClockFont.LIGHT to "Лёгкий", ClockFont.REGULAR to "Обычный", ClockFont.BOLD to "Жирный")
+                        .forEach { (f, label) ->
+                            FilterChip(w.fontWeight == f, { a.editWatchFace { it.copy(fontWeight = f) } }, label = { Text(label) })
+                        }
+                }
+            }
+            SwitchRow("Секунды", w.showSeconds) { v -> a.editWatchFace { it.copy(showSeconds = v) } }
+            SwitchRow("Дата", w.showDate) { v -> a.editWatchFace { it.copy(showDate = v) } }
+            SwitchRow("Мини-виджеты (батарея, шаги)", w.complications) { v -> a.editWatchFace { it.copy(complications = v) } }
+        }
+    }
+    item {
+        ExpandableSection(
+            "Фон и цвета часов",
+            summary = if (theme.watch == null) "Как у телефона" else "Свои настройки для часов",
+            trailing = { SwatchPair(w.textColor, w.accentColor) },
+        ) {
+            SwitchRow("Свои фон и цвета для часов", theme.watch != null) { a.vm.setWatchSeparate(it) }
+            val own = theme.watch
+            if (own != null) {
+                SwitchRow("Фон как на рабочем столе", own.background == null) { same ->
+                    a.vm.updateWatch { it.copy(background = if (same) null else theme.background) }
+                }
+                val ownBackground = own.background
+                if (ownBackground != null) {
+                    BackgroundEditorContent(
+                        bg = ownBackground, dim = own.dim,
+                        onBg = { b -> a.vm.updateWatch { it.copy(background = b) } },
+                        onDim = { d -> a.vm.updateWatch { it.copy(dim = d) } },
+                        onPickPhoto = { a.pickPhoto(BgTarget.WATCH) },
+                        onEditColor = { editColor(ColorTarget.Gradient(BgTarget.WATCH, it)) },
+                    )
+                } else {
+                    LabeledSlider("Затемнение", own.dim, 0f..0.8f, "${(own.dim * 100).toInt()}%") { d -> a.vm.updateWatch { it.copy(dim = d) } }
+                }
+                ColorsContent(
+                    own.textColor, own.accentColor, theme.watchBackground().colors,
+                    onEditText = { editColor(ColorTarget.WatchText) },
+                    onEditAccent = { editColor(ColorTarget.WatchAccent) },
+                    onAccent = { c -> a.vm.updateWatch { it.copy(accentColor = c) } },
+                )
+            } else {
+                Text(
+                    "Циферблат берёт фон и цвета из темы телефона. Включите переключатель, чтобы настроить часы отдельно.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Ещё
+
+fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable () -> Unit) {
+    item { AppearanceSection(theme.accentColor) }
+    item { updates() }
+    item {
+        Section("Часы") {
             Text(
-                if (theme.watch == null) "Сейчас циферблат повторяет стиль телефона: фон, цвета и часы со вкладки «Тема»."
-                else "Настройки ниже действуют только на часы.",
+                "Установить SyncTheme на новые часы, переустановить или обновить его.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            OutlinedButton(onClick = a.openInstaller) { Text("Установка на часы") }
         }
     }
-    val w = theme.watch ?: return
     item {
-        Section("Фон циферблата") {
-            SwitchRow("Как на рабочем столе телефона", w.background == null) { same ->
-                a.vm.updateWatch { it.copy(background = if (same) null else theme.background) }
-            }
+        val context = LocalContext.current
+        var licenses by remember { mutableStateOf<String?>(null) }
+        Section("О приложении") {
+            Text("SyncTheme — обои, виджеты и циферблат Galaxy Watch в одном стиле.", style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = {
+                licenses = listOf("licenses/fonts.txt", "licenses/fonts-digits.txt").joinToString("\n\n") { path ->
+                    runCatching { context.assets.open(path).bufferedReader().readText() }.getOrDefault("")
+                }
+            }) { Text("Лицензии шрифтов") }
         }
-    }
-    val ownBackground = w.background
-    if (ownBackground != null) {
-        item {
-            BackgroundEditor(
-                title = "Свой фон часов", bg = ownBackground, dim = w.dim,
-                onBg = { b -> a.vm.updateWatch { it.copy(background = b) } },
-                onDim = { d -> a.vm.updateWatch { it.copy(dim = d) } },
-                onPickPhoto = { a.pickPhoto(BgTarget.WATCH) },
-                onEditColor = { editColor(ColorTarget.Gradient(BgTarget.WATCH, it)) },
+        licenses?.let { text ->
+            AlertDialog(
+                onDismissRequest = { licenses = null },
+                confirmButton = { TextButton(onClick = { licenses = null }) { Text("Закрыть") } },
+                title = { Text("Лицензии шрифтов") },
+                text = { Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) },
             )
         }
-    } else {
-        item {
-            Section("Затемнение фона") {
-                LabeledSlider("Затемнение", w.dim, 0f..0.8f, "${(w.dim * 100).toInt()}%") { d -> a.vm.updateWatch { it.copy(dim = d) } }
-            }
-        }
-    }
-    item {
-        ColorsSection(
-            "Цвета циферблата", w.textColor, w.accentColor, theme.watchBackground().colors,
-            onEditText = { editColor(ColorTarget.WatchText) },
-            onEditAccent = { editColor(ColorTarget.WatchAccent) },
-            onAccent = { c -> a.vm.updateWatch { it.copy(accentColor = c) } },
-        )
-    }
-    item {
-        ClockStyleSection(
-            title = "Часы на циферблате", note = null,
-            style = w.clockStyle, dial = w.dialStyle, font = w.fontWeight,
-            seconds = w.showSeconds, date = w.showDate, complications = w.complications,
-            digitFont = w.digitFont, onDigitFont = { font -> a.vm.updateWatch { it.copy(digitFont = font) } },
-            onChange = { s, d, f, sec, dt, c ->
-                a.vm.updateWatch { it.copy(clockStyle = s, dialStyle = d, fontWeight = f, showSeconds = sec, showDate = dt, complications = c) }
-            },
-        )
     }
 }
 
@@ -291,57 +461,9 @@ fun ChipRow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     ) { content() }
 }
 
-@Composable
-private fun PresetRow(
-    presets: List<Theme>, saved: List<Theme>, selectedId: String,
-    onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit,
-) {
-    Column(Modifier.padding(vertical = 6.dp)) {
-        val look = LocalLook.current
-        Text(look.title("Готовые темы"), style = look.sectionTitle, color = look.text)
-        Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(presets, key = { it.id }) { t -> ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) }) }
-        }
-        if (saved.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text("Мои темы", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(saved, key = { it.id }) { t ->
-                    Box {
-                        ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) })
-                        IconButton(
-                            onClick = { onDelete(t) },
-                            modifier = Modifier.align(Alignment.TopEnd).size(24.dp)
-                                .clip(CircleShape).background(Color(0xCC000000)),
-                        ) { Icon(Icons.Default.Close, contentDescription = "Удалить", modifier = Modifier.size(14.dp)) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NameSection(theme: Theme, onRename: (String) -> Unit, onSave: () -> Unit) {
-    Section("Название") {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = theme.name, onValueChange = onRename, singleLine = true, modifier = Modifier.weight(1f))
-            Spacer(Modifier.width(8.dp))
-            FilledTonalButton(onClick = onSave) {
-                Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Сохранить")
-            }
-        }
-    }
-}
-
 /** Редактор фона: тип, цвета градиента, направление, фото и затемнение. */
 @Composable
-private fun BackgroundEditor(
-    title: String,
+private fun BackgroundEditorContent(
     bg: Background,
     dim: Float,
     onBg: (Background) -> Unit,
@@ -349,7 +471,7 @@ private fun BackgroundEditor(
     onPickPhoto: () -> Unit,
     onEditColor: (Int) -> Unit,
 ) {
-    Section(title) {
+    run {
         ChipRow {
             listOf(
                 BackgroundType.AURORA to "Аврора", BackgroundType.LINEAR to "Градиент",
@@ -384,11 +506,11 @@ private fun BackgroundEditor(
 }
 
 @Composable
-private fun ColorsSection(
-    title: String, text: Int, accent: Int, bgColors: List<Int>,
+private fun ColorsContent(
+    text: Int, accent: Int, bgColors: List<Int>,
     onEditText: () -> Unit, onEditAccent: () -> Unit, onAccent: (Int) -> Unit,
 ) {
-    Section(title) {
+    run {
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 ColorSwatch(text, size = 48.dp, onClick = onEditText)
@@ -432,152 +554,93 @@ private val CLOCK_STYLE_NOTES = mapOf(
     ClockStyle.ANALOG to "Стрелки с делениями, цифрами или в минимальном виде.",
 )
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Карточка часов: связь, установка и обновление приложения, точность времени — коротко,
+ * подробности по кнопке.
+ */
 @Composable
-private fun ClockStyleSection(
-    title: String,
-    note: String?,
-    style: ClockStyle,
-    dial: DialStyle,
-    font: ClockFont,
-    seconds: Boolean,
-    date: Boolean,
-    complications: Boolean,
-    digitFont: DigitFont?,
-    onDigitFont: (DigitFont?) -> Unit,
-    onChange: (ClockStyle, DialStyle, ClockFont, Boolean, Boolean, Boolean) -> Unit,
-) {
-    Section(title) {
-        note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CLOCK_STYLES.forEach { (s, label) ->
-                FilterChip(style == s, { onChange(s, dial, font, seconds, date, complications) }, label = { Text(label) })
-            }
-        }
-        Text(
-            CLOCK_STYLE_NOTES.getValue(style),
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (style == ClockStyle.ANALOG) {
-            ChipRow {
-                listOf(DialStyle.TICKS to "Деления", DialStyle.NUMBERS to "Цифры", DialStyle.MINIMAL to "Минимал")
-                    .forEach { (d, label) ->
-                        FilterChip(dial == d, { onChange(style, d, font, seconds, date, complications) }, label = { Text(label) })
-                    }
-            }
-        }
-        if (style.hasDigits) {
-            Text("Шрифт цифр", style = MaterialTheme.typography.titleSmall)
-            DigitFontPicker(digitFont, style.defaultDigitFont ?: DigitFont.THIN, onDigitFont)
-        }
-        if (style.classic && (digitFont == null || style == ClockStyle.ANALOG)) {
-            ChipRow {
-                listOf(ClockFont.THIN to "Тонкий", ClockFont.LIGHT to "Лёгкий", ClockFont.REGULAR to "Обычный", ClockFont.BOLD to "Жирный")
-                    .forEach { (f, label) ->
-                        FilterChip(font == f, { onChange(style, dial, f, seconds, date, complications) }, label = { Text(label) })
-                    }
-            }
-        }
-        SwitchRow("Секунды", seconds) { onChange(style, dial, font, it, date, complications) }
-        SwitchRow("Дата", date) { onChange(style, dial, font, seconds, it, complications) }
-        SwitchRow("Мини-виджеты на часах (батарея, шаги)", complications) { onChange(style, dial, font, seconds, date, it) }
-    }
-}
-
-/** Сверка времени: часы с телефоном, телефон — с интернетом, и что делать, если расходится. */
-@Composable
-private fun TimeSection(result: TimeCheckResult?, checking: Boolean, onCheck: () -> Unit) {
-    Section("Точное время") {
-        val muted = MaterialTheme.colorScheme.onSurfaceVariant
-        when {
-            checking -> Text("Сверяю время часов с телефоном и интернетом…", style = MaterialTheme.typography.bodyMedium)
-            result == null -> Text("Сверим время часов с телефоном и с точным временем из интернета.", style = MaterialTheme.typography.bodyMedium)
-            else -> {
-                val watch = result.watchMs
-                val watchLine = when {
-                    result.watchSilent -> "Часы не ответили: на них старая версия SyncTheme или они не на связи."
-                    watch == null -> "Часы не подключены."
-                    kotlin.math.abs(watch) < TimeCheck.NOTICEABLE_MS -> "Часы: совпадают с телефоном (±${TimeCheck.seconds(result.watchErrorMs)})."
-                    watch > 0 -> "Часы спешат на ${TimeCheck.seconds(watch)} относительно телефона."
-                    else -> "Часы отстают на ${TimeCheck.seconds(watch)} от телефона."
-                }
-                val phone = result.phoneMs
-                val phoneLine = when {
-                    phone == null -> "Точное время из интернета узнать не удалось."
-                    kotlin.math.abs(phone) < TimeCheck.NOTICEABLE_MS -> "Телефон: время точное."
-                    phone > 0 -> "Телефон спешит на ${TimeCheck.seconds(phone)}."
-                    else -> "Телефон отстаёт на ${TimeCheck.seconds(phone)}."
-                }
-                Text(watchLine, style = MaterialTheme.typography.bodyMedium)
-                Text(phoneLine, style = MaterialTheme.typography.bodyMedium)
-                if (watch != null && kotlin.math.abs(watch) >= TimeCheck.NOTICEABLE_MS) {
-                    Text(
-                        "Циферблат показывает время часов, а его ставит система. На часах: «Настройки» → «Общие» → " +
-                            "«Дата и время» → включите «Автоматически» (в SyncTheme на часах есть кнопка «Настройки времени»). " +
-                            "Затем переподключите часы: выключите и включите Bluetooth на телефоне.",
-                        style = MaterialTheme.typography.bodySmall, color = muted,
-                    )
-                }
-                if (phone != null && kotlin.math.abs(phone) >= TimeCheck.NOTICEABLE_MS) {
-                    Text(
-                        "Часы берут время с телефона. На телефоне: «Настройки» → «Общее управление» → «Дата и время» → " +
-                            "включите «Автоматические дата и время».",
-                        style = MaterialTheme.typography.bodySmall, color = muted,
-                    )
-                }
-                if (result.watchSilent) {
-                    Text(
-                        "Проверка времени появилась в SyncTheme для часов 1.3 — обновите приложение на часах кнопкой выше.",
-                        style = MaterialTheme.typography.bodySmall, color = muted,
-                    )
-                }
-            }
-        }
-        OutlinedButton(onClick = onCheck, enabled = !checking) { Text("Проверить время") }
-    }
-}
-
-@Composable
-private fun WatchSection(
+private fun WatchCard(
     connection: WatchConnection,
     report: WatchReport,
     bundledVersion: Long,
+    time: TimeCheckResult?,
+    checking: Boolean,
     onOpen: () -> Unit,
     onRefresh: () -> Unit,
     onInstall: () -> Unit,
+    onCheckTime: () -> Unit,
 ) {
+    var details by rememberSaveable { mutableStateOf(false) }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Section("Galaxy Watch") {
         val info = when {
             !connection.checked -> "Проверяю подключение…"
             connection.error != null -> "Сервисы Wear OS недоступны: ${connection.error}"
-            !connection.hasWatch -> "Часы не подключены. Проверьте Bluetooth и приложение Galaxy Wearable."
-            !connection.hasApp -> "На часах ${connection.connectedNames.joinToString()} ещё нет SyncTheme — установите его отсюда."
+            !connection.hasWatch -> "Часы не подключены. Проверьте Bluetooth и Galaxy Wearable."
+            !connection.hasApp -> "На часах ${connection.connectedNames.joinToString()} ещё нет SyncTheme."
             else -> "${connection.appNodeName}: циферблат обновится по кнопке «Применить»."
         }
         Text(info, style = MaterialTheme.typography.bodyMedium)
         val status = if (report.state == "SENT") "Отправлено «${report.theme}», ждём ответ часов…" else report.text
-        if (status.isNotBlank()) {
-            Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-        }
+        if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         val updateAvailable = connection.hasApp && report.appVersion in 1 until bundledVersion
-        if (updateAvailable) {
-            Text("Доступна новая версия приложения для часов.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-        }
         if (!connection.hasApp || updateAvailable) {
             Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
                 Text(if (updateAvailable) "Обновить SyncTheme на часах" else "Установить SyncTheme на часы")
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton(onClick = onOpen, enabled = connection.hasApp) { Text("Открыть на часах") }
-            OutlinedButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Обновить")
-            }
-        }
         if (connection.hasApp) {
-            TextButton(onClick = onInstall) { Text("Подключить другие часы / переустановить") }
+            val (line, warn) = timeLine(time, checking)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(line, style = MaterialTheme.typography.bodyMedium, color = if (warn) MaterialTheme.colorScheme.error else LocalLook.current.text, modifier = Modifier.weight(1f))
+                if (warn || time?.watchSilent == true) TextButton(onClick = { details = !details }) { Text(if (details) "Скрыть" else "Как исправить") }
+            }
+            if (details && time != null) TimeAdvice(time, muted)
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilledTonalButton(onClick = onOpen, enabled = connection.hasApp) { Text("Открыть на часах") }
+            OutlinedButton(onClick = onCheckTime, enabled = connection.hasApp && !checking) { Text("Время") }
+            IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, contentDescription = "Обновить") }
+        }
+    }
+}
+
+/** Одна строка о точности времени и признак, что есть расхождение. */
+private fun timeLine(result: TimeCheckResult?, checking: Boolean): Pair<String, Boolean> {
+    if (checking) return "Сверяю время часов…" to false
+    if (result == null) return "Время ещё не проверялось" to false
+    if (result.watchSilent) return "Время: часы не ответили (нужна SyncTheme 1.3 на часах)" to false
+    val watch = result.watchMs ?: return "Время: часы не на связи" to false
+    val phone = result.phoneMs
+    return when {
+        kotlin.math.abs(watch) >= TimeCheck.NOTICEABLE_MS ->
+            (if (watch > 0) "Часы спешат на ${TimeCheck.seconds(watch)}" else "Часы отстают на ${TimeCheck.seconds(watch)}") to true
+        phone != null && kotlin.math.abs(phone) >= TimeCheck.NOTICEABLE_MS ->
+            (if (phone > 0) "Телефон и часы спешат на ${TimeCheck.seconds(phone)}" else "Телефон и часы отстают на ${TimeCheck.seconds(phone)}") to true
+        else -> "Время точное ✓" to false
+    }
+}
+
+@Composable
+private fun TimeAdvice(result: TimeCheckResult, muted: Color) {
+    val watch = result.watchMs
+    val phone = result.phoneMs
+    if (result.watchSilent) {
+        Text("Проверка времени появилась в SyncTheme для часов 1.3 — обновите приложение на часах.", style = MaterialTheme.typography.bodySmall, color = muted)
+    }
+    if (watch != null && kotlin.math.abs(watch) >= TimeCheck.NOTICEABLE_MS) {
+        Text(
+            "Циферблат показывает время часов, а его ставит система. На часах: «Настройки» → «Общие» → " +
+                "«Дата и время» → включите «Автоматически» (в SyncTheme на часах есть кнопка «Настройки времени»). " +
+                "Затем переподключите часы: выключите и включите Bluetooth на телефоне.",
+            style = MaterialTheme.typography.bodySmall, color = muted,
+        )
+    }
+    if (phone != null && kotlin.math.abs(phone) >= TimeCheck.NOTICEABLE_MS) {
+        Text(
+            "Часы берут время с телефона. На телефоне: «Настройки» → «Общее управление» → «Дата и время» → " +
+                "включите «Автоматические дата и время».",
+            style = MaterialTheme.typography.bodySmall, color = muted,
+        )
     }
 }
