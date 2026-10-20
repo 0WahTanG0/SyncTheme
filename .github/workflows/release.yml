@@ -1,36 +1,62 @@
-# Собирает, подписывает и публикует релиз при пуше тега vX.Y.Z.
-# Нужен секрет репозитория SYNCTHEME_KEYS_PASSWORD — пароль от keystore.tar.gz.enc.
+# Публикует релиз, когда в main появляется новая versionName приложения для телефона.
+# Релиз собирается и подписывается здесь; ключи расшифровываются секретом
+# SYNCTHEME_KEYS_PASSWORD (Settings → Secrets and variables → Actions).
 name: Release
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      - name: Is this version already released?
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NAME=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' mobile/build.gradle.kts | head -1)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          if gh release view "v$NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Релиз v$NAME уже есть — пропускаю"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.version.outputs.release == 'true'
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - if: steps.version.outputs.release == 'true'
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Unlock signing keys
+        if: steps.version.outputs.release == 'true'
         env:
           SYNCTHEME_KEYS_PASSWORD: ${{ secrets.SYNCTHEME_KEYS_PASSWORD }}
-        run: scripts/keys.sh unlock
+        run: |
+          if [ -z "$SYNCTHEME_KEYS_PASSWORD" ]; then
+            echo "::error::Добавьте секрет SYNCTHEME_KEYS_PASSWORD (пароль от keystore.tar.gz.enc) в настройках репозитория"
+            exit 1
+          fi
+          scripts/keys.sh unlock
 
       - name: Build, test and publish
+        if: steps.version.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/publish-release.sh "$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")"
+        run: scripts/publish-release.sh "$(cat release-notes.txt 2>/dev/null)" "$GITHUB_REPOSITORY"

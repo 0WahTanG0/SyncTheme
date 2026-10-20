@@ -120,13 +120,9 @@
 scripts/keys.sh unlock
 ```
 
-Публикация обновления (нужен `gh` с доступом к репозиторию):
+Публикация обновления — автоматическая: поднимите `versionCode`/`versionName` в `mobile/build.gradle.kts`, опишите изменения в `release-notes.txt` и отправьте в `main`. GitHub Actions (`.github/workflows/release.yml`) соберёт и проверит приложения, подпишет их и создаст релиз с `SyncTheme-phone.apk`, `SyncTheme-watch.apk` и `update.json`. Для этого в репозитории нужен секрет `SYNCTHEME_KEYS_PASSWORD` с паролем от ключей.
 
-```
-scripts/publish-release.sh "Что нового"
-```
-
-Скрипт собирает оба приложения с вшитым источником обновлений (`updateRepo` в `gradle.properties`) и создаёт релиз с `SyncTheme-phone.apk`, `SyncTheme-watch.apk` и `update.json`. Репозиторий должен быть публичным, иначе приложение не сможет скачать файлы.
+Вручную то же самое делает `scripts/publish-release.sh "Что нового"` (нужен `gh` с доступом к репозиторию). Репозиторий должен быть публичным, иначе приложение не сможет скачать файлы.
 
 Проверки:
 
