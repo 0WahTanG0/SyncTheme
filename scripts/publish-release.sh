@@ -2,6 +2,7 @@
 # Собирает приложения и публикует релиз GitHub, из которого SyncTheme обновляется сам.
 # Использование: scripts/publish-release.sh "Что нового" [owner/repo]
 # Нужны: расшифрованные ключи (scripts/keys.sh unlock) и gh с доступом к репозиторию.
+# Обычно запускается в GitHub Actions по тегу (.github/workflows/release.yml).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 NOTES="${1:-}"
@@ -32,14 +33,6 @@ print(json.dumps({
 }, ensure_ascii=False, indent=2))
 PY
 
-# Только REST API (GraphQL в облачных сессиях недоступен).
-ID=$(gh api "repos/$REPO/releases" -f tag_name="$TAG" -f target_commitish=main \
-  -f name="SyncTheme $NAME" -f body="${NOTES:-SyncTheme $NAME}" --jq .id)
-upload() {
-  gh api --method POST -H "Content-Type: $2" \
-    "https://uploads.github.com/repos/$REPO/releases/$ID/assets?name=$(basename "$1")" --input "$1" --jq .browser_download_url
-}
-upload dist/SyncTheme-phone.apk application/vnd.android.package-archive
-upload dist/SyncTheme-watch.apk application/vnd.android.package-archive
-upload dist/update.json application/json
+gh release create "$TAG" dist/SyncTheme-phone.apk dist/SyncTheme-watch.apk dist/update.json \
+  --repo "$REPO" --title "SyncTheme $NAME" --notes "${NOTES:-SyncTheme $NAME}"
 echo "Опубликовано: https://github.com/$REPO/releases/tag/$TAG"
