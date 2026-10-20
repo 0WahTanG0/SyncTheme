@@ -114,14 +114,16 @@ object WidgetRenderer {
             return RemoteViews(
                 sizes.take(16).associateWith { s ->
                     val cls = WidgetSize.classify(s.width, s.height)
-                    byClass.getOrPut(cls) { sized(context, kind, config, theme, cls, data) }
+                    // Столбикам кегль подбирается по точному размеру, остальным хватает одной разметки на форму.
+                    if (cls.vertical) sized(context, kind, config, theme, cls, data, s)
+                    else byClass.getOrPut(cls) { sized(context, kind, config, theme, cls, data, s) }
                 },
             )
         }
-        return RemoteViews(WidgetSize.entries.associate { it.sizeF to sized(context, kind, config, theme, it, data) })
+        return RemoteViews(WidgetSize.entries.associate { it.sizeF to sized(context, kind, config, theme, it, data, it.sizeF) })
     }
 
-    /** Один размер — для превью в настройке. */
+    /** Один размер — для превью в настройке; dp — размер превью (по умолчанию — из [WidgetSize]). */
     fun buildSize(
         context: Context,
         kind: WidgetKind,
@@ -129,9 +131,12 @@ object WidgetRenderer {
         theme: Theme,
         size: WidgetSize,
         weather: WeatherData? = WeatherRepository(context).cached,
-    ): RemoteViews = sized(context, kind, config, theme, size, Data(context, config, weather))
+        dp: SizeF = SizeF(size.previewW.toFloat(), size.previewH.toFloat()),
+    ): RemoteViews = sized(context, kind, config, theme, size, Data(context, config, weather), dp)
 
-    private fun sized(context: Context, kind: WidgetKind, config: WidgetConfig, theme: Theme, size: WidgetSize, data: Data): RemoteViews {
+    private fun sized(
+        context: Context, kind: WidgetKind, config: WidgetConfig, theme: Theme, size: WidgetSize, data: Data, dp: SizeF,
+    ): RemoteViews {
         val layout = WidgetLayouts[layoutKey(kind, config, size)]
             ?: WidgetLayouts[layoutKey(kind, WidgetConfig(style = kind.defaultStyle), size)]!!
         val style = kind.style(config.style).id
@@ -145,6 +150,26 @@ object WidgetRenderer {
             WidgetKind.WEATHER -> v.weather(data, p)
             WidgetKind.BATTERY -> v.battery(data.battery)
             WidgetKind.APPS -> v.apps(context, data)
+        }
+        if (size.vertical) {
+            val content = when (kind) {
+                WidgetKind.CLOCK -> VerticalContent(alarm = data.alarm)
+                WidgetKind.CALENDAR -> VerticalContent(
+                    rows = data.events.size,
+                    hint = when {
+                        !CalendarData.hasPermission(context) -> "Нет доступа к календарю"
+                        data.events.isEmpty() -> "Событий нет"
+                        else -> null
+                    },
+                )
+                WidgetKind.WEATHER -> VerticalContent(
+                    main = data.weather?.let { deg(it.now.temp) } ?: "--°", rows = data.weather?.hours?.size ?: 0,
+                    desc = data.weather?.let { WeatherCodes.description(it.now.code) },
+                )
+                WidgetKind.BATTERY -> data.battery.let { VerticalContent(main = "${it.level}%", charging = it.charging, remain = it.remain != null) }
+                WidgetKind.APPS -> VerticalContent(rows = data.apps.size, title = config.title.isNotBlank())
+            }
+            VerticalFit.apply(context, rv, layout, kind, family(kind, style), config.copy(style = style).digitFont(), size, dp, content)
         }
         if (kind != WidgetKind.APPS) {
             AppCatalog.clickIntent(context, kind, config)?.let { rv.setOnClickPendingIntent(R.id.widget_root, it) }
@@ -284,7 +309,7 @@ object WidgetRenderer {
                 text("desc", "в SyncTheme")
                 text("range", "")
                 icon("wx_now", 2, true)
-                for (i in 0 until 5) {
+                for (i in 0 until 6) {
                     visible("cell_h$i", false)
                     visible("cell_d$i", false)
                 }
@@ -295,7 +320,7 @@ object WidgetRenderer {
             text("desc", WeatherCodes.description(w.now.code))
             icon("wx_now", w.now.code, w.now.isDay)
             w.days.firstOrNull()?.let { text("range", "↑${deg(it.max)}  ↓${deg(it.min)}") }
-            for (i in 0 until 5) {
+            for (i in 0 until 6) {
                 val h = w.hours.getOrNull(i)
                 visible("cell_h$i", h != null)
                 if (h != null) {
@@ -303,6 +328,8 @@ object WidgetRenderer {
                     icon("wx_h$i", h.code, h.isDay)
                     text("h${i}_temp", deg(h.temp))
                 }
+            }
+            for (i in 0 until 5) {
                 val d = w.days.getOrNull(i)
                 visible("cell_d$i", d != null)
                 if (d != null) {

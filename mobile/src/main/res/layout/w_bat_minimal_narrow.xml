@@ -16,7 +16,9 @@
         android:tint="#E61B1B24" />
 
     <LinearLayout
-        android:padding="4dp"
+        android:id="@+id/box_v"
+        android:paddingHorizontal="5dp"
+        android:paddingVertical="12dp"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -24,37 +26,58 @@
 
         <ImageView
             android:id="@+id/ia_bolt"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
+            android:layout_marginBottom="2dp"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
             android:scaleType="fitCenter"
             android:src="@drawable/wic_bolt"
             android:importantForAccessibility="no" />
 
         <TextView
             android:id="@+id/m_pct"
-            android:layout_weight="1"
+            android:textSize="28dp"
+            android:includeFontPadding="false"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="wrap_content"
             android:gravity="center"
             android:fontFamily="sans-serif-thin"
-            android:autoSizeTextType="uniform"
-            android:autoSizeMinTextSize="10sp"
-            android:autoSizeMaxTextSize="34sp"
-            android:autoSizeStepGranularity="1sp"
-            android:includeFontPadding="false"
             android:maxLines="1"
-            android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
 
-        <ProgressBar
-            android:id="@+id/pb_bar"
-            android:layout_marginTop="4dp"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:indeterminate="false"
-            android:max="100"
-            android:progress="75"
-            android:progressDrawable="@drawable/wbar_progress"
+        <FrameLayout
+            android:id="@+id/box_vbar"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginVertical="10dp"
+            android:layout_width="match_parent">
+
+            <ProgressBar
+                android:id="@+id/pb_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:indeterminate="false"
+                android:max="100"
+                android:progress="75"
+                android:progressDrawable="@drawable/wbar_vprogress"
+                android:layout_width="8dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="center_horizontal"
+                android:minHeight="0dp"
+                android:maxHeight="4000dp" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/s_state"
             android:layout_width="match_parent"
-            android:layout_height="5dp" />
+            android:layout_height="24sp"
+            android:gravity="center"
+            android:fontFamily="sans-serif-light"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="6sp"
+            android:autoSizeMaxTextSize="9sp"
+            android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
     </LinearLayout>
 </FrameLayout>

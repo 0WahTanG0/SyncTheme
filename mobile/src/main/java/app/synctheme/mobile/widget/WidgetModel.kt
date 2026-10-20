@@ -77,6 +77,9 @@ enum class WidgetSize(val key: String, val title: String, val minW: Float, val m
 
     val sizeF get() = SizeF(minW, minH)
 
+    /** Вытянут по вертикали: главное значение подбирается по ширине (см. [VerticalFit]). */
+    val vertical get() = this == NARROW || this == COLUMN || this == TALL
+
     companion object {
         /**
          * Разметка для виджета w × h dp: сначала по пропорциям (вытянут ли он), потом по размеру —

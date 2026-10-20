@@ -204,7 +204,7 @@ private fun ActionStep(ui: InstallerUi, vm: InstallerViewModel, onClose: () -> U
             )
         }
         ui.error?.let { Text(it, color = Color(0xFFFF6B6B), style = MaterialTheme.typography.bodyMedium) }
-        if (ui.networkHint) NetworkHints()
+        if (ui.networkHint) NetworkHints(ui.vpn)
         when {
             ui.done -> {
                 Text(
@@ -235,8 +235,15 @@ private fun ActionStep(ui: InstallerUi, vm: InstallerViewModel, onClose: () -> U
 }
 
 @Composable
-private fun NetworkHints() {
+private fun NetworkHints(vpn: Boolean) {
     Section("Если часы не подключаются") {
+        if (vpn) {
+            Text(
+                "На телефоне включён VPN. SyncTheme старается подключаться к часам мимо него, но некоторые VPN этого не дают — " +
+                    "выключите VPN на время установки.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error,
+            )
+        }
         StepText(1, "Разбудите экран часов и не давайте ему погаснуть, пока идёт установка.")
         StepText(2, "Проверьте, что «Отладка по Wi‑Fi» на часах всё ещё включена: она выключается при смене сети Wi‑Fi.")
         StepText(

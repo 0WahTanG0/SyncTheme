@@ -10,6 +10,7 @@ import java.security.KeyPairGenerator
 import java.security.PrivateKey
 import java.security.cert.Certificate
 import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Date
 import java.util.concurrent.TimeUnit
@@ -50,11 +51,15 @@ class PhoneAdbManager private constructor(context: Context) : AbsAdbConnectionMa
         }
     }
 
+    /** Ключ и сертификат телефона для своего ADB-подключения ([AdbLink]). */
+    val key: PrivateKey get() = privateKey
+    val cert: X509Certificate get() = certificate as X509Certificate
+
     override fun getPrivateKey(): PrivateKey = privateKey
 
     override fun getCertificate(): Certificate = certificate
 
-    override fun getDeviceName(): String = "SyncTheme"
+    public override fun getDeviceName(): String = "SyncTheme"
 
     companion object {
         @Volatile private var instance: PhoneAdbManager? = null

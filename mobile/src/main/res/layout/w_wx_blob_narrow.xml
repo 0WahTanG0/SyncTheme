@@ -16,50 +16,354 @@
         android:tint="#E61B1B24" />
 
     <LinearLayout
-        android:padding="4dp"
+        android:id="@+id/box_v"
+        android:paddingHorizontal="5dp"
+        android:paddingVertical="12dp"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center">
 
-        <ImageView
-            android:id="@+id/wx_now"
-            android:layout_weight="0.9"
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ImageView
+            android:id="@+id/wx_now"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
             android:scaleType="fitCenter"
             android:src="@drawable/wx_partly_day"
             android:importantForAccessibility="no" />
 
         <TextView
             android:id="@+id/m_temp"
-            android:layout_weight="1"
+            android:textSize="28dp"
+            android:includeFontPadding="false"
+            android:layout_marginTop="6dp"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="wrap_content"
             android:gravity="center"
             android:fontFamily="@font/nunito_900"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/s_range"
+            android:layout_width="match_parent"
+            android:layout_height="12sp"
+            android:gravity="center"
+            android:fontFamily="@font/nunito_700"
             android:autoSizeTextType="uniform"
-            android:autoSizeMinTextSize="10sp"
-            android:autoSizeMaxTextSize="34sp"
+            android:autoSizeMinTextSize="6sp"
+            android:autoSizeMaxTextSize="9sp"
             android:autoSizeStepGranularity="1sp"
             android:includeFontPadding="false"
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
 
-        <TextView
-            android:id="@+id/s_range"
+        <ImageView
+            android:id="@+id/if_line"
+            android:layout_marginVertical="10dp"
+            android:layout_width="20dp"
+            android:layout_height="1dp"
+            android:scaleType="fitXY"
+            android:src="@drawable/wline"
+            android:importantForAccessibility="no" />
+
+        <LinearLayout
+            android:id="@+id/cell_h0"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="3dp"
             android:layout_width="match_parent"
-            android:layout_height="15dp"
-            android:gravity="center"
-            android:fontFamily="@font/nunito_700"
-            android:autoSizeTextType="uniform"
-            android:autoSizeMinTextSize="6sp"
-            android:autoSizeMaxTextSize="11sp"
-            android:autoSizeStepGranularity="1sp"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#FFFFFFFF" />
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/s_h0_time"
+                android:layout_width="match_parent"
+                android:layout_height="12sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="9sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/wx_h0"
+                android:layout_marginVertical="2dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wx_clear_day"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/m_h0_temp"
+                android:layout_width="match_parent"
+                android:layout_height="13sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="10sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cell_h1"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="3dp"
+            android:layout_width="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/s_h1_time"
+                android:layout_width="match_parent"
+                android:layout_height="12sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="9sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/wx_h1"
+                android:layout_marginVertical="2dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wx_clear_day"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/m_h1_temp"
+                android:layout_width="match_parent"
+                android:layout_height="13sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="10sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cell_h2"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="3dp"
+            android:layout_width="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/s_h2_time"
+                android:layout_width="match_parent"
+                android:layout_height="12sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="9sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/wx_h2"
+                android:layout_marginVertical="2dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wx_clear_day"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/m_h2_temp"
+                android:layout_width="match_parent"
+                android:layout_height="13sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="10sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cell_h3"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="3dp"
+            android:layout_width="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/s_h3_time"
+                android:layout_width="match_parent"
+                android:layout_height="12sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="9sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/wx_h3"
+                android:layout_marginVertical="2dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wx_clear_day"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/m_h3_temp"
+                android:layout_width="match_parent"
+                android:layout_height="13sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="10sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cell_h4"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="3dp"
+            android:layout_width="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/s_h4_time"
+                android:layout_width="match_parent"
+                android:layout_height="12sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="9sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/wx_h4"
+                android:layout_marginVertical="2dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wx_clear_day"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/m_h4_temp"
+                android:layout_width="match_parent"
+                android:layout_height="13sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="10sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cell_h5"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="3dp"
+            android:layout_width="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/s_h5_time"
+                android:layout_width="match_parent"
+                android:layout_height="12sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="9sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/wx_h5"
+                android:layout_marginVertical="2dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wx_clear_day"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/m_h5_temp"
+                android:layout_width="match_parent"
+                android:layout_height="13sp"
+                android:gravity="center"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="6sp"
+                android:autoSizeMaxTextSize="10sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
     </LinearLayout>
 </FrameLayout>

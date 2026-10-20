@@ -164,7 +164,7 @@ def spacer(weight=1, vertical=True):
 
 
 def text(id_, *, clock=None, font=None, size=None, auto=None, w="match", h="wrap", g="center", caps=False,
-         lines=1, spacing=None, shadow=False, txt=None, **kw):
+         lines=1, spacing=None, shadow=False, txt=None, ellipsize=True, **kw):
     tag = "TextClock" if clock else "TextView"
     kw.update(id=id_, w=w, h=h, g=g)
     h = kw["h"]
@@ -191,7 +191,8 @@ def text(id_, *, clock=None, font=None, size=None, auto=None, w="match", h="wrap
         kw["letterSpacing"] = str(spacing)
     if lines:
         kw["maxLines"] = str(lines)
-        kw["ellipsize"] = "end"
+        if ellipsize:
+            kw["ellipsize"] = "end"
     if shadow:
         kw.update(shadowColor="#80FFFFFF", shadowRadius="14", shadowDx="0", shadowDy="0")
     kw["textColor"] = "#FFFFFFFF"
@@ -319,6 +320,167 @@ def alarm_col(f, role="s"):
 def shaped_bg(f):
     """Подложка вытянутых размеров: у «Облака» — скруглённый прямоугольник вместо фигуры."""
     return bg(f)
+
+
+# ---------------------------------------------------------------- вертикальные формы
+#
+# Столбики (narrow, column) и высокие (tall) — зеркало полосок: там главное значение во всю высоту,
+# а подписи рядом; здесь главное значение во всю ширину, а подписи и строки под ним — одной группой
+# по центру. Кегль главного значения и отступы, срезающие пустые поля шрифта над и под цифрами,
+# ставит VerticalFit по настоящему размеру виджета; он же прячет строки (часы прогноза, события,
+# значки), которые не помещаются целиком. Размеры элементов — в VSPEC, их же получает Kotlin.
+
+VERTICAL = ("narrow", "column", "tall")
+HOURS_V = 6
+
+# Отступы, промежутки, значки и полоса заряда — dp; высоты подписей и строк (…Box, …Sp) — sp:
+# они растут вместе с размером шрифта телефона.
+VSPEC = {
+    "column": dict(padH=5, padV=12, gap=6, div=10, label=10, labelBox=14, small=9, smallBox=12, icon=26,
+                   hourSp=25, hourDp=26, eventSp=12, eventDp=14, hintSp=0, alarmSp=12, alarmDp=0,
+                   bar=8, appIcon=30, appGap=10, titleBox=0, cityBox=0, descBox=0, stateBox=24, extraBox=0, main=28),
+    "tall": dict(padH=12, padV=16, gap=6, div=10, label=12, labelBox=17, small=11, smallBox=15, icon=40,
+                 hourSp=26, hourDp=0, eventSp=30, eventDp=8, hintSp=44, alarmSp=16, alarmDp=0,
+                 bar=12, appIcon=38, appGap=14, titleBox=17, cityBox=18, descBox=28, stateBox=17, extraBox=14, main=52),
+}
+VSPEC["narrow"] = VSPEC["column"]
+VSPEC_KEYS = [k for k in VSPEC["tall"] if k not in ("label", "small", "main")]
+
+
+def vtext(id_, font, sp, box, clock=None, caps=False, spacing=None, lines=1, **kw):
+    """Подпись в строке постоянной высоты (sp): автоподбор только уменьшает кегль, если не влезает по ширине."""
+    return text(id_, clock=clock, font=font, auto=(6, sp), h=f"{box}sp", caps=caps, spacing=spacing, lines=lines, **kw)
+
+
+def vmain(id_, font, v, clock=None, shadow=False, **kw):
+    """Главное значение: кегль и отрицательные отступы по полям шрифта ставит VerticalFit."""
+    return text(id_, clock=clock, font=font, h="wrap", lines=1, ellipsize=False, shadow=shadow,
+                textSize=f"{v['main']}dp", includeFontPadding="false", **kw)
+
+
+def vdivider(v, size):
+    return img("if_line", "wline", w="40dp" if size == "tall" else "20dp", h="1dp", scale="fitXY", mv=f"{v['div']}dp")
+
+
+def vbody(v, *children):
+    return col(spacer(), *children, spacer(), id="box_v", padH=f"{v['padH']}dp", padV=f"{v['padV']}dp")
+
+
+def clock_vertical(f, size, F, name):
+    v = VSPEC[size]
+    tall = size == "tall"
+    sh = f == "neon"
+    # Как в полосках: у «Стекла» и «Минимала» время и дата разделены линией, у остальных — промежутком.
+    divider = vdivider(v, size) if f in ("glass", "minimal") else None
+    alarm = row(img("is_alarm", "wic_alarm", w=f"{v['small'] + 2}dp", h=f"{v['small'] + 2}dp"),
+                text("s_alarm", font=F["body"], size=v["small"], w="wrap", g="start", ms="3dp"),
+                id="row_alarm", w="wrap", h=f"{v['alarmSp']}sp", mt=f"{v['gap']}dp")
+    body = vbody(v,
+                 vtext("a_weekday", F["label"], v["label"], v["labelBox"], clock=WEEKDAY if tall else WEEKDAY_SHORT, caps=True, spacing=0.06),
+                 vmain("m_hours", F["time"], v, clock=HOURS, shadow=sh, mt=f"{v['gap']}dp"),
+                 vmain("m_minutes", F["time"], v, clock=MINS, shadow=sh),
+                 divider,
+                 vtext("s_date", F["sub"], v["label"], v["labelBox"], clock=DAY_MONTH if tall else ("d MMM", "d MMM"),
+                       mt=None if divider else f"{v['div']}dp"),
+                 alarm)
+    return layout(name, *shaped_bg(f), body)
+
+
+def calendar_vertical(f, size, F, name):
+    v = VSPEC[size]
+    tall = size == "tall"
+    rows = []
+    for i in range(EVENTS):
+        if tall:
+            rows.append(row(img(f"ed_{i}", "wdot", w="6dp", h="6dp"),
+                            col(text(f"m_ev{i}_title", font=F["body"], size=12, g="start", h="16sp"),
+                                text(f"s_ev{i}_time", font=F["body"], size=10, g="start", h="14sp"),
+                                w="0dp", weight=1, h="wrap", ms="6dp"),
+                            id=f"row_ev{i}", mv="4dp"))
+        else:
+            rows.append(col(img(f"ed_{i}", "wdot", w="6dp", h="6dp"),
+                            text(f"s_ev{i}_time", font=F["body"], auto=(6, v["small"]), h=f"{v['smallBox']}sp", mt="2dp"),
+                            id=f"row_ev{i}", h="wrap", mv="3dp"))
+    hint = text("s_ev_empty", font=F["body"], auto=(7, 11), lines=3, h=f"{v['hintSp']}sp", txt="Событий нет", vis="gone") if tall else None
+    body = vbody(v,
+                 vtext("a_weekday", F["label"], v["label"], v["labelBox"], clock=WEEKDAY if tall else WEEKDAY_SHORT, caps=True, spacing=0.06),
+                 vmain("m_day", F["main"], v, clock=DAY, shadow=f == "neon", mt=f"{v['gap']}dp"),
+                 vtext("s_month", F["sub"], v["label"], v["labelBox"], clock=MONTH if tall else ("LLL", "LLL"), caps=f == "minimal" or not tall),
+                 vdivider(v, size),
+                 *rows,
+                 hint)
+    return layout(name, *shaped_bg(f), body)
+
+
+def weather_vertical(f, size, F, name):
+    v = VSPEC[size]
+    tall = size == "tall"
+    hours = []
+    for i in range(HOURS_V):
+        if tall:
+            hours.append(row(text(f"s_h{i}_time", font=F["body"], auto=(7, 11), w="0dp", h="match", weight=1, g="start|center_vertical"),
+                             img(f"wx_h{i}", "wx_clear_day", w="16dp", h="16dp", mh="3dp"),
+                             text(f"m_h{i}_temp", font=F["sub"], size=12, w="wrap", g="end|center_vertical"),
+                             id=f"cell_h{i}", h=f"{v['hourSp']}sp"))
+        else:
+            hours.append(col(text(f"s_h{i}_time", font=F["body"], auto=(6, 9), h="12sp"),
+                             img(f"wx_h{i}", "wx_clear_day", w="16dp", h="16dp", mv="2dp"),
+                             text(f"m_h{i}_temp", font=F["sub"], auto=(6, 10), h="13sp"),
+                             id=f"cell_h{i}", h="wrap", mv="3dp"))
+    body = vbody(v,
+                 img("wx_now", "wx_partly_day", w=f"{v['icon']}dp", h=f"{v['icon']}dp"),
+                 vmain("m_temp", F["main"], v, shadow=f == "neon", mt=f"{v['gap']}dp"),
+                 vtext("m_city", F["sub"], 13, v["cityBox"]) if tall else None,
+                 text("a_desc", font=F["body"], auto=(7, 11), lines=2, h=f"{v['descBox']}sp") if tall else None,
+                 vtext("s_range", F["body"], v["small"], v["smallBox"]),
+                 vdivider(v, size),
+                 *hours)
+    return layout(name, *shaped_bg(f), body)
+
+
+def battery_vertical(f, size, F, name):
+    v = VSPEC[size]
+    tall = size == "tall"
+    # Полоса заряда растёт снизу вверх и занимает всю свободную высоту — как полоска в 4×1 по ширине.
+    vbar = E("ProgressBar", attrs_of(dict(id="pb_bar", style="?android:attr/progressBarStyleHorizontal", indeterminate="false",
+                                          max="100", progress="75", progressDrawable="@drawable/wbar_vprogress",
+                                          w=f"{v['bar']}dp", h="match", lg="center_horizontal", minHeight="0dp", maxHeight="4000dp")))
+    if tall:
+        state = row(img("is_bolt", "wic_bolt", w="12dp", h="12dp"),
+                    text("s_state", font=F["body"], auto=(7, 12), w="0dp", weight=1, h="match"),
+                    h=f"{v['stateBox']}sp")
+        extras = [vtext("s_remain", F["body"], 10, v["extraBox"]), vtext("s_temp", F["body"], 10, v["extraBox"])]
+    else:
+        state = text("s_state", font=F["body"], auto=(6, v["small"]), lines=2, h=f"{v['stateBox']}sp")
+        extras = []
+    body = col(img("ia_bolt", "wic_bolt", w="12dp", h="12dp", mb="2dp") if not tall else None,
+               vmain("m_pct", F["main"], v, shadow=f == "neon"),
+               frame(vbar, id="box_vbar", h="0dp", weight=1, mv=f"{v['div']}dp"),
+               state,
+               *extras,
+               id="box_v", padH=f"{v['padH']}dp", padV=f"{v['padV']}dp")
+    return layout(name, *shaped_bg(f), body)
+
+
+def apps_vertical(style, size, name, layers):
+    f = APP_FAMILY[style]
+    F = FONTS[f]
+    v = VSPEC[size]
+    icon = v["appIcon"]
+
+    def cell(i, **kw):
+        ring_ = img(f"fx_ap{i}", "wfx_ring_small", w=f"{icon + 8}dp", h=f"{icon + 8}dp", lg="center") if f == "neon" else None
+        return frame(ring_, img(f"ap_{i}", "wapp_placeholder", w=f"{icon}dp", h=f"{icon}dp", lg="center"), id=f"cell_ap{i}", **kw)
+    # Значки делят высоту поровну, как в полоске — ширину; лишние (не влезают целиком) прячет VerticalFit.
+    if size == "tall":
+        rows = [row(*[cell(r * 2 + c, w="0dp", h="match", weight=1) for c in range(2)], id=f"row_vap{r}", h="0dp", weight=1)
+                for r in range(APPS_MAX // 2)]
+        title = text("m_title", font=F["label"], size=12, h=f"{v['titleBox']}sp", vis="gone", caps=f in ("neon", "minimal"))
+        body = col(title, *rows, id="box_v", padH=f"{v['padH']}dp", padV=f"{v['padV']}dp")
+    else:
+        body = col(*[cell(i, w="match", h="0dp", weight=1) for i in range(APPS_MAX)], id="box_v",
+                   padH=f"{v['padH']}dp", padV=f"{v['padV']}dp")
+    return layout(name, *layers, body)
 
 
 # ---------------------------------------------------------------- часы: цифровые
@@ -527,6 +689,8 @@ def clock_shaped(f, size, F, name):
                        text("a_minutes", clock=MINS, font=F["time"], auto=(12, 400), h="0dp", weight=1, g="bottom|end"),
                        pad="4dp" if size != "tall" else "14dp")
         return layout(name, *shaped_bg(f), body)
+    if size in VERTICAL:
+        return clock_vertical(f, size, F, name)
     if size == "bar":
         body = col(text("m_time", clock=TIME, font=F["time"], auto=(12, 200), h="0dp", weight=1, shadow=sh),
                    text("s_date", clock=DATE_SHORT, font=F["sub"], auto=(7, 12), caps=f in ("neon", "minimal")),
@@ -679,6 +843,8 @@ def event_dots(f, n):
 def calendar_shaped(f, size, name):
     F = FONTS[f]
     sh = f == "neon"
+    if size in VERTICAL:
+        return calendar_vertical(f, size, F, name)
     if size == "bar":
         body = row(text("m_day", clock=DAY, font=F["main"], auto=(12, 120), w="0dp", h="match", weight=0.8, shadow=sh),
                    col(text("a_weekday", clock=WEEKDAY_SHORT, font=F["label"], auto=(7, 13), caps=True, g="start"),
@@ -816,6 +982,8 @@ def daily(f, size=12, icon=22):
 def weather_shaped(f, size, name):
     F = FONTS[f]
     sh = f == "neon"
+    if size in VERTICAL:
+        return weather_vertical(f, size, F, name)
     if size == "bar":
         body = row(img("wx_now", "wx_partly_day", w="0dp", h="match", weight=0.7),
                    text("m_temp", font=F["main"], auto=(12, 80), w="0dp", h="match", weight=1, shadow=sh),
@@ -973,6 +1141,8 @@ def bar(id_="pb_bar", h="10dp", **kw):
 def battery_shaped(f, size, name):
     F = FONTS[f]
     sh = f == "neon"
+    if size in VERTICAL:
+        return battery_vertical(f, size, F, name)
     bolt = img("ia_bolt", "wic_bolt", w="14dp", h="14dp")
     if size == "bar":
         body = col(row(bolt, text("m_pct", font=F["main"], auto=(12, 80), w="0dp", h="match", weight=1, shadow=sh), h="0dp", weight=1),
@@ -1093,6 +1263,8 @@ def apps_shaped(style, size, name):
     f = APP_FAMILY[style]
     F = FONTS[f]
     layers = [img("bg_s", "wbg_r36", scale="fitXY")] if style in ("capsule", "flower", "cookie") else bg(f)
+    if size in VERTICAL:
+        return apps_vertical(style, size, name, layers)
     if size == "bar":
         body = row(*[app_cell(i, f, 28, False) for i in range(3)], h="match", padH="8dp")
     elif size in ("narrow", "column"):
@@ -1242,6 +1414,23 @@ shape("wbar_progress", f'''<layer-list {NS}>
     </item>
     <item android:id="@android:id/progress">
         <clip>
+            <shape android:shape="rectangle">
+                <solid android:color="#FFFFFFFF" />
+                <corners android:radius="99dp" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>''')
+# Та же полоса, но растёт снизу вверх — для столбиков.
+shape("wbar_vprogress", f'''<layer-list {NS}>
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFFFF" />
+            <corners android:radius="99dp" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip android:clipOrientation="vertical" android:gravity="bottom">
             <shape android:shape="rectangle">
                 <solid android:color="#FFFFFFFF" />
                 <corners android:radius="99dp" />
@@ -1540,4 +1729,18 @@ for slot, values in slots.items():
     kt.append(f'        "{slot}" to intArrayOf({", ".join("R.id." + v for v in values)}),')
 kt += ["    )", "", "    operator fun get(slot: String): IntArray = map[slot] ?: IntArray(0)", "}"]
 write(os.path.join(KT, "WidgetIds.kt"), "\n".join(kt) + "\n")
+
+vs = ["package app.synctheme.mobile.widget", "", "// Сгенерировано scripts/gen_widgets.py — не редактировать вручную.", "",
+      "/**",
+      " * Размеры элементов вертикальных разметок (столбики и высокие виджеты): отступы, промежутки, значки",
+      " * и полоса заряда — в dp, высоты подписей и строк (…Box, …Sp) — в sp. По ним [VerticalFit] подбирает",
+      " * кегль главного значения и решает, какие строки поместятся целиком.",
+      " */",
+      "internal class VSpec(" + ", ".join(f"val {k}: Float" for k in VSPEC_KEYS) + ")",
+      "",
+      "internal object VSpecs {"]
+for size in ("column", "tall"):
+    vs.append(f"    val {size} = VSpec(" + ", ".join(f"{VSPEC[size][k]}f" for k in VSPEC_KEYS) + ")")
+vs += ["", "    fun of(size: WidgetSize): VSpec = if (size == WidgetSize.TALL) tall else column", "}"]
+write(os.path.join(KT, "WidgetVSpec.kt"), "\n".join(vs) + "\n")
 print(f"layouts: {len(LAYOUTS)}, ids: {len(ALL_IDS)}, slots: {len(slots)}")

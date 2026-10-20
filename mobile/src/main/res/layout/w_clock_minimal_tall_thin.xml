@@ -16,23 +16,30 @@
         android:tint="#E61B1B24" />
 
     <LinearLayout
-        android:padding="12dp"
+        android:id="@+id/box_v"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="16dp"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center">
 
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
         <TextClock
             android:id="@+id/a_weekday"
             android:layout_width="match_parent"
-            android:layout_height="22dp"
+            android:layout_height="17sp"
             android:gravity="center"
             android:format12Hour="EEEE"
             android:format24Hour="EEEE"
             android:fontFamily="monospace"
             android:autoSizeTextType="uniform"
-            android:autoSizeMinTextSize="9sp"
-            android:autoSizeMaxTextSize="16sp"
+            android:autoSizeMinTextSize="6sp"
+            android:autoSizeMaxTextSize="12sp"
             android:autoSizeStepGranularity="1sp"
             android:includeFontPadding="false"
             android:textAllCaps="true"
@@ -42,35 +49,52 @@
             android:textColor="#FFFFFFFF" />
 
         <TextClock
-            android:id="@+id/m_time"
-            android:layout_weight="1"
-            android:lineSpacingMultiplier="0.66"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:gravity="center"
-            android:format12Hour="hh\nmm"
-            android:format24Hour="HH\nmm"
-            android:fontFamily="sans-serif-thin"
-            android:autoSizeTextType="uniform"
-            android:autoSizeMinTextSize="12sp"
-            android:autoSizeMaxTextSize="400sp"
-            android:autoSizeStepGranularity="1sp"
+            android:id="@+id/m_hours"
+            android:textSize="52dp"
             android:includeFontPadding="false"
-            android:maxLines="2"
-            android:ellipsize="end"
+            android:layout_marginTop="6dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:format12Hour="hh"
+            android:format24Hour="HH"
+            android:fontFamily="sans-serif-thin"
+            android:maxLines="1"
             android:textColor="#FFFFFFFF" />
+
+        <TextClock
+            android:id="@+id/m_minutes"
+            android:textSize="52dp"
+            android:includeFontPadding="false"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:format12Hour="mm"
+            android:format24Hour="mm"
+            android:fontFamily="sans-serif-thin"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF" />
+
+        <ImageView
+            android:id="@+id/if_line"
+            android:layout_marginVertical="10dp"
+            android:layout_width="40dp"
+            android:layout_height="1dp"
+            android:scaleType="fitXY"
+            android:src="@drawable/wline"
+            android:importantForAccessibility="no" />
 
         <TextClock
             android:id="@+id/s_date"
             android:layout_width="match_parent"
-            android:layout_height="25dp"
+            android:layout_height="17sp"
             android:gravity="center"
             android:format12Hour="d MMMM"
             android:format24Hour="d MMMM"
             android:fontFamily="sans-serif-light"
             android:autoSizeTextType="uniform"
-            android:autoSizeMinTextSize="10sp"
-            android:autoSizeMaxTextSize="18sp"
+            android:autoSizeMinTextSize="6sp"
+            android:autoSizeMaxTextSize="12sp"
             android:autoSizeStepGranularity="1sp"
             android:includeFontPadding="false"
             android:maxLines="1"
@@ -80,30 +104,35 @@
         <LinearLayout
             android:id="@+id/row_alarm"
             android:layout_width="wrap_content"
-            android:layout_marginTop="4dp"
-            android:layout_height="wrap_content"
+            android:layout_height="16sp"
+            android:layout_marginTop="6dp"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <ImageView
                 android:id="@+id/is_alarm"
-                android:layout_width="14dp"
-                android:layout_height="14dp"
+                android:layout_width="13dp"
+                android:layout_height="13dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/wic_alarm"
                 android:importantForAccessibility="no" />
 
             <TextView
                 android:id="@+id/s_alarm"
-                android:layout_marginStart="5dp"
+                android:layout_marginStart="3dp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:gravity="start"
                 android:fontFamily="sans-serif-light"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
         </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
     </LinearLayout>
 </FrameLayout>

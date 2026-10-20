@@ -33,6 +33,8 @@ data class InstallerUi(
     val error: String? = null,
     /** Показать подсказки про Wi‑Fi и Bluetooth на часах. */
     val networkHint: Boolean = false,
+    /** На телефоне включён VPN: он может мешать подключению к часам в домашней сети. */
+    val vpn: Boolean = false,
     val device: WatchDevice? = null,
     val done: Boolean = false,
     val log: List<String> = emptyList(),
@@ -111,7 +113,9 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
     fun install() = viewModelScope.launch {
         val s = _ui.value
         if (s.host.isBlank()) return@launch fail("Часы не найдены. Проверьте, что часы и телефон в одной сети Wi‑Fi, или введите адрес вручную.")
-        _ui.update { it.copy(error = null, networkHint = false, done = false, device = null, progress = null) }
+        _ui.update {
+            it.copy(error = null, networkHint = false, done = false, device = null, progress = null, vpn = AdbLink.vpnActive(getApplication()))
+        }
         log("Старт: часы ${s.host}, сопряжение ${s.pairPort.ifBlank { "—" }}, подключение ${s.connectPort.ifBlank { "—" }}")
         try {
             if (s.code.length == 6) {
@@ -211,5 +215,6 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         stopDiscovery()
+        installer.close()
     }
 }

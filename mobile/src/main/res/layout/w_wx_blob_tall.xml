@@ -16,51 +16,50 @@
         android:tint="#E61B1B24" />
 
     <LinearLayout
-        android:padding="12dp"
+        android:id="@+id/box_v"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="16dp"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center">
 
-        <LinearLayout
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ImageView
+            android:id="@+id/wx_now"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/wx_partly_day"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/m_temp"
+            android:textSize="52dp"
+            android:includeFontPadding="false"
+            android:layout_marginTop="6dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <ImageView
-                android:id="@+id/wx_now"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:scaleType="fitCenter"
-                android:src="@drawable/wx_partly_day"
-                android:importantForAccessibility="no" />
-
-            <TextView
-                android:id="@+id/m_temp"
-                android:layout_weight="1"
-                android:layout_marginStart="6dp"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:gravity="center"
-                android:fontFamily="@font/nunito_900"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="16sp"
-                android:autoSizeMaxTextSize="44sp"
-                android:autoSizeStepGranularity="1sp"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
-        </LinearLayout>
+            android:gravity="center"
+            android:fontFamily="@font/nunito_900"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF" />
 
         <TextView
             android:id="@+id/m_city"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="18sp"
             android:gravity="center"
             android:fontFamily="@font/nunito_700"
-            android:textSize="14sp"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="6sp"
+            android:autoSizeMaxTextSize="13sp"
+            android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
@@ -68,18 +67,37 @@
         <TextView
             android:id="@+id/a_desc"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="28sp"
             android:gravity="center"
             android:fontFamily="@font/nunito_700"
-            android:textSize="11sp"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="7sp"
+            android:autoSizeMaxTextSize="11sp"
+            android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/s_range"
+            android:layout_width="match_parent"
+            android:layout_height="15sp"
+            android:gravity="center"
+            android:fontFamily="@font/nunito_700"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="6sp"
+            android:autoSizeMaxTextSize="11sp"
+            android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
 
         <ImageView
             android:id="@+id/if_line"
-            android:layout_marginVertical="8dp"
-            android:layout_width="match_parent"
+            android:layout_marginVertical="10dp"
+            android:layout_width="40dp"
             android:layout_height="1dp"
             android:scaleType="fitXY"
             android:src="@drawable/wline"
@@ -87,22 +105,21 @@
 
         <LinearLayout
             android:id="@+id/cell_h0"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="26sp"
             android:layout_width="match_parent"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <TextView
                 android:id="@+id/s_h0_time"
-                android:layout_weight="1.2"
+                android:layout_weight="1"
                 android:layout_width="0dp"
-                android:layout_height="17dp"
+                android:layout_height="match_parent"
                 android:gravity="start|center_vertical"
                 android:fontFamily="@font/nunito_700"
                 android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="8sp"
-                android:autoSizeMaxTextSize="12sp"
+                android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="11sp"
                 android:autoSizeStepGranularity="1sp"
                 android:includeFontPadding="false"
                 android:maxLines="1"
@@ -111,24 +128,20 @@
 
             <ImageView
                 android:id="@+id/wx_h0"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_marginHorizontal="3dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/wx_clear_day"
                 android:importantForAccessibility="no" />
 
             <TextView
                 android:id="@+id/m_h0_temp"
-                android:layout_weight="1"
-                android:layout_width="0dp"
-                android:layout_height="20dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:gravity="end|center_vertical"
                 android:fontFamily="@font/nunito_700"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
-                android:autoSizeStepGranularity="1sp"
-                android:includeFontPadding="false"
+                android:textSize="12sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
@@ -136,22 +149,21 @@
 
         <LinearLayout
             android:id="@+id/cell_h1"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="26sp"
             android:layout_width="match_parent"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <TextView
                 android:id="@+id/s_h1_time"
-                android:layout_weight="1.2"
+                android:layout_weight="1"
                 android:layout_width="0dp"
-                android:layout_height="17dp"
+                android:layout_height="match_parent"
                 android:gravity="start|center_vertical"
                 android:fontFamily="@font/nunito_700"
                 android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="8sp"
-                android:autoSizeMaxTextSize="12sp"
+                android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="11sp"
                 android:autoSizeStepGranularity="1sp"
                 android:includeFontPadding="false"
                 android:maxLines="1"
@@ -160,24 +172,20 @@
 
             <ImageView
                 android:id="@+id/wx_h1"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_marginHorizontal="3dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/wx_clear_day"
                 android:importantForAccessibility="no" />
 
             <TextView
                 android:id="@+id/m_h1_temp"
-                android:layout_weight="1"
-                android:layout_width="0dp"
-                android:layout_height="20dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:gravity="end|center_vertical"
                 android:fontFamily="@font/nunito_700"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
-                android:autoSizeStepGranularity="1sp"
-                android:includeFontPadding="false"
+                android:textSize="12sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
@@ -185,22 +193,21 @@
 
         <LinearLayout
             android:id="@+id/cell_h2"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="26sp"
             android:layout_width="match_parent"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <TextView
                 android:id="@+id/s_h2_time"
-                android:layout_weight="1.2"
+                android:layout_weight="1"
                 android:layout_width="0dp"
-                android:layout_height="17dp"
+                android:layout_height="match_parent"
                 android:gravity="start|center_vertical"
                 android:fontFamily="@font/nunito_700"
                 android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="8sp"
-                android:autoSizeMaxTextSize="12sp"
+                android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="11sp"
                 android:autoSizeStepGranularity="1sp"
                 android:includeFontPadding="false"
                 android:maxLines="1"
@@ -209,24 +216,20 @@
 
             <ImageView
                 android:id="@+id/wx_h2"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_marginHorizontal="3dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/wx_clear_day"
                 android:importantForAccessibility="no" />
 
             <TextView
                 android:id="@+id/m_h2_temp"
-                android:layout_weight="1"
-                android:layout_width="0dp"
-                android:layout_height="20dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:gravity="end|center_vertical"
                 android:fontFamily="@font/nunito_700"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
-                android:autoSizeStepGranularity="1sp"
-                android:includeFontPadding="false"
+                android:textSize="12sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
@@ -234,22 +237,21 @@
 
         <LinearLayout
             android:id="@+id/cell_h3"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="26sp"
             android:layout_width="match_parent"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <TextView
                 android:id="@+id/s_h3_time"
-                android:layout_weight="1.2"
+                android:layout_weight="1"
                 android:layout_width="0dp"
-                android:layout_height="17dp"
+                android:layout_height="match_parent"
                 android:gravity="start|center_vertical"
                 android:fontFamily="@font/nunito_700"
                 android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="8sp"
-                android:autoSizeMaxTextSize="12sp"
+                android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="11sp"
                 android:autoSizeStepGranularity="1sp"
                 android:includeFontPadding="false"
                 android:maxLines="1"
@@ -258,27 +260,116 @@
 
             <ImageView
                 android:id="@+id/wx_h3"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_marginHorizontal="3dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/wx_clear_day"
                 android:importantForAccessibility="no" />
 
             <TextView
                 android:id="@+id/m_h3_temp"
-                android:layout_weight="1"
-                android:layout_width="0dp"
-                android:layout_height="20dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:gravity="end|center_vertical"
                 android:fontFamily="@font/nunito_700"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cell_h4"
+            android:layout_height="26sp"
+            android:layout_width="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/s_h4_time"
+                android:layout_weight="1"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:gravity="start|center_vertical"
+                android:fontFamily="@font/nunito_700"
                 android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
+                android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="11sp"
                 android:autoSizeStepGranularity="1sp"
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/wx_h4"
+                android:layout_marginHorizontal="3dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wx_clear_day"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/m_h4_temp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end|center_vertical"
+                android:fontFamily="@font/nunito_700"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
         </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cell_h5"
+            android:layout_height="26sp"
+            android:layout_width="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/s_h5_time"
+                android:layout_weight="1"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:gravity="start|center_vertical"
+                android:fontFamily="@font/nunito_700"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="11sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/wx_h5"
+                android:layout_marginHorizontal="3dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wx_clear_day"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/m_h5_temp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end|center_vertical"
+                android:fontFamily="@font/nunito_700"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
     </LinearLayout>
 </FrameLayout>

@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Looper
+import android.util.SizeF
 import android.view.View
 import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
@@ -211,7 +212,9 @@ class FeaturesTest {
                 var x = gap
                 for ((w, h) in shapes) {
                     val size = WidgetSize.classify(w.toFloat(), h.toFloat())
-                    val views = WidgetRenderer.buildSize(context, kind, WidgetConfig(style = style, opacity = 0.5f, apps = apps), theme, size, weather)
+                    val views = WidgetRenderer.buildSize(
+                        context, kind, WidgetConfig(style = style, opacity = 0.5f, apps = apps), theme, size, weather, SizeF(w.toFloat(), h.toFloat()),
+                    )
                     val host = FrameLayout(activity)
                     activity.setContentView(host)
                     val view = views.apply(activity, host)
@@ -223,6 +226,51 @@ class FeaturesTest {
                 }
             }
             sheet.save("widgets_shapes_$family.png")
+        }
+    }
+
+    /**
+     * Вертикальные формы рядом с горизонтальной полоской, как на рабочем столе: полоска 4×1 (360×85),
+     * столбики 1×2…1×5 и высокий 2×5. Строки — виды, столбцы — размеры (dp).
+     */
+    @Test
+    fun verticalWidgetsMirrorStrips() {
+        val weather = WeatherRepository.parseForecast(
+            javaClass.classLoader!!.getResource("forecast.json")!!.readText(), "Москва", System.currentTimeMillis(),
+        )
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val d = context.resources.displayMetrics.density
+        val shapes = listOf(360 to 85, 41 to 625, 60 to 150, 56 to 330, 85 to 365, 96 to 625)
+        val theme = Presets.all[0]
+        for (family in listOf("bold", "glass", "neon", "blob", "minimal")) {
+            val kinds = WidgetKind.entries
+            val gap = (10 * d).toInt()
+            val rowH = (625 * d).toInt()
+            val sheetW = shapes.sumOf { (it.first * d).toInt() + gap } + gap
+            val sheet = Bitmap.createBitmap(sheetW, kinds.size * (rowH + gap) + gap, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(sheet)
+            canvas.drawColor(0xFF202024.toInt())
+            kinds.forEachIndexed { r, kind ->
+                val style = kind.styles.firstOrNull { it.id == family }?.id
+                    ?: if (kind == WidgetKind.APPS) mapOf("bold" to "flower", "blob" to "cookie").getValue(family) else kind.defaultStyle
+                val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
+                var x = gap
+                for ((w, h) in shapes) {
+                    val size = WidgetSize.classify(w.toFloat(), h.toFloat())
+                    val views = WidgetRenderer.buildSize(
+                        context, kind, WidgetConfig(style = style, opacity = 0.5f, apps = apps), theme, size, weather, SizeF(w.toFloat(), h.toFloat()),
+                    )
+                    val host = FrameLayout(activity)
+                    activity.setContentView(host)
+                    val view = views.apply(activity, host)
+                    host.addView(view)
+                    shadowOf(Looper.getMainLooper()).idle()
+                    val bmp = render(view, w, h, ThemeRenderer.background(context, theme, (w * d).toInt(), (h * d).toInt()))
+                    canvas.drawBitmap(bmp, x.toFloat(), (gap + r * (rowH + gap)).toFloat(), null)
+                    x += (w * d).toInt() + gap
+                }
+            }
+            sheet.save("widgets_vertical_$family.png")
         }
     }
 

@@ -2,14 +2,10 @@ package app.synctheme.mobile.install
 
 import android.content.Context
 import android.content.pm.PackageManager
-import io.github.muntashirakon.adb.AdbStream
-import java.io.ByteArrayOutputStream
+import io.github.muntashirakon.adb.PairingConnectionCtx
 import java.io.File
-import java.io.IOException
-import java.net.InetSocketAddress
-import java.net.Socket
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -26,13 +22,14 @@ class WatchUnreachableException(message: String) : Exception(message)
 
 /**
  * Ставит приложение для часов, вшитое в приложение телефона (assets/watch_app.apk),
- * по протоколу ADB через «Отладку по Wi‑Fi».
- *
- * Библиотека libadb местами ждёт ответа без ограничения по времени, поэтому каждый шаг
- * обёрнут в таймаут, а доступность порта проверяется заранее.
+ * по протоколу ADB через «Отладку по Wi‑Fi». Сопряжение по коду делает libadb, а подключение
+ * и команды — [AdbLink]: у него таймаут на каждое чтение, поэтому установка не зависает.
  */
 class WatchAppInstaller(private val context: Context, private val log: (String) -> Unit = {}) {
     private val adb get() = PhoneAdbManager.get(context)
+
+    @Volatile
+    private var link: AdbLink? = null
 
     /** Версия приложения для часов, которая лежит внутри приложения телефона. */
     val bundledVersion: Long by lazy {
@@ -46,25 +43,36 @@ class WatchAppInstaller(private val context: Context, private val log: (String) 
     suspend fun pair(host: String, port: Int, code: String) {
         // Порт сопряжения заранее не проверяем: лишнее подключение часы считают неудачной попыткой.
         log("Сопряжение с $host:$port")
-        val ok = step(PAIR_TIMEOUT) { adb.pair(host, port, code.trim()) }
-            ?: throw WatchUnreachableException("Часы не ответили на сопряжение за ${PAIR_TIMEOUT / 1000} с")
-        log("Сопряжение: ${if (ok) "успешно" else "отказ"}")
+        val manager = adb
+        detached(PAIR_TIMEOUT) {
+            PairingConnectionCtx(host, port, code.trim().toByteArray(), manager.key, manager.cert, manager.deviceName).use { it.start() }
+        } ?: throw WatchUnreachableException("Часы не ответили на сопряжение за ${PAIR_TIMEOUT / 1000} с")
+        log("Сопряжение: успешно")
     }
 
     suspend fun connect(host: String, port: Int): WatchDevice {
-        log("Подключение к $host:$port")
-        checkReachable(host, port)
         disconnect()
-        val connected = step(CONNECT_TIMEOUT) { adb.connect(host, port) }
-            ?: throw WatchUnreachableException("Часы не завершили подключение за ${CONNECT_TIMEOUT / 1000} с")
-        if (!connected) throw WatchUnreachableException("Часы не подтвердили подключение")
-        log("Подключено, читаю сведения о часах")
-        val sdk = shell("getprop ro.build.version.sdk").trim().toIntOrNull() ?: 0
-        val brand = shell("getprop ro.product.brand").trim()
-        val model = shell("getprop ro.product.model").trim()
-        val isWatch = "watch" in shell("getprop ro.build.characteristics")
-        val versionLine = shell("dumpsys package $PACKAGE | grep versionCode").trim()
-        val installed = Regex("versionCode=(\\d+)").find(versionLine)?.groupValues?.get(1)?.toLongOrNull()
+        log("Подключение к $host:$port")
+        val l = withContext(Dispatchers.IO) {
+            val wifi = AdbLink.wifiFor(context, host)
+            if (AdbLink.vpnActive(context)) log("На телефоне включён VPN")
+            AdbLink.open(host, port, wifi, adb.key, adb.cert, log)
+        }
+        link = l
+        log("Подключено: ${l.model.ifBlank { "часы" }}, читаю сведения")
+        // Одной командой: каждый лишний запрос — ещё одно ожидание ответа по Wi‑Fi.
+        val lines = shell(
+            "getprop ro.build.version.sdk; getprop ro.product.brand; getprop ro.product.model; " +
+                "getprop ro.build.characteristics; cmd package list packages --show-versioncode $PACKAGE",
+            INFO_TIMEOUT,
+        ).lines().map { it.trim() }
+        val sdk = lines.getOrNull(0)?.toIntOrNull() ?: 0
+        val brand = lines.getOrNull(1).orEmpty()
+        val model = lines.getOrNull(2).orEmpty().ifBlank { l.model }
+        val isWatch = "watch" in lines.getOrNull(3).orEmpty()
+        val installed = lines.firstNotNullOfOrNull { line ->
+            Regex("^package:${Regex.escape(PACKAGE)} versionCode:(\\d+)$").find(line)?.groupValues?.get(1)?.toLongOrNull()
+        }
         log("Часы: $brand $model, API $sdk, watch=$isWatch, SyncTheme=${installed ?: "нет"}")
         return WatchDevice(listOf(brand, model).filter { it.isNotBlank() }.joinToString(" "), sdk, isWatch, installed)
     }
@@ -83,22 +91,9 @@ class WatchAppInstaller(private val context: Context, private val log: (String) 
         if ("Success" !in result) throw InstallException(explain(result))
     }
 
-    private suspend fun installOnce(apk: ByteArray, onProgress: (Float) -> Unit): String =
-        step(INSTALL_TIMEOUT) {
-            val stream = adb.openStream("exec:cmd package install -r -d -S ${apk.size}")
-            val out = stream.openOutputStream()
-            // По одному пакету ADB за вызов: библиотека ждёт подтверждения перед каждой записью.
-            val chunk = minOf(adb.adbConnection?.maxData ?: 4096, 64 * 1024)
-            var sent = 0
-            while (sent < apk.size) {
-                val n = minOf(chunk, apk.size - sent)
-                out.write(apk, sent, n)
-                sent += n
-                onProgress(sent.toFloat() / apk.size)
-            }
-            out.flush()
-            readAll(stream)
-        } ?: throw WatchUnreachableException("Передача на часы прервалась (нет ответа ${INSTALL_TIMEOUT / 1000} с)")
+    private suspend fun installOnce(apk: ByteArray, onProgress: (Float) -> Unit): String = withContext(Dispatchers.IO) {
+        connected().run("exec:cmd package install -r -d -S ${apk.size}", INSTALL_TIMEOUT, apk, onProgress)
+    }
 
     /** Выдаёт разрешение «менять циферблат» и открывает приложение на часах. */
     suspend fun finishSetup() {
@@ -108,44 +103,34 @@ class WatchAppInstaller(private val context: Context, private val log: (String) 
         log("SyncTheme открыт на часах")
     }
 
-    suspend fun disconnect() {
-        withContext(Dispatchers.IO) { runCatching { adb.disconnect() } }
+    suspend fun disconnect() = withContext(Dispatchers.IO) { close() }
+
+    /** Закрывает подключение сразу: зависшее чтение прервётся. */
+    fun close() {
+        link?.close()
+        link = null
     }
 
-    private suspend fun shell(command: String): String =
-        step(SHELL_TIMEOUT) { readAll(adb.openStream("shell:$command")) }
-            ?: throw WatchUnreachableException("Часы не ответили на команду (${command.substringBefore(' ')})")
+    private fun connected(): AdbLink = link ?: throw WatchUnreachableException("Нет подключения к часам")
 
-    /** Блокирующий вызов библиотеки с таймаутом; ожидания внутри libadb прерываемы. */
-    private suspend fun <T> step(timeoutMs: Long, block: () -> T): T? =
-        withTimeoutOrNull(timeoutMs) { runInterruptible(Dispatchers.IO) { block() } }
+    private suspend fun shell(command: String, timeout: Long = SHELL_TIMEOUT): String =
+        withContext(Dispatchers.IO) { connected().run("shell:$command", timeout) }
 
-    /** Быстрая проверка TCP-порта: без неё libadb может минутами ждать уснувшие часы. */
-    private suspend fun checkReachable(host: String, port: Int) = withContext(Dispatchers.IO) {
-        try {
-            Socket().use { it.connect(InetSocketAddress(host, port), REACH_TIMEOUT) }
-        } catch (e: IOException) {
-            log("Порт $host:$port недоступен: ${e.javaClass.simpleName} ${e.message.orEmpty()}")
-            throw WatchUnreachableException("Часы не отвечают по Wi‑Fi ($host:$port)")
-        }
-    }
-
-    private fun readAll(stream: AdbStream): String {
-        val buffer = ByteArrayOutputStream()
-        val input = stream.openInputStream()
-        val bytes = ByteArray(8192)
-        try {
-            while (true) {
-                val n = input.read(bytes)
-                if (n < 0) break
-                buffer.write(bytes, 0, n)
+    /**
+     * Блокирующий вызов в отдельном потоке с таймаутом. Чтение сокета внутри libadb не прерывается,
+     * поэтому по таймауту поток просто оставляется: он закончится, когда часы закроют соединение,
+     * а следующая попытка его не ждёт.
+     */
+    private suspend fun <T> detached(timeoutMs: Long, block: () -> T): T? = withTimeoutOrNull(timeoutMs) {
+        suspendCancellableCoroutine { cont ->
+            val thread = Thread {
+                val result = runCatching(block)
+                if (cont.isActive) cont.resumeWith(result)
             }
-        } catch (_: IOException) {
-            // Часы закрыли поток — это конец вывода.
-        } finally {
-            runCatching { stream.close() }
+            thread.isDaemon = true
+            thread.start()
+            cont.invokeOnCancellation { thread.interrupt() }
         }
-        return buffer.toString(Charsets.UTF_8.name())
     }
 
     private fun explain(output: String): String = when {
@@ -159,9 +144,8 @@ class WatchAppInstaller(private val context: Context, private val log: (String) 
     companion object {
         const val ASSET = "watch_app.apk"
         const val PACKAGE = "app.synctheme"
-        private const val REACH_TIMEOUT = 5_000
         private const val PAIR_TIMEOUT = 30_000L
-        private const val CONNECT_TIMEOUT = 25_000L
+        private const val INFO_TIMEOUT = 12_000L
         private const val SHELL_TIMEOUT = 20_000L
         private const val INSTALL_TIMEOUT = 180_000L
     }
