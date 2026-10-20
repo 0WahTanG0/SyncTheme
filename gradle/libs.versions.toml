@@ -1,0 +1,62 @@
+[versions]
+agp = "9.1.1"
+kotlin = "2.3.21"
+serialization = "1.9.0"
+coroutines = "1.10.2"
+composeBom = "2026.04.01"
+wearCompose = "1.6.1"
+activityCompose = "1.13.0"
+lifecycle = "2.10.0"
+coreKtx = "1.17.0"
+palette = "1.0.0"
+work = "2.11.2"
+playServicesWearable = "19.0.0"
+watchfacePush = "1.0.0"
+wearRemoteInteractions = "1.1.0"
+apksig = "8.11.0"
+wffValidator = "1.1.0-alpha01"
+materialIcons = "1.7.8"
+junit = "4.13.2"
+robolectric = "4.17"
+roborazzi = "1.76.0"
+
+[libraries]
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "coroutines" }
+kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
+apksig = { module = "com.android.tools.build:apksig", version.ref = "apksig" }
+wff-validator-jvm = { module = "com.google.android.wearable.watchface.validator:validator-push", version.ref = "wffValidator" }
+wff-validator-android = { module = "com.google.android.wearable.watchface.validator:validator-push-android", version.ref = "wffValidator" }
+junit = { module = "junit:junit", version.ref = "junit" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material-icons = { module = "androidx.compose.material:material-icons-core", version.ref = "materialIcons" }
+activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+palette = { module = "androidx.palette:palette-ktx", version.ref = "palette" }
+work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+
+wear-compose-material3 = { module = "androidx.wear.compose:compose-material3", version.ref = "wearCompose" }
+wear-compose-foundation = { module = "androidx.wear.compose:compose-foundation", version.ref = "wearCompose" }
+wear-remote-interactions = { module = "androidx.wear:wear-remote-interactions", version.ref = "wearRemoteInteractions" }
+watchface-push = { module = "androidx.wear.watchfacepush:watchfacepush", version.ref = "watchfacePush" }
+play-services-wearable = { module = "com.google.android.gms:play-services-wearable", version.ref = "playServicesWearable" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+
+    <application
+        android:name=".mobile.SyncThemeApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SyncTheme">
+
+        <activity
+            android:name=".mobile.ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Часы открывают приложение на телефоне через RemoteActivityHelper. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="synctheme" android:host="phone" />
+            </intent-filter>
+        </activity>
+
+        <!-- Результат установки циферблата приходит с часов. -->
+        <service
+            android:name=".mobile.watch.WatchStatusService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/synctheme/status"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".mobile.widget.ClockWidget"
+            android:exported="false"
+            android:label="@string/widget_clock">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_clock_info" />
+        </receiver>
+
+        <receiver
+            android:name=".mobile.widget.AnalogClockWidget"
+            android:exported="false"
+            android:label="@string/widget_analog">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_analog_info" />
+        </receiver>
+
+        <receiver
+            android:name=".mobile.widget.DateWidget"
+            android:exported="false"
+            android:label="@string/widget_date">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_date_info" />
+        </receiver>
+
+        <receiver
+            android:name=".mobile.widget.BatteryWidget"
+            android:exported="false"
+            android:label="@string/widget_battery">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_battery_info" />
+        </receiver>
+    </application>
+</manifest>
