@@ -5,6 +5,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -91,8 +93,8 @@ fun LazyListScope.themeTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
     }
     item {
         ClockStyleSection(
-            title = "Стиль часов",
-            note = if (theme.watch == null) "Используется на циферблате часов и как стиль по умолчанию для виджетов." else null,
+            title = "Циферблат часов",
+            note = if (theme.watch == null) "Так будет выглядеть циферблат Galaxy Watch." else null,
             style = theme.clockStyle, dial = theme.dialStyle, font = theme.fontWeight,
             seconds = theme.showSeconds, date = theme.showDate, complications = theme.watchComplications,
             onChange = { s, d, f, sec, dt, c ->
@@ -391,6 +393,26 @@ private fun ColorsSection(
     }
 }
 
+/** Стили циферблата: сначала «живые», потом классические. */
+private val CLOCK_STYLES = listOf(
+    ClockStyle.BOLD to "Крупно", ClockStyle.ORBIT to "Орбита", ClockStyle.NEON to "Неон", ClockStyle.BLOB to "Облако",
+    ClockStyle.GLASS to "Стекло", ClockStyle.MINIMAL to "Минимал",
+    ClockStyle.DIGITAL to "Классика", ClockStyle.STACKED to "Вертикально", ClockStyle.ANALOG to "Стрелки",
+)
+
+private val CLOCK_STYLE_NOTES = mapOf(
+    ClockStyle.BOLD to "Огромные узкие цифры: часы над минутами, секунды бегут по краю.",
+    ClockStyle.ORBIT to "Три кольца заполняются вместе со временем: часы, минуты и секунды с бегущими точками.",
+    ClockStyle.NEON to "Светящееся кольцо, секунды — «комета» с хвостом, время с цветным ореолом.",
+    ClockStyle.BLOB to "Толстые стрелки на «печенье» цвета акцента.",
+    ClockStyle.GLASS to "Матовый стеклянный диск, по его краю бегут секунды.",
+    ClockStyle.MINIMAL to "Тонкие цифры и одна точка цвета акцента, которая обходит круг за час.",
+    ClockStyle.DIGITAL to "Цифровые часы в одну строку.",
+    ClockStyle.STACKED to "Часы над минутами.",
+    ClockStyle.ANALOG to "Стрелки с делениями, цифрами или в минимальном виде.",
+)
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ClockStyleSection(
     title: String,
@@ -405,12 +427,15 @@ private fun ClockStyleSection(
 ) {
     Section(title) {
         note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        ChipRow {
-            listOf(ClockStyle.DIGITAL to "Цифровые", ClockStyle.STACKED to "Вертикальные", ClockStyle.ANALOG to "Стрелочные")
-                .forEach { (s, label) ->
-                    FilterChip(style == s, { onChange(s, dial, font, seconds, date, complications) }, label = { Text(label) })
-                }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CLOCK_STYLES.forEach { (s, label) ->
+                FilterChip(style == s, { onChange(s, dial, font, seconds, date, complications) }, label = { Text(label) })
+            }
         }
+        Text(
+            CLOCK_STYLE_NOTES.getValue(style),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (style == ClockStyle.ANALOG) {
             ChipRow {
                 listOf(DialStyle.TICKS to "Деления", DialStyle.NUMBERS to "Цифры", DialStyle.MINIMAL to "Минимал")
@@ -419,11 +444,13 @@ private fun ClockStyleSection(
                     }
             }
         }
-        ChipRow {
-            listOf(ClockFont.THIN to "Тонкий", ClockFont.LIGHT to "Лёгкий", ClockFont.REGULAR to "Обычный", ClockFont.BOLD to "Жирный")
-                .forEach { (f, label) ->
-                    FilterChip(font == f, { onChange(style, dial, f, seconds, date, complications) }, label = { Text(label) })
-                }
+        if (style.classic) {
+            ChipRow {
+                listOf(ClockFont.THIN to "Тонкий", ClockFont.LIGHT to "Лёгкий", ClockFont.REGULAR to "Обычный", ClockFont.BOLD to "Жирный")
+                    .forEach { (f, label) ->
+                        FilterChip(font == f, { onChange(style, dial, f, seconds, date, complications) }, label = { Text(label) })
+                    }
+            }
         }
         SwitchRow("Секунды", seconds) { onChange(style, dial, font, it, date, complications) }
         SwitchRow("Дата", date) { onChange(style, dial, font, seconds, it, complications) }

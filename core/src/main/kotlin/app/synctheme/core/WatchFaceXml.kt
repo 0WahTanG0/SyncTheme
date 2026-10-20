@@ -16,6 +16,16 @@ object WatchFaceXml {
     const val HAND_HOUR = "hand_hour"
     const val HAND_MINUTE = "hand_minute"
     const val HAND_SECOND = "hand_second"
+    /** Толстые скруглённые стрелки стиля «Облако». */
+    const val HAND_HOUR_WIDE = "hand_hour_wide"
+    const val HAND_MINUTE_WIDE = "hand_minute_wide"
+
+    /** Шрифты в res/font шаблона циферблата (те же, что в приложении на телефоне). */
+    const val FONT_BOLD = "oswald_700"
+    const val FONT_NEON = "unbounded_700"
+    const val FONT_ROUND = "nunito_900"
+    const val FONT_GLASS = "manrope_800"
+    const val FONT_LABEL = "onest_600"
 
     private const val C = SIZE / 2
 
@@ -29,7 +39,7 @@ object WatchFaceXml {
         val text = color(w.textColor)
         val accent = color(w.accentColor)
         val weight = weight(w.fontWeight)
-        val clockType = if (w.clockStyle == ClockStyle.ANALOG) "ANALOG" else "DIGITAL"
+        val clockType = if (w.clockStyle == ClockStyle.ANALOG || w.clockStyle == ClockStyle.BLOB) "ANALOG" else "DIGITAL"
 
         x.line("""<?xml version="1.0" encoding="utf-8"?>""")
         x.open("""WatchFace width="$SIZE" height="$SIZE" clipShape="CIRCLE"""")
@@ -47,6 +57,12 @@ object WatchFaceXml {
             ClockStyle.DIGITAL -> digital(x, w, text, accent, weight)
             ClockStyle.STACKED -> stacked(x, w, text, accent, weight)
             ClockStyle.ANALOG -> analog(x, w, text, accent, weight)
+            ClockStyle.BOLD -> bold(x, w, text, accent)
+            ClockStyle.ORBIT -> orbit(x, w, text, accent)
+            ClockStyle.NEON -> neon(x, w, text, accent)
+            ClockStyle.BLOB -> blob(x, w, text, accent)
+            ClockStyle.GLASS -> glass(x, w, text, accent)
+            ClockStyle.MINIMAL -> minimal(x, w, text, accent)
         }
 
         x.close("Scene")
@@ -168,6 +184,227 @@ object WatchFaceXml {
         x.close("Ellipse")
         x.close("PartDraw")
     }
+
+    // ---------------------------------------------------------------- «живые» стили
+
+    /** «Крупно»: часы и минуты узким шрифтом во весь экран, дата и батарея — в просвете между ними. */
+    private fun bold(x: Xml, w: WatchSettings, text: String, accent: String) {
+        if (w.showSeconds) secondsRing(x, w.accentColor)
+        timeText(x, 50, 28, 350, 200, "hh", FONT_BOLD, 200f, text, hourFormat = true)
+        timeText(x, 50, 222, 350, 200, "mm", FONT_BOLD, 200f, accent)
+        if (w.showDate) label(x, 326, 205, 104, 40, 24f, accent, FONT_LABEL, "%s %d", "[DAY_OF_WEEK_S]", "[DAY]")
+        if (w.complications) complication(x, 0, 24, 186, 78, w, "WATCH_BATTERY", "RANGED_VALUE")
+    }
+
+    /** «Орбита»: три кольца — часы, минуты, секунды — с бегущими точками; время в центре. */
+    private fun orbit(x: Xml, w: WatchSettings, text: String, accent: String) {
+        val track = color(withAlpha(w.textColor, 0x26))
+        val hours = "([HOUR_0_11] + [MINUTE] / 60) * 30"
+        val minutes = "([MINUTE] + [SECOND] / 60) * 6"
+        part(x, "orbitHours") {
+            arc(x, 166f, 0f, 360f, track, 12f)
+            arc(x, 166f, 0f, 0f, color(withAlpha(w.accentColor, 0xCC)), 12f, end = hours)
+        }
+        part(x, "orbitMinutes") {
+            arc(x, 190f, 0f, 360f, track, 8f)
+            arc(x, 190f, 0f, 0f, text, 8f, end = minutes)
+            dot(x, 190f, minutes, accent, 18f)
+        }
+        if (w.showSeconds) {
+            part(x, "orbitSeconds", ambientAlpha = 0) {
+                arc(x, 212f, 0f, 360f, track, 4f)
+                arc(x, 212f, 0f, 0f, accent, 4f, end = "[SECOND] * 6")
+                dot(x, 212f, "[SECOND] * 6", text, 12f)
+            }
+        }
+        if (w.showDate) label(x, 105, 118, 240, 40, 26f, accent, FONT_LABEL, "%s %d %s", "[DAY_OF_WEEK_S]", "[DAY]", "[MONTH_S]")
+        timeText(x, 45, 160, 360, 124, "hh:mm", FONT_GLASS, 96f, text, hourFormat = true)
+        if (w.complications) {
+            complication(x, 0, 152, 290, 66, w, "WATCH_BATTERY", "RANGED_VALUE")
+            complication(x, 1, 232, 290, 66, w, "STEP_COUNT", "SHORT_TEXT")
+        }
+    }
+
+    /** «Неон»: светящееся кольцо по краю, секунды — «комета» с хвостом, время с цветным ореолом. */
+    private fun neon(x: Xml, w0: WatchSettings, text0: String, accent: String) {
+        // Фон у неона всегда притемнён — тёмные цифры светлой темы на нём не видны.
+        val w = if (isLight(w0.textColor)) w0 else w0.copy(textColor = 0xFFFFFFFF.toInt())
+        val text = if (isLight(w0.textColor)) text0 else color(w.textColor)
+        part(x, "neonRing") {
+            for ((thickness, alpha) in listOf(22f to 0x10, 14f to 0x22, 8f to 0x50)) {
+                arc(x, 210f, 0f, 360f, color(withAlpha(w.accentColor, alpha)), thickness)
+            }
+            arc(x, 210f, 0f, 360f, accent, 3.5f)
+        }
+        part(x, "neonMarks", ambientAlpha = 120) {
+            for (h in 0 until 12) {
+                val a = Math.toRadians(h * 30.0)
+                val r = if (h % 3 == 0) 7 else 3
+                val cx = (C + 186 * sin(a)).toInt()
+                val cy = (C - 186 * cos(a)).toInt()
+                x.open("""Ellipse x="${cx - r}" y="${cy - r}" width="${2 * r}" height="${2 * r}"""")
+                x.line("""<Fill color="${if (h % 3 == 0) text else color(withAlpha(w.textColor, 0x99))}"/>""")
+                x.close("Ellipse")
+            }
+        }
+        if (w.showSeconds) {
+            part(x, "neonComet", ambientAlpha = 0) {
+                val head = "[SECOND] * 6"
+                for ((len, alpha) in listOf(48 to 0x26, 28 to 0x55, 12 to 0xAA)) {
+                    arc(x, 210f, 0f, 0f, color(withAlpha(0xFFFFFFFF.toInt(), alpha)), 6f, start = "$head - $len", end = head)
+                }
+                dot(x, 210f, head, "#FFFFFFFF", 11f)
+            }
+        }
+        // Ореол: две полупрозрачные копии времени цветом акцента со сдвигом.
+        val halo = color(withAlpha(w.accentColor, 0x66))
+        timeText(x, 22, 161, 410, 128, "hh:mm", FONT_NEON, 80f, halo, hourFormat = true, ambientAlpha = 0)
+        timeText(x, 28, 167, 410, 128, "hh:mm", FONT_NEON, 80f, halo, hourFormat = true, ambientAlpha = 0)
+        timeText(x, 25, 164, 400, 128, "hh:mm", FONT_NEON, 80f, text, hourFormat = true)
+        if (w.showDate) label(x, 95, 116, 260, 40, 24f, accent, FONT_LABEL, "%s %d %s", "[DAY_OF_WEEK_S]", "[DAY]", "[MONTH_S]")
+        if (w.complications) {
+            complication(x, 0, 150, 300, 68, w, "WATCH_BATTERY", "RANGED_VALUE")
+            complication(x, 1, 232, 300, 68, w, "STEP_COUNT", "SHORT_TEXT")
+        }
+    }
+
+    /**
+     * «Облако»: «печенье» акцентного цвета нарисовано в фоне (телефон рисует его вместе с обоями),
+     * сверху — толстые скруглённые стрелки цвета текста на акценте.
+     */
+    private fun blob(x: Xml, w: WatchSettings, text: String, accent: String) {
+        val on = color(onAccent(w.accentColor))
+        if (w.showDate) {
+            x.open("""PartText x="300" y="203" width="80" height="44" name="day"""")
+            x.line("""<Variant mode="AMBIENT" target="alpha" value="0"/>""")
+            x.open("""Text align="CENTER"""")
+            x.line("""<Font family="$FONT_ROUND" size="34" color="$on"><Template><![CDATA[%d]]><Parameter expression="[DAY]"/></Template></Font>""")
+            x.close("Text")
+            x.close("PartText")
+        }
+        if (w.complications) complication(x, 0, 186, 300, 78, w, "WATCH_BATTERY", "RANGED_VALUE")
+        x.open("""AnalogClock x="0" y="0" width="$SIZE" height="$SIZE"""")
+        // На «печенье» — цвет текста на акценте; в режиме Always-On фон гаснет — там белые стрелки.
+        wideHands(x, on, alpha = 255, ambient = 0)
+        wideHands(x, "#FFFFFFFF", alpha = 0, ambient = 255)
+        if (w.showSeconds) {
+            x.open("""SecondHand resource="$HAND_SECOND" x="${C - 3}" y="40" width="6" height="225" pivotX="0.5" pivotY="${f(185.0 / 225, 4)}" tintColor="$on"""")
+            x.line("""<Variant mode="AMBIENT" target="alpha" value="0"/>""")
+            x.close("SecondHand")
+        }
+        x.close("AnalogClock")
+        x.open("""PartDraw x="207" y="207" width="36" height="36" name="cap"""")
+        x.open("""Ellipse x="0" y="0" width="36" height="36"""")
+        x.line("""<Fill color="$on"/>""")
+        x.close("Ellipse")
+        x.open("""Ellipse x="11" y="11" width="14" height="14"""")
+        x.line("""<Fill color="$accent"/>""")
+        x.close("Ellipse")
+        x.close("PartDraw")
+    }
+
+    private fun wideHands(x: Xml, tint: String, alpha: Int, ambient: Int) {
+        fun hand(tag: String, res: String, w: Int, h: Int, top: Int) {
+            val pivotY = (C - top).toFloat() / h
+            x.open("""$tag resource="$res" x="${C - w / 2}" y="$top" width="$w" height="$h" pivotX="0.5" pivotY="${f(pivotY, 4)}" tintColor="$tint" alpha="$alpha"""")
+            x.line("""<Variant mode="AMBIENT" target="alpha" value="$ambient"/>""")
+            x.close(tag)
+        }
+        hand("HourHand", HAND_HOUR_WIDE, 28, 140, 107)
+        hand("MinuteHand", HAND_MINUTE_WIDE, 20, 196, 47)
+    }
+
+    /** «Стекло»: матовый диск в фоне, секунды бегут по его краю, время и дата — на стекле. */
+    private fun glass(x: Xml, w: WatchSettings, text: String, accent: String) {
+        if (w.showSeconds) {
+            part(x, "glassSeconds", ambientAlpha = 0) {
+                arc(x, 172f, 0f, 0f, accent, 5f, end = "[SECOND] * 6")
+                dot(x, 172f, "[SECOND] * 6", accent, 13f)
+            }
+        }
+        if (w.showDate) label(x, 105, 120, 240, 40, 25f, color(withAlpha(w.textColor, 0xCC)), FONT_LABEL, "%s, %d %s", "[DAY_OF_WEEK_S]", "[DAY]", "[MONTH_S]")
+        timeText(x, 55, 160, 340, 124, "hh:mm", FONT_GLASS, 98f, text, hourFormat = true)
+        if (w.complications) {
+            complication(x, 0, 152, 288, 68, w, "WATCH_BATTERY", "RANGED_VALUE")
+            complication(x, 1, 230, 288, 68, w, "STEP_COUNT", "SHORT_TEXT")
+        }
+    }
+
+    /** «Минимал»: тонкие цифры, деления по краю и акцентная точка, которая обходит круг за час. */
+    private fun minimal(x: Xml, w: WatchSettings, text: String, accent: String) {
+        part(x, "minimalTicks", ambientAlpha = 110) {
+            for (i in 0 until 60) {
+                val hour = i % 5 == 0
+                val len = if (hour) 16f else 7f
+                val a = Math.toRadians(i * 6.0)
+                x.open("""Line startX="${f(C + EDGE * sin(a))}" startY="${f(C - EDGE * cos(a))}" endX="${f(C + (EDGE - len) * sin(a))}" endY="${f(C - (EDGE - len) * cos(a))}"""")
+                x.line("""<Stroke color="${color(withAlpha(w.textColor, if (hour) 0xB3 else 0x40))}" thickness="${if (hour) 3 else 1.5}" cap="ROUND"/>""")
+                x.close("Line")
+            }
+        }
+        part(x, "minuteDot") { dot(x, 196f, "([MINUTE] + [SECOND] / 60) * 6", accent, 16f) }
+        if (w.showSeconds) part(x, "secondDot", ambientAlpha = 0) { dot(x, 180f, "[SECOND] * 6", color(withAlpha(w.textColor, 0x99)), 7f) }
+        timeText(x, 35, 150, 380, 140, "hh:mm", "SYNC_TO_DEVICE", 116f, text, weight = "THIN", hourFormat = true)
+        if (w.showDate) label(x, 105, 290, 240, 36, 22f, accent, FONT_LABEL, "%s %d %s", "[DAY_OF_WEEK_S]", "[DAY]", "[MONTH_S]")
+        if (w.complications) {
+            complication(x, 0, 156, 330, 62, w, "WATCH_BATTERY", "RANGED_VALUE")
+            complication(x, 1, 232, 330, 62, w, "STEP_COUNT", "SHORT_TEXT")
+        }
+    }
+
+    // ---------------------------------------------------------------- общие элементы
+
+    private fun timeText(
+        x: Xml, px: Int, py: Int, w: Int, h: Int, format: String, family: String, size: Float, color: String,
+        weight: String = "NORMAL", hourFormat: Boolean = false, ambientAlpha: Int? = null,
+    ) {
+        x.open("""DigitalClock x="$px" y="$py" width="$w" height="$h"""")
+        val hf = if (hourFormat) """ hourFormat="SYNC_TO_DEVICE"""" else ""
+        x.open("""TimeText x="0" y="0" width="$w" height="$h" format="$format"$hf align="CENTER"""")
+        if (ambientAlpha != null) x.line("""<Variant mode="AMBIENT" target="alpha" value="$ambientAlpha"/>""")
+        x.line("""<Font family="$family" size="${f(size)}" weight="$weight" color="$color"/>""")
+        x.close("TimeText")
+        x.close("DigitalClock")
+    }
+
+    private fun label(
+        x: Xml, px: Int, py: Int, w: Int, h: Int, size: Float, color: String, family: String,
+        template: String, vararg params: String,
+    ) {
+        x.open("""PartText x="$px" y="$py" width="$w" height="$h" name="label"""")
+        x.open("""Text align="CENTER" ellipsis="TRUE"""")
+        val parameters = params.joinToString("") { """<Parameter expression="$it"/>""" }
+        x.line("""<Font family="$family" size="${f(size)}" color="$color"><Template><![CDATA[$template]]>$parameters</Template></Font>""")
+        x.close("Text")
+        x.close("PartText")
+    }
+
+    /** Слой рисования во весь экран; ambientAlpha — прозрачность в режиме Always-On. */
+    private inline fun part(x: Xml, name: String, ambientAlpha: Int? = null, body: () -> Unit) {
+        x.open("""PartDraw x="0" y="0" width="$SIZE" height="$SIZE" name="$name"""")
+        if (ambientAlpha != null) x.line("""<Variant mode="AMBIENT" target="alpha" value="$ambientAlpha"/>""")
+        body()
+        x.close("PartDraw")
+    }
+
+    /** Дуга по кругу радиуса r; start/end — выражения, если дуга движется. 0° — это 12 часов. */
+    private fun arc(
+        x: Xml, r: Float, startAngle: Float, endAngle: Float, color: String, thickness: Float,
+        start: String? = null, end: String? = null,
+    ) {
+        val d = f(r * 2)
+        x.open("""Arc centerX="$C" centerY="$C" width="$d" height="$d" startAngle="${f(startAngle)}" endAngle="${f(endAngle)}"""")
+        x.line("""<Stroke color="$color" thickness="${f(thickness)}" cap="ROUND"/>""")
+        if (start != null) x.line("""<Transform target="startAngle" value="$start"/>""")
+        if (end != null) x.line("""<Transform target="endAngle" value="$end"/>""")
+        x.close("Arc")
+    }
+
+    /** Точка на окружности под углом angle (выражение): короткая дуга со скруглёнными концами. */
+    private fun dot(x: Xml, r: Float, angle: String, color: String, size: Float) =
+        arc(x, r, 0f, 0.5f, color, size, start = "$angle - 0.25", end = "$angle + 0.25")
+
+    fun onAccent(accent: Int): Int = if (isLight(accent)) 0xFF141414.toInt() else 0xFFFFFFFF.toInt()
 
     /** Стрелки: изображения в шаблоне, точка вращения совпадает с центром циферблата. */
     private fun hands(

@@ -154,7 +154,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val phone = ThemeRenderer.phonePreview(app, t, 540, 1170)
         val lock = ThemeRenderer.lockPreview(app, t, 540, 1170)
         val bg = ThemeRenderer.watchBackground(app, t)
-        val watch = ThemeRenderer.watchPreview(t.watchSettings(), bg, 450)
+        val watch = ThemeRenderer.watchPreview(app, t.watchSettings(), bg, 450)
         bg.recycle()
         _phonePreview.value = phone.asImageBitmap()
         _lockPreview.value = lock.asImageBitmap()

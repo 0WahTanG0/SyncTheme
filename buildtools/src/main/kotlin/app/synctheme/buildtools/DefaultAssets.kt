@@ -43,6 +43,8 @@ fun main(args: Array<String>) {
     ImageIO.write(DefaultAssets.hand(18, 150), "png", drawable.resolve("${WatchFaceXml.HAND_HOUR}.png"))
     ImageIO.write(DefaultAssets.hand(12, 210), "png", drawable.resolve("${WatchFaceXml.HAND_MINUTE}.png"))
     ImageIO.write(DefaultAssets.hand(6, 240), "png", drawable.resolve("${WatchFaceXml.HAND_SECOND}.png"))
+    ImageIO.write(DefaultAssets.hand(28, 140), "png", drawable.resolve("${WatchFaceXml.HAND_HOUR_WIDE}.png"))
+    ImageIO.write(DefaultAssets.hand(20, 196), "png", drawable.resolve("${WatchFaceXml.HAND_MINUTE_WIDE}.png"))
 }
 
 object DefaultAssets {
@@ -117,7 +119,7 @@ object DefaultAssets {
         g.drawImage(bg, 0, 0, null)
         val w = theme.watchSettings()
         g.color = Color(w.textColor, true)
-        if (w.clockStyle == ClockStyle.ANALOG) {
+        if (w.clockStyle == ClockStyle.ANALOG || w.clockStyle == ClockStyle.BLOB) {
             g.stroke = BasicStroke(14f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
             g.drawLine(225, 225, 225 - 70, 225 - 80)
             g.stroke = BasicStroke(9f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)

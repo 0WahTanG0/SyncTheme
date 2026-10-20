@@ -45,7 +45,7 @@ class RenderingTest {
         for (theme in Presets.all) {
             ThemeRenderer.phonePreview(context, theme, 540, 1170).save("${theme.id}_phone.png")
             val bg = ThemeRenderer.watchBackground(context, theme)
-            ThemeRenderer.watchPreview(theme.watchSettings(), bg, 450).save("${theme.id}_watch.png")
+            ThemeRenderer.watchPreview(context, theme.watchSettings(), bg, 450).save("${theme.id}_watch.png")
             ThemeRenderer.lockPreview(context, theme, 540, 1170).save("${theme.id}_lock.png")
         }
     }
@@ -95,6 +95,27 @@ class RenderingTest {
                 assertTrue(all.apply(activity, FrameLayout(activity)) != null)
             }
         }
+    }
+
+    /** Все стили циферблата на двух темах — лист для просмотра. */
+    @Test
+    fun allWatchStyles() {
+        val size = 300
+        val gap = 20
+        val styles = ClockStyle.entries
+        val themes = listOf(Presets.all[0], Presets.all[6], Presets.all[4])
+        val sheet = Bitmap.createBitmap(styles.size * (size + gap) + gap, themes.size * (size + gap) + gap, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(sheet)
+        canvas.drawColor(0xFF202024.toInt())
+        themes.forEachIndexed { r, base ->
+            styles.forEachIndexed { c, style ->
+                val theme = base.copy(clockStyle = style)
+                val bg = ThemeRenderer.watchBackground(context, theme)
+                val preview = ThemeRenderer.watchPreview(context, theme.watchSettings(), bg, size)
+                canvas.drawBitmap(preview, (gap + c * (size + gap)).toFloat(), (gap + r * (size + gap)).toFloat(), null)
+            }
+        }
+        sheet.save("watch_styles.png")
     }
 
     @Test

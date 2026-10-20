@@ -137,9 +137,9 @@ fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: M
         ) {
             Text(
                 text = when (theme.clockStyle) {
-                    app.synctheme.core.ClockStyle.ANALOG -> "◷"
-                    app.synctheme.core.ClockStyle.STACKED -> "10\n08"
-                    app.synctheme.core.ClockStyle.DIGITAL -> "10:08"
+                    app.synctheme.core.ClockStyle.ANALOG, app.synctheme.core.ClockStyle.BLOB -> "◷"
+                    app.synctheme.core.ClockStyle.STACKED, app.synctheme.core.ClockStyle.BOLD -> "10\n08"
+                    else -> "10:08"
                 },
                 color = Color(theme.textColor),
                 style = MaterialTheme.typography.labelMedium,

@@ -25,7 +25,7 @@ class WatchFaceBuilder(private val context: Context) {
     suspend fun build(theme: Theme): Result = withContext(Dispatchers.Default) {
         val bg = ThemeRenderer.watchBackground(context, theme)
         val bgJpeg = bg.encode(Bitmap.CompressFormat.JPEG, 90)
-        val preview = ThemeRenderer.watchPreview(theme.watchSettings(), bg, PREVIEW_SIZE).encode(Bitmap.CompressFormat.PNG, 100)
+        val preview = ThemeRenderer.watchPreview(context, theme.watchSettings(), bg, PREVIEW_SIZE).encode(Bitmap.CompressFormat.PNG, 100)
         bg.recycle()
 
         val assets = context.assets

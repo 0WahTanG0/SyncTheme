@@ -7,9 +7,29 @@ import kotlinx.serialization.json.Json
 @Serializable
 enum class BackgroundType { LINEAR, RADIAL, AURORA, SOLID, PHOTO }
 
-/** Раскладка часов: на телефоне (виджеты) и на Galaxy Watch. */
+/**
+ * Раскладка циферблата Galaxy Watch. Первые три — классические, остальные — «живые»
+ * стили с анимацией и своими шрифтами (см. WatchFaceXml).
+ */
 @Serializable
-enum class ClockStyle { DIGITAL, STACKED, ANALOG }
+enum class ClockStyle {
+    DIGITAL, STACKED, ANALOG,
+    /** Огромные узкие цифры друг под другом. */
+    BOLD,
+    /** Кольца часов, минут и секунд с бегущими точками. */
+    ORBIT,
+    /** Светящееся кольцо, «комета» секунд, время с ореолом. */
+    NEON,
+    /** Стрелки на «печенье» акцентного цвета. */
+    BLOB,
+    /** Матовый стеклянный диск и бегущие по его краю секунды. */
+    GLASS,
+    /** Тонкие цифры, деления и одна точка, которая обходит циферблат за час. */
+    MINIMAL;
+
+    /** Классические раскладки: у них настраиваются шрифт и циферблат стрелок. */
+    val classic get() = this == DIGITAL || this == STACKED || this == ANALOG
+}
 
 /** Насыщенность шрифта часов. */
 @Serializable
