@@ -1,5 +1,7 @@
 package app.synctheme.mobile.install
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,10 +37,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -102,6 +109,7 @@ private fun PrepareStep() {
         StepText(2, "«Настройки» → «Параметры разработчика» → включите «Отладка ADB» и «Отладка по Wi‑Fi».")
         StepText(3, "Подключите часы к той же сети Wi‑Fi, что и телефон («Настройки» → «Подключения» → Wi‑Fi).")
         StepText(4, "Откройте «Отладка по Wi‑Fi» → «Сопряжение нового устройства». На часах появится 6-значный код.")
+        StepText(5, "Пока идёт установка, не давайте экрану часов погаснуть — касайтесь его.")
     }
 }
 
@@ -119,8 +127,8 @@ private fun FindStep(ui: InstallerUi, vm: InstallerViewModel) {
         if (!ui.manual) {
             hosts.forEach { host ->
                 val states = buildList {
-                    if (ui.pairing.any { it.host == host }) add("ждут сопряжения")
-                    if (ui.connect.any { it.host == host }) add("отладка включена")
+                    ui.pairing.firstOrNull { it.host == host }?.let { add("ждут сопряжения, порт ${it.port}") }
+                    ui.connect.firstOrNull { it.host == host }?.let { add("отладка включена, порт ${it.port}") }
                 }
                 Row(
                     Modifier.fillMaxWidth().clickable { vm.selectHost(host) },
@@ -177,6 +185,7 @@ private fun CodeStep(ui: InstallerUi, vm: InstallerViewModel) {
                 "С этими часами уже было сопряжение — код можно не вводить.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
             )
+            TextButton(onClick = vm::resetPairing) { Text("Сделать сопряжение заново") }
         }
     }
 }
@@ -192,6 +201,7 @@ private fun ActionStep(ui: InstallerUi, vm: InstallerViewModel, onClose: () -> U
             )
         }
         ui.error?.let { Text(it, color = Color(0xFFFF6B6B), style = MaterialTheme.typography.bodyMedium) }
+        if (ui.networkHint) NetworkHints()
         when {
             ui.done -> {
                 Text(
@@ -215,7 +225,46 @@ private fun ActionStep(ui: InstallerUi, vm: InstallerViewModel, onClose: () -> U
                 onClick = { vm.install() },
                 enabled = ui.host.isNotBlank() && (ui.code.length == 6 || ui.knownHost),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) { Text("Установить на часы", style = MaterialTheme.typography.titleMedium) }
+            ) { Text(if (ui.error != null) "Попробовать ещё раз" else "Установить на часы", style = MaterialTheme.typography.titleMedium) }
+        }
+        if (ui.log.isNotEmpty()) LogCard(ui.log)
+    }
+}
+
+@Composable
+private fun NetworkHints() {
+    Section("Если часы не подключаются") {
+        StepText(1, "Разбудите экран часов и не давайте ему погаснуть, пока идёт установка.")
+        StepText(2, "Проверьте, что «Отладка по Wi‑Fi» на часах всё ещё включена: она выключается при смене сети Wi‑Fi.")
+        StepText(
+            3,
+            "Galaxy Watch отключает Wi‑Fi, пока связаны с телефоном по Bluetooth. На время установки выключите на часах " +
+                "Bluetooth («Настройки» → «Подключения» → Bluetooth), включите Wi‑Fi и повторите. После установки Bluetooth включите обратно.",
+        )
+        StepText(4, "Сравните адрес и порт на экране «Отладка по Wi‑Fi» с найденными выше; если отличаются — введите вручную.")
+        StepText(5, "Не помогло — «Сделать сопряжение заново» в шаге 3 и новый код с часов.")
+    }
+}
+
+@Composable
+private fun LogCard(log: List<String>) {
+    val context = LocalContext.current
+    var expanded by remember { mutableStateOf(false) }
+    Section("Журнал") {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Скрыть" else "Показать подробности") }
+            TextButton(onClick = {
+                val clipboard = context.getSystemService(ClipboardManager::class.java)
+                clipboard.setPrimaryClip(ClipData.newPlainText("SyncTheme log", log.joinToString("\n")))
+            }) { Text("Скопировать") }
+        }
+        if (expanded) {
+            Text(
+                log.takeLast(60).joinToString("\n"),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

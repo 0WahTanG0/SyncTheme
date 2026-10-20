@@ -5,6 +5,8 @@
     <!-- Поиск часов в Wi‑Fi сети (mDNS) и установка приложения по «Отладке по Wi‑Fi». -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Обновление приложения «поверх» прямо из него самого. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".mobile.SyncThemeApp"
@@ -44,6 +46,10 @@
                     android:scheme="wear" />
             </intent-filter>
         </service>
+
+        <receiver
+            android:name=".mobile.update.UpdateReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".mobile.widget.ClockWidget"

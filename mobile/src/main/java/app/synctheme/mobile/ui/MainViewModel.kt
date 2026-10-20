@@ -15,6 +15,8 @@ import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.install.WatchAppInstaller
+import app.synctheme.mobile.update.UpdateInfo
+import app.synctheme.mobile.update.Updater
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.render.WallpaperApplier
 import app.synctheme.mobile.watch.WatchConnection
@@ -62,6 +64,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _bundledWatchVersion = MutableStateFlow(0L)
     val bundledWatchVersion: StateFlow<Long> = _bundledWatchVersion.asStateFlow()
 
+    private val updater = Updater(app)
+    private val _update = MutableStateFlow(UpdateUi(updater.currentVersionName, updater.currentVersionCode, updater.repo))
+    val update: StateFlow<UpdateUi> = _update.asStateFlow()
+
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages
 
@@ -75,7 +81,59 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             _bundledWatchVersion.value = runCatching { WatchAppInstaller(app).bundledVersion }.getOrDefault(0L)
         }
+        // Тихая проверка обновлений не чаще раза в 6 часов.
+        if (updater.repo.isNotBlank() && System.currentTimeMillis() - updater.lastCheck > 6 * 3600_000L) {
+            checkUpdates(silent = true)
+        }
     }
+
+    fun setUpdateRepo(repo: String) {
+        updater.repo = repo
+        _update.value = _update.value.copy(repo = updater.repo, status = null)
+        if (updater.repo.isNotBlank()) checkUpdates()
+    }
+
+    fun checkUpdates(silent: Boolean = false) = viewModelScope.launch {
+        _update.value = _update.value.copy(checking = true, status = null)
+        val result = runCatching { updater.check() }
+        _update.value = _update.value.copy(
+            checking = false,
+            available = result.getOrNull(),
+            status = when {
+                result.isFailure -> "Не удалось проверить: ${result.exceptionOrNull()?.message}"
+                result.getOrNull() == null -> "У вас последняя версия"
+                else -> null
+            },
+        )
+        result.getOrNull()?.let { if (silent) _messages.tryEmit("Доступна версия ${it.versionName} — раздел «Обновления»") }
+    }
+
+    fun downloadAndInstall() = viewModelScope.launch {
+        val info = _update.value.available ?: return@launch
+        installApk { updater.download(info) { p -> _update.value = _update.value.copy(progress = p) } }
+    }
+
+    fun installFromFile(uri: Uri) = viewModelScope.launch { installApk { updater.copyFromUri(uri) } }
+
+    private suspend fun installApk(obtain: suspend () -> java.io.File) {
+        if (!updater.canInstall()) {
+            _update.value = _update.value.copy(needsPermission = true, status = "Разрешите SyncTheme устанавливать обновления и повторите")
+            return
+        }
+        _update.value = _update.value.copy(progress = 0f, status = "Загружаю обновление…", needsPermission = false)
+        try {
+            val apk = obtain()
+            updater.verify(apk)
+            _update.value = _update.value.copy(status = "Устанавливаю… Приложение перезапустится")
+            updater.install(apk)
+        } catch (e: Exception) {
+            _update.value = _update.value.copy(status = "Ошибка обновления: ${e.message}")
+        } finally {
+            _update.value = _update.value.copy(progress = null)
+        }
+    }
+
+    fun installPermissionIntent() = updater.installPermissionIntent()
 
     private suspend fun renderPreviews(t: Theme) = withContext(Dispatchers.Default) {
         val phone = ThemeRenderer.phonePreview(app, t, 540, 1170)
@@ -203,3 +261,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 }
+
+/** Состояние раздела «Обновления». */
+data class UpdateUi(
+    val currentName: String,
+    val currentCode: Long,
+    val repo: String,
+    val available: UpdateInfo? = null,
+    val checking: Boolean = false,
+    val progress: Float? = null,
+    val status: String? = null,
+    val needsPermission: Boolean = false,
+)

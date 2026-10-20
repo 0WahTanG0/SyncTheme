@@ -1,6 +1,9 @@
 package app.synctheme.mobile
 
 import android.app.Application
+import android.os.Looper
+import java.time.Duration
+import org.robolectric.Shadows.shadowOf
 import androidx.test.core.app.ApplicationProvider
 import app.synctheme.core.Presets
 import app.synctheme.mobile.data.ThemeRepository
@@ -19,14 +22,18 @@ import org.robolectric.annotation.GraphicsMode
 /** Скриншот главного экрана (Roborazzi). */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(qualifiers = "w411dp-h2000dp-xxhdpi")
+@Config(qualifiers = "w412dp-h915dp-560dpi")
 class ScreenshotTest {
     @Test
     fun mainScreen() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         ThemeRepository.get(app).setDraft(Presets.all[0])
         val vm = MainViewModel(app)
-        Thread.sleep(1500)
+        // Превью рендерятся в фоне после debounce на главном потоке — даём им время.
+        repeat(6) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500))
+            Thread.sleep(500)
+        }
         val out = File(System.getProperty("previewsDir")!!, "screen_main.png")
         captureRoboImage(out.absolutePath) { SyncThemeScreen(vm) }
     }

@@ -5,8 +5,12 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.muntashirakon.adb.AdbPairingRequiredException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.net.ssl.SSLException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,22 +31,21 @@ data class InstallerUi(
     val busy: String? = null,
     val progress: Float? = null,
     val error: String? = null,
+    /** Показать подсказки про Wi‑Fi и Bluetooth на часах. */
+    val networkHint: Boolean = false,
     val device: WatchDevice? = null,
     val done: Boolean = false,
-) {
-    /** Код нужен, если с этими часами ещё не было сопряжения. */
-    val needsCode get() = !knownHost
-}
+    val log: List<String> = emptyList(),
+)
 
 class InstallerViewModel(app: Application) : AndroidViewModel(app) {
-    private val installer = WatchAppInstaller(app)
+    private val installer = WatchAppInstaller(app, ::log)
     private val prefs = app.getSharedPreferences("watch_install", Context.MODE_PRIVATE)
     private val pairedHosts get() = prefs.getStringSet("paired", emptySet()).orEmpty()
+    private val time = SimpleDateFormat("HH:mm:ss", Locale.ROOT)
 
     private val _ui = MutableStateFlow(InstallerUi())
     val ui: StateFlow<InstallerUi> = _ui.asStateFlow()
-
-    val bundledVersion: Long get() = installer.bundledVersion
 
     private var discoveryJobs = emptyList<Job>()
 
@@ -98,10 +101,18 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
 
+    /** Забыть сопряжение: в следующий раз понадобится новый код с часов. */
+    fun resetPairing() {
+        prefs.edit().remove("paired").apply()
+        _ui.update { it.copy(knownHost = false, error = null) }
+        log("Сопряжение сброшено")
+    }
+
     fun install() = viewModelScope.launch {
         val s = _ui.value
         if (s.host.isBlank()) return@launch fail("Часы не найдены. Проверьте, что часы и телефон в одной сети Wi‑Fi, или введите адрес вручную.")
-        _ui.update { it.copy(error = null, done = false, device = null, progress = null) }
+        _ui.update { it.copy(error = null, networkHint = false, done = false, device = null, progress = null) }
+        log("Старт: часы ${s.host}, сопряжение ${s.pairPort.ifBlank { "—" }}, подключение ${s.connectPort.ifBlank { "—" }}")
         try {
             if (s.code.length == 6) {
                 val port = s.pairPort.toIntOrNull()
@@ -114,10 +125,7 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch fail("Введите 6-значный код с экрана «Сопряжение нового устройства» на часах.")
             }
 
-            busy("Подключаюсь к часам…")
-            val connectPort = _ui.value.connectPort.toIntOrNull() ?: waitForConnectPort(s.host)
-                ?: return@launch fail("Не найден порт подключения. Он указан на часах на экране «Отладка по Wi‑Fi» (IP-адрес и порт) — введите его вручную.")
-            val device = installer.connect(s.host, connectPort)
+            val device = connectWithRetry(s.host)
             _ui.update { it.copy(device = device) }
             if (!device.supportsWatchFacePush) {
                 return@launch fail(
@@ -131,18 +139,49 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
             busy("Настраиваю приложение на часах…")
             installer.finishSetup()
             installer.disconnect()
+            log("Готово")
             _ui.update { it.copy(busy = null, progress = null, done = true) }
         } catch (e: AdbPairingRequiredException) {
+            logError(e)
             prefs.edit().putStringSet("paired", pairedHosts - s.host).apply()
             _ui.update { it.copy(knownHost = false) }
-            fail("Часы просят сопряжение заново: откройте «Сопряжение нового устройства» и введите код.")
+            fail("Часы не узнали телефон — нужно сопряжение заново: откройте на часах «Сопряжение нового устройства» и введите код.")
         } catch (e: SSLException) {
-            fail("Сопряжение не удалось — проверьте код (он меняется каждый раз при открытии окна сопряжения).")
+            logError(e)
+            fail("Сопряжение не удалось — проверьте код (он новый при каждом открытии окна сопряжения).")
+        } catch (e: WatchUnreachableException) {
+            logError(e)
+            fail("${e.message}. Разбудите экран часов и попробуйте ещё раз — подсказки ниже.", networkHint = true)
         } catch (e: InstallException) {
+            logError(e)
             fail(e.message.orEmpty())
         } catch (e: Exception) {
-            fail("Ошибка: ${e.message ?: e.javaClass.simpleName}")
+            logError(e)
+            fail("Ошибка: ${e.message ?: e.javaClass.simpleName}", networkHint = true)
         }
+    }
+
+    /**
+     * Порт подключения меняется при каждом включении «Отладки по Wi‑Fi», а часы могли
+     * задремать — поэтому до 3 попыток, каждый раз с актуальным портом из сети.
+     */
+    private suspend fun connectWithRetry(host: String): WatchDevice {
+        var last: Exception? = null
+        repeat(3) { attempt ->
+            busy(if (attempt == 0) "Подключаюсь к часам…" else "Подключаюсь к часам… (попытка ${attempt + 1} из 3)")
+            val port = _ui.value.connectPort.toIntOrNull() ?: waitForConnectPort(host)
+                ?: throw WatchUnreachableException(
+                    "Не найден порт подключения. Он указан на часах на экране «Отладка по Wi‑Fi» после двоеточия"
+                )
+            try {
+                return installer.connect(host, port)
+            } catch (e: WatchUnreachableException) {
+                last = e
+                log("Попытка ${attempt + 1}: ${e.message}")
+                delay(2_000)
+            }
+        }
+        throw last ?: WatchUnreachableException("Не удалось подключиться к часам")
     }
 
     /** После сопряжения часы объявляют порт подключения в сети — ждём его немного. */
@@ -150,11 +189,24 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
         _ui.first { ui -> ui.connect.any { it.host == host } }.connect.first { it.host == host }.port
     }
 
-    private fun busy(text: String) = _ui.update { it.copy(busy = text, error = null) }
+    private fun busy(text: String) {
+        log(text)
+        _ui.update { it.copy(busy = text, error = null) }
+    }
 
-    private suspend fun fail(message: String) {
+    private fun log(text: String) {
+        _ui.update { it.copy(log = (it.log + "${time.format(Date())}  $text").takeLast(200)) }
+    }
+
+    private fun logError(e: Throwable) {
+        log("Ошибка: " + generateSequence(e) { it.cause }.take(4)
+            .joinToString(" ← ") { "${it.javaClass.simpleName}: ${it.message.orEmpty()}" })
+    }
+
+    private suspend fun fail(message: String, networkHint: Boolean = false) {
         installer.disconnect()
-        _ui.update { it.copy(busy = null, progress = null, error = message) }
+        log(message)
+        _ui.update { it.copy(busy = null, progress = null, error = message, networkHint = networkHint) }
     }
 
     override fun onCleared() {

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -36,6 +37,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -59,6 +61,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -109,14 +113,20 @@ fun SyncThemeScreen(vm: MainViewModel, onOpenInstaller: () -> Unit = {}) {
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = { ApplyBar(targets, busy, vm::setTargets, vm::apply) },
         ) { padding ->
-            LazyColumn(
-                contentPadding = PaddingValues(
-                    start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp,
-                    bottom = padding.calculateBottomPadding() + 16.dp,
-                ),
+            Column(
+                Modifier.fillMaxSize()
+                    .padding(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
             ) {
-                item { Header(connection) }
-                item { PreviewRow(phonePreview, watchPreview) }
+                // Шапка и превью закреплены — настройки прокручиваются под ними, изменения видны сразу.
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    Header(connection, onOpenInstaller)
+                    PreviewRow(phonePreview, watchPreview)
+                }
+                HorizontalDivider(color = Color(0xFF24242C))
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                ) {
                 item {
                     PresetRow(
                         presets = Presets.all, saved = saved, selectedId = theme.id,
@@ -154,6 +164,8 @@ fun SyncThemeScreen(vm: MainViewModel, onOpenInstaller: () -> Unit = {}) {
                         onOpen = vm::openOnWatch, onRefresh = vm::refreshWatch, onInstall = onOpenInstaller,
                     )
                 }
+                item { UpdateSection(vm) }
+                }
             }
         }
 
@@ -184,24 +196,19 @@ fun SyncThemeScreen(vm: MainViewModel, onOpenInstaller: () -> Unit = {}) {
 }
 
 @Composable
-private fun Header(connection: WatchConnection) {
-    Column(Modifier.padding(vertical = 8.dp)) {
-        Text("SyncTheme", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(
-            "Обои, виджеты и циферблат Galaxy Watch в одном стиле",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(8.dp))
+private fun Header(connection: WatchConnection, onOpenInstaller: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("SyncTheme", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(12.dp))
         val (dot, text) = when {
             !connection.checked -> Color.Gray to "Ищу часы…"
-            connection.hasApp -> Color(0xFF4CD964) to "Часы на связи: ${connection.appNodeName}"
-            connection.hasWatch -> Color(0xFFFFCC00) to "Часы подключены, но SyncTheme на них не установлен"
+            connection.hasApp -> Color(0xFF4CD964) to "Часы на связи"
+            connection.hasWatch -> Color(0xFFFFCC00) to "Установить на часы"
             else -> Color(0xFFFF3B30) to "Часы не найдены"
         }
         AssistChip(
-            onClick = {},
-            label = { Text(text) },
+            onClick = { if (connection.hasWatch && !connection.hasApp) onOpenInstaller() },
+            label = { Text(text, maxLines = 1) },
             leadingIcon = { Box(Modifier.size(10.dp).clip(CircleShape).background(dot)) },
         )
     }
@@ -210,29 +217,41 @@ private fun Header(connection: WatchConnection) {
 @Composable
 private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .height(320.dp)
+                .height(230.dp)
                 .aspectRatio(540f / 1170f)
-                .clip(RoundedCornerShape(28.dp))
-                .border(4.dp, Color(0xFF2A2A33), RoundedCornerShape(28.dp))
-                .background(Color.Black),
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color.Black)
+                .border(3.dp, Color(0xFF2A2A33), RoundedCornerShape(22.dp)),
         ) {
-            phone?.let { Image(it, contentDescription = "Превью телефона", modifier = Modifier.fillMaxWidth()) }
+            phone?.let {
+                Image(
+                    it, contentDescription = "Превью телефона",
+                    contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
+        // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
         Box(
             Modifier
-                .size(160.dp)
+                .size(150.dp)
                 .clip(CircleShape)
-                .border(8.dp, Color(0xFF2A2A33), CircleShape)
-                .background(Color.Black)
-                .padding(8.dp),
+                .background(Color(0xFF2A2A33))
+                .padding(7.dp)
+                .clip(CircleShape)
+                .background(Color.Black),
         ) {
-            watch?.let { Image(it, contentDescription = "Превью часов", modifier = Modifier.clip(CircleShape)) }
+            watch?.let {
+                Image(
+                    it, contentDescription = "Превью часов",
+                    contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }
@@ -478,6 +497,55 @@ private fun ApplyBar(targets: ApplyTargets, busy: String?, onTargets: (ApplyTarg
                     colors = ButtonDefaults.buttonColors(),
                 ) { Text("Применить", style = MaterialTheme.typography.titleMedium) }
             }
+        }
+    }
+}
+
+@Composable
+private fun UpdateSection(vm: MainViewModel) {
+    val state by vm.update.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var editRepo by remember { mutableStateOf(false) }
+    var repoText by remember(state.repo) { mutableStateOf(state.repo) }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(vm::installFromFile)
+    }
+    Section("Обновления") {
+        Text("Установлена версия ${state.currentName} (${state.currentCode})", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "Новая версия ставится поверх текущей: темы, сопряжение с часами и настройки сохраняются.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        state.available?.let { info ->
+            Text("Доступна версия ${info.versionName}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            if (info.notes.isNotBlank()) Text(info.notes, style = MaterialTheme.typography.bodySmall)
+            Button(onClick = vm::downloadAndInstall, enabled = state.progress == null, modifier = Modifier.fillMaxWidth()) {
+                Text("Скачать и обновить")
+            }
+        }
+        state.progress?.let { p -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth()) }
+        state.status?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        if (state.needsPermission) {
+            FilledTonalButton(onClick = { context.startActivity(vm.installPermissionIntent()) }) {
+                Text("Разрешить установку обновлений")
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { vm.checkUpdates() }, enabled = state.repo.isNotBlank() && !state.checking) {
+                Text(if (state.checking) "Проверяю…" else "Проверить")
+            }
+            OutlinedButton(onClick = {
+                filePicker.launch(arrayOf("application/vnd.android.package-archive", "application/zip", "application/octet-stream"))
+            }) { Text("Из файла APK") }
+        }
+        if (state.repo.isBlank() || editRepo) {
+            OutlinedTextField(
+                value = repoText, onValueChange = { repoText = it }, singleLine = true,
+                label = { Text("Источник: GitHub owner/repo") }, modifier = Modifier.fillMaxWidth(),
+            )
+            TextButton(onClick = { vm.setUpdateRepo(repoText); editRepo = false }) { Text("Сохранить источник") }
+        } else {
+            TextButton(onClick = { editRepo = true }) { Text("Источник: github.com/${state.repo}") }
         }
     }
 }

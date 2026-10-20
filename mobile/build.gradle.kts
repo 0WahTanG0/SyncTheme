@@ -13,8 +13,10 @@ android {
         applicationId = "app.synctheme"
         minSdk = 31
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
+        // Откуда приложение берёт обновления: релизы GitHub owner/repo (-PupdateRepo=... при сборке).
+        resValue("string", "update_repo", providers.gradleProperty("updateRepo").getOrElse(""))
         // Galaxy S25+ и все современные телефоны — arm64; так APK заметно меньше.
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -41,7 +43,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        resValues = true
+    }
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
