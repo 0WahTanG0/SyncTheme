@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Одноцветный слой для тематических значков One UI / Android. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
+        android:strokeLineCap="round"
+        android:strokeWidth="6"
+        android:strokeColor="#FFFFFFFF" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,54m-6,0a6,6 0,1 1,12,0a6,6 0,1 1,-12,0" />
+</vector>

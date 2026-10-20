@@ -63,7 +63,7 @@ fun LazyListScope.themeTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
         PresetRow(Presets.all, saved, theme.id, a.vm::select, a.vm::delete)
     }
     item {
-        Section("Обои из галереи") {
+        Section("Обои из галереи", highlight = true) {
             Text(
                 "Выберите фото — цифры, акцент, виджеты и циферблат часов подстроятся под его цвета.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -282,7 +282,8 @@ private fun PresetRow(
     onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit,
 ) {
     Column(Modifier.padding(vertical = 6.dp)) {
-        Text("Готовые темы", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        val look = LocalLook.current
+        Text(look.title("Готовые темы"), style = look.sectionTitle, color = look.text)
         Spacer(Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(presets, key = { it.id }) { t -> ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) }) }

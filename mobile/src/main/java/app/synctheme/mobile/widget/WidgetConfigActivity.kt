@@ -37,7 +37,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,6 +59,7 @@ import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.data.WeatherData
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.render.ThemeRenderer
+import app.synctheme.mobile.ui.AppBackdrop
 import app.synctheme.mobile.ui.AppTheme
 import app.synctheme.mobile.ui.ColorPickerDialog
 import app.synctheme.mobile.ui.ColorSwatch
@@ -172,7 +172,7 @@ fun WidgetConfigScreen(
     val analog = kind == WidgetKind.CLOCK && config.style.startsWith("analog_")
     val digitalClock = kind == WidgetKind.CLOCK && !analog
 
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+    AppBackdrop {
         Column(Modifier.statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
                 IconButton(onClick = onCancel) { Icon(Icons.Default.Close, "Закрыть") }

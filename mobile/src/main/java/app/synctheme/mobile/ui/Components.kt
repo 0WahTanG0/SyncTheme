@@ -18,15 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -36,39 +35,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.Theme
-import app.synctheme.mobile.render.Colors
-
-/** Тёмная тема приложения; основной цвет берётся из акцента текущей темы. */
-@Composable
-fun AppTheme(accentColor: Int, content: @Composable () -> Unit) {
-    val accent = Color(accentColor)
-    val scheme = darkColorScheme(
-        primary = accent,
-        onPrimary = if (Colors.isLight(accentColor)) Color(0xFF111111) else Color.White,
-        secondaryContainer = accent.copy(alpha = 0.25f),
-        background = Color(0xFF0E0E12),
-        surface = Color(0xFF0E0E12),
-        surfaceContainer = Color(0xFF1A1A21),
-    )
-    MaterialTheme(colorScheme = scheme, content = content)
-}
 
 @Composable
-fun Section(title: String, content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        shape = RoundedCornerShape(24.dp),
+fun Section(title: String, highlight: Boolean = false, content: @Composable () -> Unit) {
+    val look = LocalLook.current
+    val shape = RoundedCornerShape(look.radius)
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape)
+            .background(if (highlight) look.highlight else look.card)
+            .border(1.dp, look.cardBorder, shape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            content()
-        }
+        val color = if (highlight) look.onHighlight else look.text
+        Text(look.title(title), style = look.sectionTitle, color = color)
+        CompositionLocalProvider(LocalContentColor provides color, content = content)
     }
 }
 
@@ -116,14 +101,22 @@ fun ColorSwatch(color: Int, size: Dp = 40.dp, selected: Boolean = false, onClick
     )
 }
 
-/** Кружок-миниатюра темы для ленты пресетов. */
+/** Миниатюра темы для ленты пресетов; форма зависит от оформления. */
 @Composable
 fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val look = LocalLook.current
     val colors = theme.background.colors.ifEmpty { listOf(0xFF000000.toInt()) }.map { Color(it) }
     val brush = when {
         colors.size == 1 -> Brush.linearGradient(listOf(colors[0], colors[0]))
         theme.background.type == BackgroundType.RADIAL -> Brush.radialGradient(colors)
         else -> Brush.linearGradient(colors)
+    }
+    val shape = when (look.style) {
+        AppStyle.GLASS -> RoundedCornerShape(20.dp)
+        AppStyle.EXPRESSIVE -> listOf(CookieShape, CircleShape, RoundedCornerShape(20.dp), CloverShape, FlowerShape)[
+            Math.floorMod(theme.id.hashCode(), 5)
+        ]
+        AppStyle.NEON -> RoundedCornerShape(14.dp)
     }
     Column(
         modifier = modifier.width(76.dp).clickable(onClick = onClick),
@@ -132,12 +125,13 @@ fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: M
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(CircleShape)
+                .then(if (selected) Modifier.glow(look, shape, 10.dp) else Modifier)
+                .clip(shape)
                 .background(brush)
                 .border(
                     if (selected) 3.dp else 1.dp,
-                    if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.2f),
-                    CircleShape,
+                    if (selected) look.primary else Color.White.copy(alpha = 0.2f),
+                    shape,
                 ),
             contentAlignment = Alignment.Center,
         ) {

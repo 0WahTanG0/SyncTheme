@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -31,7 +30,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.synctheme.mobile.ui.AppBackdrop
 import app.synctheme.mobile.ui.AppTheme
 import app.synctheme.mobile.ui.Section
 
@@ -63,7 +62,7 @@ fun WatchInstallerScreen(vm: InstallerViewModel, accentColor: Int, onClose: () -
     }
 
     AppTheme(accentColor) {
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        AppBackdrop {
             LazyColumn(
                 modifier = Modifier.statusBarsPadding().navigationBarsPadding(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),

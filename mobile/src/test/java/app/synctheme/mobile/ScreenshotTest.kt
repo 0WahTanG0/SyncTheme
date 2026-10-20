@@ -5,12 +5,17 @@ import android.os.Looper
 import java.time.Duration
 import org.robolectric.Shadows.shadowOf
 import androidx.test.core.app.ApplicationProvider
+import app.synctheme.R
 import app.synctheme.core.Presets
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.install.InstallerViewModel
 import app.synctheme.mobile.install.WatchInstallerScreen
 import app.synctheme.mobile.ui.MainViewModel
+import app.synctheme.mobile.ui.AppMode
+import app.synctheme.mobile.ui.AppStyle
 import app.synctheme.mobile.ui.AppTheme
+import app.synctheme.mobile.ui.Appearance
+import app.synctheme.mobile.ui.AppearanceStore
 import app.synctheme.mobile.ui.SyncThemeScreen
 import app.synctheme.mobile.ui.Tab
 import app.synctheme.mobile.widget.WidgetConfig
@@ -31,8 +36,14 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(qualifiers = "w412dp-h915dp-560dpi")
 class ScreenshotTest {
-    private fun screen(name: String, tab: Tab, prepare: (Application) -> Unit = {}) {
+    private fun screen(
+        name: String,
+        tab: Tab,
+        appearance: Appearance = Appearance(AppStyle.GLASS, AppMode.DARK),
+        prepare: (Application) -> Unit = {},
+    ) {
         val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, appearance)
         ThemeRepository.get(app).setDraft(Presets.all[0])
         prepare(app)
         val vm = MainViewModel(app)
@@ -52,19 +63,31 @@ class ScreenshotTest {
     fun widgetsTab() = screen("screen_widgets", Tab.WIDGETS)
 
     @Test
-    fun lockTab() = screen("screen_lock", Tab.LOCK) { app ->
+    fun moreTab() = screen("screen_more", Tab.MORE)
+
+    /** Каждое оформление в светлом и тёмном режиме. */
+    @Test
+    fun appearances() {
+        for (style in AppStyle.entries) for (mode in listOf(AppMode.DARK, AppMode.LIGHT)) {
+            screen("look_${style.name.lowercase()}_${mode.name.lowercase()}", Tab.THEME, Appearance(style, mode))
+        }
+    }
+
+    @Test
+    fun lockTab() = screen("screen_lock", Tab.LOCK, Appearance(AppStyle.NEON, AppMode.DARK)) { app ->
         val t = Presets.all[0]
         ThemeRepository.get(app).setDraft(t.copy(lockBackground = Presets.all[1].background, lockDim = 0.2f))
     }
 
     @Test
-    fun watchTab() = screen("screen_watch", Tab.WATCH) { app ->
+    fun watchTab() = screen("screen_watch", Tab.WATCH, Appearance(AppStyle.EXPRESSIVE, AppMode.LIGHT)) { app ->
         val t = Presets.all[0]
         ThemeRepository.get(app).setDraft(t.copy(watch = t.followPhone().copy(clockStyle = ClockStyle.ANALOG, dialStyle = DialStyle.NUMBERS)))
     }
 
     @Test
     fun widgetConfigScreen() {
+        AppearanceStore.set(ApplicationProvider.getApplicationContext(), Appearance(AppStyle.GLASS, AppMode.DARK))
         val theme = Presets.all[0]
         val out = File(System.getProperty("previewsDir")!!, "screen_widget_config.png")
         captureRoboImage(out.absolutePath) {
@@ -74,9 +97,40 @@ class ScreenshotTest {
         }
     }
 
+    /** Иконка приложения: фон + передний слой в маске-«сквиркле» и одноцветный слой. */
+    @Test
+    fun launcherIcon() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val size = 432
+        val out = android.graphics.Bitmap.createBitmap(size * 2 + 40, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(out)
+        val mask = android.graphics.Path().apply {
+            addRoundRect(0f, 0f, size.toFloat(), size.toFloat(), size * 0.3f, size * 0.3f, android.graphics.Path.Direction.CW)
+        }
+        // Слои 108dp, видимая часть — центральные 72dp.
+        fun layer(res: Int, tint: Int? = null) = app.getDrawable(res)!!.apply {
+            val pad = size / 4
+            setBounds(-pad, -pad, size + pad, size + pad)
+            tint?.let { setTint(it) }
+        }
+        canvas.save(); canvas.clipPath(mask)
+        layer(R.drawable.ic_launcher_background).draw(canvas)
+        layer(R.drawable.ic_launcher_foreground).draw(canvas)
+        canvas.restore()
+        canvas.translate(size + 40f, 0f)
+        canvas.save(); canvas.clipPath(mask)
+        canvas.drawColor(0xFF2B2F3A.toInt())
+        layer(R.drawable.ic_launcher_monochrome, 0xFFB9C6FF.toInt()).draw(canvas)
+        canvas.restore()
+        File(System.getProperty("previewsDir")!!, "launcher_icon.png").outputStream().use {
+            out.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
+
     @Test
     fun installerScreen() {
         val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
         val vm = InstallerViewModel(app)
         vm.setManual(true)
         vm.edit(host = "192.168.1.50", pairPort = "41234", connectPort = "37515", code = "482913")
