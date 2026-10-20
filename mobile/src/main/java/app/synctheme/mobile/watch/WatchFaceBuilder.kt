@@ -18,15 +18,23 @@ import kotlinx.coroutines.withContext
  * официальным валидатором Watch Face Push (без него часы не примут циферблат).
  */
 class WatchFaceBuilder(private val context: Context) {
-    class Result(val apk: ByteArray, val token: String)
+    /**
+     * Готовый циферблат. Фон, слой глубины и настройки нужны ещё и часам с Wear OS 3–5:
+     * там нет Watch Face Push, и циферблат рисует само приложение SyncTheme.
+     */
+    class Result(val apk: ByteArray, val token: String, val background: ByteArray, val foreground: ByteArray?)
 
     class ValidationException(message: String) : Exception(message)
 
     suspend fun build(theme: Theme): Result = withContext(Dispatchers.Default) {
+        val settings = theme.watchSettings()
         val bg = ThemeRenderer.watchBackground(context, theme)
         val bgJpeg = bg.encode(Bitmap.CompressFormat.JPEG, 90)
-        val preview = ThemeRenderer.watchPreview(context, theme.watchSettings(), bg, PREVIEW_SIZE).encode(Bitmap.CompressFormat.PNG, 100)
+        val fg = if (settings.depth) ThemeRenderer.watchForeground(context, theme) else null
+        val fgPng = fg?.encode(Bitmap.CompressFormat.PNG, 100)
+        val preview = ThemeRenderer.watchPreview(context, settings, bg, PREVIEW_SIZE, fg).encode(Bitmap.CompressFormat.PNG, 100)
         bg.recycle()
+        fg?.recycle()
 
         val assets = context.assets
         val template = assets.open("watchface_template.apk").use { it.readBytes() }
@@ -35,14 +43,15 @@ class WatchFaceBuilder(private val context: Context) {
             assets.open("watchface_cert.der").use { it.readBytes() },
         )
         val workDir = File(context.cacheDir, "watchface").apply { mkdirs() }
-        val apk = WatchFaceApk.build(template, WatchFaceXml.generate(theme), bgJpeg, preview, signer, workDir)
+        val xml = WatchFaceXml.generate(settings, foreground = fgPng != null)
+        val apk = WatchFaceApk.build(template, xml, bgJpeg, preview, signer, workDir, foreground = fgPng)
 
         val apkFile = File(workDir, "watchface.apk").apply { writeBytes(apk) }
         val result = DwfValidatorFactory.create().validate(apkFile, SyncProtocol.APP_PACKAGE)
         if (result.failures().isNotEmpty()) {
             throw ValidationException(result.failures().joinToString("\n") { "${it.name()}: ${it.failureMessage()}" })
         }
-        Result(apk, result.validationToken())
+        Result(apk, result.validationToken(), bgJpeg, fgPng)
     }
 
     private fun Bitmap.encode(format: Bitmap.CompressFormat, quality: Int): ByteArray =

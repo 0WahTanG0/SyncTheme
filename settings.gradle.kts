@@ -33,5 +33,6 @@ rootProject.name = "SyncTheme"
 include(":core")
 include(":buildtools")
 include(":watchface")
+include(":faces")
 include(":wear")
 include(":mobile")

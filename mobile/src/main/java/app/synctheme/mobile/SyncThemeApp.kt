@@ -1,6 +1,7 @@
 package app.synctheme.mobile
 
 import android.app.Application
+import app.synctheme.mobile.data.ChameleonSettings
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.widget.WidgetScheduler
 
@@ -9,5 +10,6 @@ open class SyncThemeApp : Application() {
         super.onCreate()
         ThemeRepository.get(this)
         WidgetScheduler.ensure(this)
+        ChameleonSettings.schedule(this)
     }
 }

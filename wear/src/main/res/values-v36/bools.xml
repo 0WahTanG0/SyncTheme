@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- На Wear OS 6 циферблат ставится через Watch Face Push. -->
+    <bool name="classic_face">false</bool>
+</resources>

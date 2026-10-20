@@ -16,8 +16,20 @@ import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.Theme
 import app.synctheme.core.WatchSettings
+import app.synctheme.core.ChameleonMode
+import app.synctheme.core.Chameleon
+import app.synctheme.core.DayPart
+import app.synctheme.core.Mood
+import app.synctheme.core.Sky
+import app.synctheme.core.WallClock
 import app.synctheme.mobile.data.ApplyTargets
+import app.synctheme.mobile.data.ChameleonSettings
+import app.synctheme.mobile.data.ThemeApplier
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.render.DepthException
+import app.synctheme.mobile.render.ExportKind
+import app.synctheme.mobile.render.ExportKit
+import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.install.WatchAppInstaller
 import app.synctheme.mobile.update.UpdateInfo
@@ -96,6 +108,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val stylePreviews: StateFlow<Map<ClockStyle, ImageBitmap>> = _stylePreviews.asStateFlow()
     private val stylesWanted = MutableStateFlow(false)
 
+    private val _chameleon = MutableStateFlow(ChameleonSettings.mode(app))
+    val chameleon: StateFlow<ChameleonMode> = _chameleon.asStateFlow()
+    val mood: StateFlow<Mood?> = repo.mood
+
+    /** Как тема будет выглядеть в разное время суток и погоду — миниатюры для раздела «Хамелеон». */
+    private val _moodPreviews = MutableStateFlow<List<Pair<String, ImageBitmap>>>(emptyList())
+    val moodPreviews: StateFlow<List<Pair<String, ImageBitmap>>> = _moodPreviews.asStateFlow()
+    private val moodsWanted = MutableStateFlow(false)
+
     /** Галерею открыли — начинаем рисовать миниатюры (и обновлять их при смене цветов). */
     fun wantStylePreviews() {
         stylesWanted.value = true
@@ -104,8 +125,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private suspend fun renderStylePreviews(t: Theme) = withContext(Dispatchers.Default) {
         _stylePreviews.value = ClockStyle.entries.associateWith { style ->
             val variant = t.watch?.let { t.copy(watch = it.copy(clockStyle = style)) } ?: t.copy(clockStyle = style)
-            val bg = ThemeRenderer.watchBackground(app, variant)
-            ThemeRenderer.watchPreview(app, variant.watchSettings(), bg, 200).asImageBitmap()
+            ThemeRenderer.watchPreview(app, variant, 200).asImageBitmap()
         }
     }
 
@@ -122,6 +142,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 .distinctUntilChanged { a, b -> a.first == b.first }
                 .debounce(300)
                 .collectLatest { (_, t) -> renderStylePreviews(t) }
+        }
+        @OptIn(FlowPreview::class)
+        viewModelScope.launch {
+            combine(theme, moodsWanted, chameleon) { t, wanted, mode -> if (wanted) t to mode else null }
+                .filterNotNull()
+                .distinctUntilChanged { a, b -> a.first.background == b.first.background && a.first.dim == b.first.dim && a.second == b.second }
+                .debounce(300)
+                .collectLatest { (t, mode) -> renderMoodPreviews(t, mode) }
         }
         refreshWatch()
         WidgetUpdater.updateAll(app)
@@ -188,9 +216,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private suspend fun renderPreviews(t: Theme) = withContext(Dispatchers.Default) {
         val phone = ThemeRenderer.phonePreview(app, t, 540, 1170)
         val lock = ThemeRenderer.lockPreview(app, t, 540, 1170)
-        val bg = ThemeRenderer.watchBackground(app, t)
-        val watch = ThemeRenderer.watchPreview(app, t.watchSettings(), bg, 450)
-        bg.recycle()
+        val watch = ThemeRenderer.watchPreview(app, t, 450)
         _phonePreview.value = phone.asImageBitmap()
         _lockPreview.value = lock.asImageBitmap()
         _watchPreview.value = watch.asImageBitmap()
@@ -286,54 +312,156 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Применяет тему ко всем выбранным местам; ошибка в одном шаге не мешает остальным. */
     fun apply() = viewModelScope.launch {
-        val t = theme.value
         val targets = _targets.value
-        val done = mutableListOf<String>()
-        val errors = mutableListOf<String>()
+        val report = ThemeApplier(app).apply(theme.value, targets) { _busy.value = it }
         val notes = mutableListOf<String>()
-        suspend fun step(label: String, busyText: String, block: suspend () -> Unit) {
-            _busy.value = busyText
-            try {
-                block()
-                done += label
-            } catch (e: Exception) {
-                errors += "$label: ${e.message ?: e.javaClass.simpleName}"
-            }
-        }
-        if (targets.homeWallpaper || targets.lockWallpaper) {
-            step("обои", "Ставлю обои…") {
-                WallpaperApplier.apply(app, t, targets.homeWallpaper, targets.lockWallpaper)
-            }
-        }
-        if (targets.widgets) {
-            step("виджеты", "Обновляю виджеты…") {
-                repo.setApplied(t)
-                WidgetUpdater.updateAll(app)
-            }
-        }
         if (targets.watch) {
-            step("часы", "Собираю циферблат для часов…") {
-                val built = WatchFaceBuilder(app).build(t)
-                _busy.value = "Отправляю на часы…"
-                sync.push(t, built)
-                WatchStatusStore.markPending(t.name)
-            }
             _connection.value = sync.connection()
-            if ("часы" in done && !_connection.value.hasApp) {
+            if (report.watchSent && !_connection.value.hasApp) {
                 notes += "часы не на связи — циферблат установится, когда они подключатся"
             }
         }
         _busy.value = null
         val msg = buildString {
-            if (done.isNotEmpty()) append("Готово: ${done.joinToString()}")
+            if (report.done.isNotEmpty()) append("Готово: ${report.done.joinToString()}")
             if (notes.isNotEmpty()) append(" (${notes.joinToString("; ")})")
-            if (errors.isNotEmpty()) {
+            if (report.errors.isNotEmpty()) {
                 if (isNotEmpty()) append(". ")
-                append("Ошибки — ${errors.joinToString("; ")}")
+                append("Ошибки — ${report.errors.joinToString("; ")}")
             }
         }
         if (msg.isNotEmpty()) _messages.tryEmit(msg)
     }
+
+    // ---------------------------------------------------------------- эффект глубины
+
+    /**
+     * Включает эффект глубины: находит главный объект на фото (один раз для каждого фото),
+     * затем меняет тему через [enable]. Ошибка — сообщением, тема не меняется.
+     */
+    private fun withSubject(photo: String?, enable: () -> Unit) = viewModelScope.launch {
+        if (photo == null) {
+            _messages.tryEmit("Эффект глубины работает с фото: выберите фото для фона")
+            return@launch
+        }
+        _busy.value = "Ищу главный объект на фото…"
+        try {
+            SubjectMask.ensure(app, photo)
+            enable()
+        } catch (e: DepthException) {
+            _messages.tryEmit(e.message.orEmpty())
+        } catch (e: Exception) {
+            _messages.tryEmit("Не удалось выделить объект: ${e.message ?: e.javaClass.simpleName}")
+        } finally {
+            _busy.value = null
+        }
+    }
+
+    private fun photoOf(bg: Background) = bg.photoFile?.takeIf { bg.type == BackgroundType.PHOTO }
+
+    /** Глубина на циферблате: объект с фото фона часов поверх цифр. */
+    fun setWatchDepth(enabled: Boolean, edit: ((WatchSettings) -> WatchSettings) -> Unit) {
+        if (!enabled) return edit { it.copy(depth = false) }
+        withSubject(photoOf(theme.value.watchBackground())) { edit { it.copy(depth = true) } }
+    }
+
+    /** Часы на обоях телефона; с глубиной объект с фото рабочего стола закрывает цифры. */
+    fun setWallClock(clock: WallClock?) {
+        val wantsDepth = clock?.depth == true && theme.value.wallClock?.depth != true
+        if (!wantsDepth) return update { it.copy(wallClock = clock) }
+        withSubject(photoOf(theme.value.background)) { update { it.copy(wallClock = clock) } }
+    }
+
+    // ---------------------------------------------------------------- Хамелеон
+
+
+    fun setChameleon(mode: ChameleonMode) {
+        _chameleon.value = mode
+        ChameleonSettings.setMode(app, mode)
+        if (mode.byWeather && WeatherRepository(app).place == null) {
+            _messages.tryEmit("Для погоды выберите город: «Виджеты» → «Город для погоды»")
+        }
+    }
+
+
+    fun wantMoodPreviews() {
+        moodsWanted.value = true
+    }
+
+    private suspend fun renderMoodPreviews(t: Theme, mode: ChameleonMode) = withContext(Dispatchers.Default) {
+        val moods = buildList {
+            if (mode != ChameleonMode.WEATHER) DayPart.entries.forEach { add(Mood(part = it)) }
+            if (mode.byWeather) listOf(Sky.CLEAR, Sky.CLOUDS, Sky.RAIN, Sky.SNOW).forEach { add(Mood(sky = it)) }
+        }
+        _moodPreviews.value = moods.map { m ->
+            val v = Chameleon.adapt(t, m)
+            m.title.replaceFirstChar { it.uppercase() } to ThemeRenderer.background(app, v, 120, 260).asImageBitmap()
+        }
+    }
+
+    // ---------------------------------------------------------------- В тон вещи
+
+    /** Снимок вещи и цвета с него — для диалога «В тон вещи». */
+    class MatchPhoto(val bitmap: android.graphics.Bitmap, val image: ImageBitmap, val swatches: List<Int>)
+
+    private val _match = MutableStateFlow<MatchPhoto?>(null)
+    val match: StateFlow<MatchPhoto?> = _match.asStateFlow()
+
+    fun loadMatch(uri: Uri) = viewModelScope.launch {
+        _busy.value = "Смотрю цвета на снимке…"
+        try {
+            val bmp = withContext(Dispatchers.IO) {
+                val source = android.graphics.ImageDecoder.createSource(app.contentResolver, uri)
+                android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    val longSide = maxOf(info.size.width, info.size.height)
+                    if (longSide > 1080) {
+                        val k = 1080f / longSide
+                        decoder.setTargetSize((info.size.width * k).toInt(), (info.size.height * k).toInt())
+                    }
+                    decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+            }
+            val swatches = withContext(Dispatchers.Default) { ThemeColors.swatches(bmp) }
+            _match.value = MatchPhoto(bmp, bmp.asImageBitmap(), swatches)
+        } catch (e: Exception) {
+            _messages.tryEmit("Не удалось открыть снимок: ${e.message ?: e.javaClass.simpleName}")
+        } finally {
+            _busy.value = null
+        }
+    }
+
+    fun dismissMatch() {
+        _match.value = null
+    }
+
+    /** Тема в цвет вещи (или только акцент). */
+    fun applyMatch(color: Int, wholeTheme: Boolean) {
+        val swatches = _match.value?.swatches.orEmpty()
+        update { if (wholeTheme) ThemeColors.fromColor(it, color, swatches) else it.copy(accentColor = ThemeColors.accent(color)) }
+        _match.value = null
+        _messages.tryEmit(if (wholeTheme) "Тема в тон вещи готова — нажмите «Применить»" else "Акцент взят с вещи")
+    }
+
+    // ---------------------------------------------------------------- Картинки для Apple и других часов
+
+    fun export(kinds: Set<ExportKind>, toGallery: Boolean, onShare: (android.content.Intent) -> Unit) =
+        viewModelScope.launch {
+            if (kinds.isEmpty()) return@launch
+            _busy.value = "Рисую картинки…"
+            try {
+                val files = ExportKit.render(app, theme.value, kinds)
+                if (toGallery) {
+                    ExportKit.saveToGallery(app, files)
+                    _messages.tryEmit("Сохранено в «Галерею»: Pictures/SyncTheme (${files.size} шт.)")
+                } else {
+                    onShare(ExportKit.shareIntent(app, files))
+                }
+            } catch (e: Exception) {
+                _messages.tryEmit("Не удалось сделать картинки: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                _busy.value = null
+            }
+        }
 
     fun refreshWatch() = viewModelScope.launch { _connection.value = sync.connection() }
 
@@ -359,7 +487,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             .onFailure { _messages.tryEmit("Не удалось открыть на часах: ${it.message}") }
     }
 
-    /** Добавляет виджет на рабочий стол сразу в цветах текущей темы. */
     /** Добавляет виджет на рабочий стол; после добавления откроется его настройка. */
     fun pinWidget(kind: WidgetKind) {
         repo.setApplied(theme.value)

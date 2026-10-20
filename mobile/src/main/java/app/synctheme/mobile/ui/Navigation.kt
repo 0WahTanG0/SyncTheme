@@ -136,6 +136,9 @@ private fun TargetToggle(icon: ImageVector, label: String, checked: Boolean, onC
     }
 }
 
+/** Раскрыть все сворачиваемые секции сразу (для скриншотов во всю высоту). */
+val LocalExpandAll = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 /** Секция, которая сворачивается: заголовок с кратким итогом, подробности — по нажатию. */
 @Composable
 fun ExpandableSection(
@@ -145,7 +148,8 @@ fun ExpandableSection(
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    var open by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
+    val expandAll = LocalExpandAll.current
+    var open by rememberSaveable(title) { mutableStateOf(initiallyExpanded || expandAll) }
     val look = LocalLook.current
     val shape = RoundedCornerShape(look.radius)
     Column(

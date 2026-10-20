@@ -12,6 +12,8 @@ palette = "1.0.0"
 work = "2.11.2"
 playServicesWearable = "19.0.0"
 watchfacePush = "1.0.0"
+watchface = "1.2.1"
+mlkitSubject = "16.0.0-beta1"
 wearRemoteInteractions = "1.1.0"
 apksig = "8.11.0"
 wffValidator = "1.1.0-alpha01"
@@ -59,11 +61,14 @@ work-testing = { module = "androidx.work:work-testing", version.ref = "work" }
 wear-compose-material3 = { module = "androidx.wear.compose:compose-material3", version.ref = "wearCompose" }
 wear-compose-foundation = { module = "androidx.wear.compose:compose-foundation", version.ref = "wearCompose" }
 wear-remote-interactions = { module = "androidx.wear:wear-remote-interactions", version.ref = "wearRemoteInteractions" }
+watchface = { module = "androidx.wear.watchface:watchface", version.ref = "watchface" }
+mlkit-subject-segmentation = { module = "com.google.android.gms:play-services-mlkit-subject-segmentation", version.ref = "mlkitSubject" }
 watchface-push = { module = "androidx.wear.watchfacepush:watchfacepush", version.ref = "watchfacePush" }
 play-services-wearable = { module = "com.google.android.gms:play-services-wearable", version.ref = "playServicesWearable" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

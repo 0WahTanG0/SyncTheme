@@ -13,6 +13,8 @@ import kotlin.math.sin
 object WatchFaceXml {
     const val SIZE = 450
     const val BG_RESOURCE = "wf_bg"
+    /** Вырезанный с фото главный объект (PNG с прозрачностью) — слой поверх цифр для эффекта глубины. */
+    const val FG_RESOURCE = "wf_fg"
     const val HAND_HOUR = "hand_hour"
     const val HAND_MINUTE = "hand_minute"
     const val HAND_SECOND = "hand_second"
@@ -32,9 +34,13 @@ object WatchFaceXml {
     /** Внешний радиус делений и кольца секунд: почти у самого края экрана. */
     private const val EDGE = 222f
 
-    fun generate(theme: Theme): String = generate(theme.watchSettings())
+    fun generate(theme: Theme, foreground: Boolean = theme.watchSettings().depth): String =
+        generate(theme.watchSettings(), foreground)
 
-    fun generate(w: WatchSettings): String {
+    /**
+     * @param foreground в APK есть слой [FG_RESOURCE] — рисуем его поверх времени (эффект глубины).
+     */
+    fun generate(w: WatchSettings, foreground: Boolean = w.depth): String {
         val x = Xml()
         val text = color(w.textColor)
         val accent = color(w.accentColor)
@@ -52,6 +58,10 @@ object WatchFaceXml {
         x.line("""<Variant mode="AMBIENT" target="alpha" value="0"/>""")
         x.line("""<Image resource="$BG_RESOURCE"/>""")
         x.close("PartImage")
+        liveUnderlay(x, w)
+
+        // Мини-виджеты выводим после слоя глубины, чтобы объект с фото их не закрывал.
+        x.deferComplications = foreground
 
         when (w.clockStyle) {
             ClockStyle.DIGITAL -> digital(x, w, text, accent, weight)
@@ -71,9 +81,85 @@ object WatchFaceXml {
             ClockStyle.DIAGONAL -> diagonal(x, w, text, accent)
         }
 
+        if (foreground) {
+            x.open("""PartImage x="0" y="0" width="$SIZE" height="$SIZE" name="depth"""")
+            x.line("""<Variant mode="AMBIENT" target="alpha" value="0"/>""")
+            x.line("""<Image resource="$FG_RESOURCE"/>""")
+            x.close("PartImage")
+        }
+        x.flushDeferred()
+
         x.close("Scene")
         x.close("WatchFace")
         return x.toString()
+    }
+
+    // ---------------------------------------------------------------- живые данные
+
+    /** Доля пульса 0..1: вспышка на каждый удар сердца (|sin| с периодом 60/пульс секунд). */
+    private const val BEAT = "pow(abs(sin([SECOND_MILLISECOND] * round([HEART_RATE]) * 0.05236)), 4)"
+
+    /** Уровень «заливки» по шагам: 0..450 пикселей снизу. */
+    private const val STEPS_LEVEL = "clamp([STEP_PERCENT], 0, 100) * 4.5"
+
+    /** Множитель свечения по заряду: 1 при 60% и выше, к нулю заряда — 0.25. */
+    private const val BATTERY_GLOW = "clamp(0.25 + [BATTERY_PERCENT] / 80, 0.25, 1)"
+
+    /**
+     * Слои под временем: затемнение фона при низком заряде, «вода» из шагов и кольцо пульса.
+     * В режиме Always-On их нет — там гаснет и сам фон.
+     */
+    private fun liveUnderlay(x: Xml, w: WatchSettings) {
+        val live = w.live
+        if (live.battery) {
+            hiddenInAmbient(x, "batteryDim") {
+                x.open("""PartDraw x="0" y="0" width="$SIZE" height="$SIZE" alpha="0"""")
+                x.line("""<Transform target="alpha" value="round(clamp((50 - [BATTERY_PERCENT]) * 3.6, 0, 170))"/>""")
+                x.open("""Rectangle x="0" y="0" width="$SIZE" height="$SIZE"""")
+                x.line("""<Fill color="#FF000000"/>""")
+                x.close("Rectangle")
+                x.close("PartDraw")
+            }
+        }
+        if (live.steps && w.clockStyle != ClockStyle.LIQUID) {
+            hiddenInAmbient(x, "stepsFill") {
+                x.open("""PartDraw x="0" y="0" width="$SIZE" height="$SIZE"""")
+                val fill = color(withAlpha(w.accentColor, 0x33))
+                x.open("""Rectangle x="0" y="$SIZE" width="$SIZE" height="0"""")
+                x.line("""<Fill color="$fill"/>""")
+                x.line("""<Transform target="y" value="$SIZE - $STEPS_LEVEL"/>""")
+                x.line("""<Transform target="height" value="$STEPS_LEVEL"/>""")
+                x.close("Rectangle")
+                // Гребень волны над уровнем — качается раз в две секунды.
+                x.open("""Ellipse x="-60" y="${SIZE - 12}" width="570" height="24"""")
+                x.line("""<Fill color="$fill"/>""")
+                x.line("""<Transform target="y" value="${SIZE - 12} - $STEPS_LEVEL"/>""")
+                x.open("""Transform target="x" value="[SECOND] % 2 == 0 ? -80 : -40"""")
+                x.line("""<Animation interpolation="EASE_IN_OUT" duration="1"/>""")
+                x.close("Transform")
+                x.close("Ellipse")
+                x.close("PartDraw")
+            }
+        }
+        // У неона пульсирует его собственное кольцо (см. neon()).
+        if (live.pulse && w.clockStyle != ClockStyle.NEON) {
+            hiddenInAmbient(x, "pulse") {
+                x.open("""PartDraw x="0" y="0" width="$SIZE" height="$SIZE" alpha="35"""")
+                x.line("""<Transform target="alpha" value="round(35 + 220 * $BEAT)"/>""")
+                for ((thickness, alpha) in listOf(16f to 0x30, 6f to 0xFF)) {
+                    arc(x, 213f, 0f, 360f, color(withAlpha(w.accentColor, alpha)), thickness)
+                }
+                x.close("PartDraw")
+            }
+        }
+    }
+
+    /** Группа во весь экран, которая гаснет в режиме Always-On (а внутри можно менять прозрачность выражением). */
+    private inline fun hiddenInAmbient(x: Xml, name: String, body: () -> Unit) {
+        x.open("""Group x="0" y="0" width="$SIZE" height="$SIZE" name="$name"""")
+        x.line("""<Variant mode="AMBIENT" target="alpha" value="0"/>""")
+        body()
+        x.close("Group")
     }
 
     private fun digital(x: Xml, w: WatchSettings, text: String, accent: String, weight: String) {
@@ -248,12 +334,23 @@ object WatchFaceXml {
         // Фон у неона всегда притемнён — тёмные цифры светлой темы на нём не видны.
         val w = if (isLight(w0.textColor)) w0 else w0.copy(textColor = 0xFFFFFFFF.toInt())
         val text = if (isLight(w0.textColor)) text0 else color(w.textColor)
-        part(x, "neonRing") {
-            for ((thickness, alpha) in listOf(22f to 0x10, 14f to 0x22, 8f to 0x50)) {
-                arc(x, 210f, 0f, 360f, color(withAlpha(w.accentColor, alpha)), thickness)
-            }
-            arc(x, 210f, 0f, 360f, accent, 3.5f)
+        // Ореол кольца: с живыми данными он вспыхивает в такт пульсу и слабеет вместе с зарядом.
+        val glow = when {
+            w.live.pulse && w.live.battery -> "round($BATTERY_GLOW * (90 + 165 * $BEAT))"
+            w.live.pulse -> "round(90 + 165 * $BEAT)"
+            w.live.battery -> "round($BATTERY_GLOW * 255)"
+            else -> null
         }
+        val glowArcs = {
+            part(x, "neonGlow") {
+                if (glow != null) x.line("""<Transform target="alpha" value="$glow"/>""")
+                for ((thickness, alpha) in listOf(22f to 0x10, 14f to 0x22, 8f to 0x50)) {
+                    arc(x, 210f, 0f, 360f, color(withAlpha(w.accentColor, if (glow != null) minOf(alpha * 2, 0xFF) else alpha)), thickness)
+                }
+            }
+        }
+        if (glow != null) hiddenInAmbient(x, "neonGlowAmbient") { glowArcs() } else glowArcs()
+        part(x, "neonRing") { arc(x, 210f, 0f, 360f, accent, 3.5f) }
         part(x, "neonMarks", ambientAlpha = 120) {
             for (h in 0 until 12) {
                 val a = Math.toRadians(h * 30.0)
@@ -530,7 +627,8 @@ object WatchFaceXml {
     private fun liquid(x: Xml, w: WatchSettings, text: String, accent: String) {
         val font = w.digits() ?: DigitFont.BUBBLE
         val fluid = color(withAlpha(w.accentColor, 0x8C))
-        val level = "([SECOND] + 1) * 7.5"
+        // С живыми данными циферблат наполняют шаги за день, без них — секунды за минуту.
+        val level = if (w.live.steps) STEPS_LEVEL else "([SECOND] + 1) * 7.5"
         part(x, "liquid", ambientAlpha = 0) {
             x.open("""Rectangle x="0" y="450" width="$SIZE" height="0"""")
             x.line("""<Fill color="$fluid"/>""")
@@ -754,6 +852,7 @@ object WatchFaceXml {
         // Подложка под мини-виджет: тёмная для светлых цифр, светлая — для тёмных.
         val disc = if (isLight(w.textColor)) "#66000000" else "#80FFFFFF"
         val half = s / 2f
+        x.deferredIfNeeded {
         x.open(
             """ComplicationSlot x="$px" y="$py" width="$s" height="$s" slotId="$id" """ +
                 """supportedTypes="RANGED_VALUE SHORT_TEXT MONOCHROMATIC_IMAGE SMALL_IMAGE EMPTY" isCustomizable="TRUE""""
@@ -827,6 +926,7 @@ object WatchFaceXml {
 
         x.line("""<Complication type="EMPTY"/>""")
         x.close("ComplicationSlot")
+        }
     }
 
     private fun complicationText(x: Xml, px: Int, py: Int, w: Int, h: Int, size: Float, color: String) {
@@ -860,8 +960,28 @@ object WatchFaceXml {
 
     /** Минимальный построитель XML с отступами. */
     private class Xml {
-        private val sb = StringBuilder()
+        private var sb = StringBuilder()
         private var depth = 0
+        private val deferred = StringBuilder()
+
+        /** Мини-виджеты копятся отдельно и выводятся в [flushDeferred] (поверх слоя глубины). */
+        var deferComplications = false
+
+        inline fun deferredIfNeeded(body: () -> Unit) {
+            if (!deferComplications) return body()
+            val main = sb
+            sb = deferred
+            try {
+                body()
+            } finally {
+                sb = main
+            }
+        }
+
+        fun flushDeferred() {
+            sb.append(deferred)
+            deferred.setLength(0)
+        }
 
         fun line(s: String) {
             repeat(depth) { sb.append("  ") }

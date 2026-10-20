@@ -63,7 +63,7 @@ object WidgetUpdater {
     }
 
     fun config(context: Context, id: Int, kind: WidgetKind): WidgetConfig =
-        WidgetConfigStore.get(context, id, kind, ThemeRepository.get(context).applied.value.widgetOpacity)
+        WidgetConfigStore.get(context, id, kind, ThemeRepository.get(context).effective.value.widgetOpacity)
 
     fun placed(context: Context): List<PlacedWidget> =
         WidgetKind.entries.flatMap { kind -> ids(context, kind).map { PlacedWidget(it, kind, config(context, it, kind)) } }
@@ -76,7 +76,7 @@ object WidgetUpdater {
     }
 
     fun updateOne(context: Context, manager: AppWidgetManager, id: Int, kind: WidgetKind) {
-        val theme = ThemeRepository.get(context).applied.value
+        val theme = ThemeRepository.get(context).effective.value
         runCatching { manager.updateAppWidget(id, WidgetRenderer.build(context, kind, config(context, id, kind), theme)) }
     }
 

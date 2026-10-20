@@ -84,7 +84,13 @@ fun SyncThemeScreen(
     initialTab: Tab = Tab.WALLPAPER,
     onOpenInstaller: () -> Unit = {},
     initialLock: Boolean = false,
-) {
+    expandSections: Boolean = false,
+) = androidx.compose.runtime.CompositionLocalProvider(LocalExpandAll provides expandSections) {
+    SyncThemeContent(vm, initialTab, onOpenInstaller, initialLock)
+}
+
+@Composable
+private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller: () -> Unit, initialLock: Boolean) {
     val theme by vm.theme.collectAsStateWithLifecycle()
     val applied by vm.applied.collectAsStateWithLifecycle()
     val phonePreview by vm.phonePreview.collectAsStateWithLifecycle()
@@ -105,6 +111,15 @@ fun SyncThemeScreen(
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { vm.pickPhoto(it, photoTarget) }
     }
+    // «В тон вещи»: снимок системной камерой (разрешение на камеру не нужно) или фото из галереи.
+    var captureUri by rememberSaveable { mutableStateOf<android.net.Uri?>(null) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        captureUri?.takeIf { ok }?.let(vm::loadMatch)
+    }
+    val matchPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let(vm::loadMatch)
+    }
+    val match by vm.match.collectAsStateWithLifecycle()
     val actions = remember(vm) {
         ScreenActions(
             vm = vm,
@@ -113,6 +128,17 @@ fun SyncThemeScreen(
                 photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
             openInstaller = onOpenInstaller,
+            matchCamera = {
+                runCatching {
+                    val uri = captureUri(context)
+                    captureUri = uri
+                    camera.launch(uri)
+                }.onFailure {
+                    // Нет камеры или приложения камеры — тогда снимок вещи из галереи.
+                    matchPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }
+            },
+            matchGallery = { matchPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
             configureWidget = { id ->
                 context.startActivity(
                     Intent(context, WidgetConfigActivity::class.java)
@@ -171,6 +197,8 @@ fun SyncThemeScreen(
             }
         }
 
+        match?.let { photo -> MatchColorsDialog(photo, onDismiss = vm::dismissMatch, onApply = vm::applyMatch) }
+
         colorTarget?.let { target ->
             val watch = theme.watchSettings()
             val (title, initial) = when (target) {
@@ -211,6 +239,8 @@ class ScreenActions(
     val pickPhoto: (BgTarget) -> Unit,
     val openInstaller: () -> Unit,
     val configureWidget: (Int) -> Unit,
+    val matchCamera: () -> Unit = {},
+    val matchGallery: () -> Unit = {},
 ) {
     /** Меняет циферблат: в отдельных настройках часов или, если их нет, в общей теме. */
     fun editWatchFace(transform: (app.synctheme.core.WatchSettings) -> app.synctheme.core.WatchSettings) {
@@ -221,6 +251,7 @@ class ScreenActions(
             it.copy(
                 clockStyle = n.clockStyle, dialStyle = n.dialStyle, fontWeight = n.fontWeight, showSeconds = n.showSeconds,
                 showDate = n.showDate, watchComplications = n.complications, digitFont = n.digitFont,
+                watchLive = n.live, watchDepth = n.depth,
             )
         }
     }
@@ -232,6 +263,12 @@ class ScreenActions(
             BgTarget.WATCH -> vm.updateWatch { it.copy(background = transform(it.background ?: vm.theme.value.background)) }
         }
     }
+}
+
+/** Куда системная камера кладёт снимок вещи (FileProvider, cache/shared). */
+private fun captureUri(context: android.content.Context): android.net.Uri {
+    val file = java.io.File(context.cacheDir, "shared").apply { mkdirs() }.resolve("capture.jpg")
+    return androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
 }
 
 @Composable

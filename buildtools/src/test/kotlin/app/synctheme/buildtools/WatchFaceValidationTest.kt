@@ -4,6 +4,7 @@ import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.DialStyle
+import app.synctheme.core.LiveData
 import app.synctheme.core.Presets
 import app.synctheme.core.SyncProtocol
 import app.synctheme.core.Theme
@@ -42,6 +43,17 @@ class WatchFaceValidationTest {
                 add(Presets.default.copy(id = "min-$style", clockStyle = style, showSeconds = false, showDate = false, watchComplications = false))
                 add(Presets.default.copy(id = "max-$style", clockStyle = style, showSeconds = true, showDate = true, watchComplications = true))
             }
+            // Живые данные (шаги, пульс, заряд) и слой глубины — во всех стилях.
+            for (style in ClockStyle.entries) {
+                add(
+                    Presets.default.copy(
+                        id = "live-$style", clockStyle = style,
+                        watchLive = LiveData(steps = true, pulse = true, battery = true), watchDepth = true,
+                    )
+                )
+            }
+            add(Presets.default.copy(id = "live-neon-pulse", clockStyle = ClockStyle.NEON, watchLive = LiveData(pulse = true)))
+            add(Presets.default.copy(id = "live-neon-battery", clockStyle = ClockStyle.NEON, watchLive = LiveData(battery = true)))
             for (dial in DialStyle.entries) {
                 add(Presets.default.copy(id = "dial-$dial", clockStyle = ClockStyle.ANALOG, dialStyle = dial))
                 add(Presets.default.copy(id = "dial-min-$dial", clockStyle = ClockStyle.ANALOG, dialStyle = dial, showDate = false, watchComplications = false, showSeconds = false))
@@ -74,11 +86,22 @@ class WatchFaceValidationTest {
         val bg = DefaultAssets.background(theme, WatchFaceXml.SIZE)
         val bgFile = File.createTempFile("wf_bg", ".jpg").also { DefaultAssets.writeJpeg(bg, it) }
         val preview = ByteArrayOutputStream().also { ImageIO.write(DefaultAssets.preview(theme, bg), "png", it) }
+        val depth = theme.watchSettings().depth
         val bytes = WatchFaceApk.build(
             template, WatchFaceXml.generate(theme), bgFile.readBytes(), preview.toByteArray(),
-            signer, File(outDir, "tmp"),
+            signer, File(outDir, "tmp"), foreground = if (depth) foreground() else null,
         )
         return File(outDir, "${theme.id}.apk").apply { writeBytes(bytes) }
+    }
+
+    /** Слой глубины для проверки: полупрозрачный круг на прозрачном фоне. */
+    private fun foreground(): ByteArray {
+        val img = java.awt.image.BufferedImage(WatchFaceXml.SIZE, WatchFaceXml.SIZE, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        val g = img.createGraphics()
+        g.color = java.awt.Color(255, 200, 120, 220)
+        g.fillOval(120, 160, 220, 290)
+        g.dispose()
+        return ByteArrayOutputStream().also { ImageIO.write(img, "png", it) }.toByteArray()
     }
 
     private fun assertValid(name: String, apk: File) {

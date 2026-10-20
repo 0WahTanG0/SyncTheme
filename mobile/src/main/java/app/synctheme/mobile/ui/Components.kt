@@ -75,13 +75,16 @@ fun LabeledSlider(
 }
 
 @Composable
-fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled) { onChange(!checked) }.padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+        Text(
+            label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
+            color = if (enabled) LocalContentColor.current else LocalContentColor.current.copy(alpha = 0.45f),
+        )
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
 

@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
+import app.synctheme.core.Chameleon
+import app.synctheme.core.Mood
 import app.synctheme.core.Presets
 import app.synctheme.core.Theme
 import java.io.File
@@ -17,8 +19,9 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
- * Хранит черновик темы (то, что редактируется), применённую тему (её видят виджеты)
- * и сохранённые пользователем темы.
+ * Хранит черновик темы (то, что редактируется), применённую тему, сохранённые темы
+ * и «действующую» тему — применённую с поправкой «Хамелеона» на время суток и погоду
+ * (её видят обои, виджеты и часы).
  */
 class ThemeRepository private constructor(context: Context) {
     private val appContext = context.applicationContext
@@ -31,6 +34,16 @@ class ThemeRepository private constructor(context: Context) {
 
     private val _applied = MutableStateFlow(read("applied") ?: Presets.default)
     val applied: StateFlow<Theme> = _applied.asStateFlow()
+
+    private val _mood = MutableStateFlow(
+        prefs.getString("mood", null)?.let { runCatching { json.decodeFromString(Mood.serializer(), it) }.getOrNull() }
+    )
+    /** Настроение «Хамелеона»; null — выключен. */
+    val mood: StateFlow<Mood?> = _mood.asStateFlow()
+
+    private val _effective = MutableStateFlow(adapt(_applied.value, _mood.value))
+    /** Применённая тема с поправкой «Хамелеона» — то, что сейчас на устройствах. */
+    val effective: StateFlow<Theme> = _effective.asStateFlow()
 
     private val _saved = MutableStateFlow(
         prefs.getString("saved", null)?.let { runCatching { json.decodeFromString(listSerializer, it) }.getOrNull() }
@@ -50,7 +63,18 @@ class ThemeRepository private constructor(context: Context) {
     fun setApplied(theme: Theme) {
         _applied.value = theme
         prefs.edit().putString("applied", theme.toJson()).apply()
+        _effective.value = adapt(theme, _mood.value)
     }
+
+    fun setMood(mood: Mood?) {
+        _mood.value = mood
+        prefs.edit().apply {
+            if (mood == null) remove("mood") else putString("mood", json.encodeToString(Mood.serializer(), mood))
+        }.apply()
+        _effective.value = adapt(_applied.value, mood)
+    }
+
+    private fun adapt(theme: Theme, mood: Mood?): Theme = if (mood == null) theme else Chameleon.adapt(theme, mood)
 
     /** Сохраняет тему в «Мои темы» (по id; новая тема получает новый id). */
     fun save(theme: Theme): Theme {
@@ -86,8 +110,11 @@ class ThemeRepository private constructor(context: Context) {
     }
 
     private fun cleanupPhotos(keep: String? = null) {
-        val used = (listOf(_draft.value, _applied.value) + _saved.value)
-            .mapNotNull { it.background.photoFile }.toSet() + listOfNotNull(keep)
+        val photos = (listOf(_draft.value, _applied.value) + _saved.value)
+            .flatMap { t -> listOfNotNull(t.background.photoFile, t.lockBackground?.photoFile, t.watch?.background?.photoFile) }
+            .toSet() + listOfNotNull(keep)
+        // Рядом с фото лежит маска эффекта глубины (photo_x.mask.png) — её тоже оставляем.
+        val used = photos + photos.map { it.substringBeforeLast('.') + ".mask.png" }
         photosDir.listFiles()?.filter { it.name !in used }?.forEach { it.delete() }
     }
 

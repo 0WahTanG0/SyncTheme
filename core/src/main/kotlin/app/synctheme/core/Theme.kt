@@ -8,7 +8,7 @@ import kotlinx.serialization.json.Json
 enum class BackgroundType { LINEAR, RADIAL, AURORA, SOLID, PHOTO }
 
 /**
- * Раскладка циферблата Galaxy Watch. Первые три — классические, остальные — «живые»
+ * Раскладка циферблата часов. Первые три — классические, остальные — «живые»
  * стили с анимацией и своими шрифтами (см. WatchFaceXml).
  */
 @Serializable
@@ -80,10 +80,52 @@ data class Background(
     val angle: Float = 135f,
     /** Имя файла фото в каталоге приложения на телефоне (только для PHOTO). */
     val photoFile: String? = null,
+    /**
+     * Оттенок поверх фона (ARGB, альфа — сила), смешивается мягким светом; 0 — без оттенка.
+     * Его ставит «Хамелеон», чтобы подкрасить и фото.
+     */
+    val tint: Int = 0,
+)
+
+/** Живые данные на циферблате: картинка меняется вместе с шагами, пульсом и зарядом. */
+@Serializable
+data class LiveData(
+    /** Шаги за день наполняют циферблат цветом акцента (у «Заливки» — вместо секунд). */
+    val steps: Boolean = false,
+    /** Кольцо по краю вспыхивает в такт пульсу. */
+    val pulse: Boolean = false,
+    /** Чем меньше заряд, тем темнее фон и слабее свечение. */
+    val battery: Boolean = false,
+) {
+    val any get() = steps || pulse || battery
+}
+
+/** Где на обоях стоят часы. */
+@Serializable
+enum class WallClockLayout {
+    /** Крупно в одну строку в верхней трети. */
+    TOP,
+    /** Часы над минутами во всю ширину. */
+    STACKED,
+    /** Небольшие часы по центру экрана. */
+    CENTER,
+}
+
+/**
+ * Часы, нарисованные прямо на обоях телефона (живые обои SyncTheme).
+ * С [depth] главный объект фото закрывает цифры — часы стоят «за» ним.
+ */
+@Serializable
+data class WallClock(
+    val layout: WallClockLayout = WallClockLayout.TOP,
+    val depth: Boolean = true,
+    /** Шрифт цифр; null — как у циферблата часов. */
+    val font: DigitFont? = null,
+    val showDate: Boolean = true,
 )
 
 /**
- * Настройки циферблата Galaxy Watch. Если в теме их нет (`Theme.watch == null`),
+ * Настройки циферблата часов. Если в теме их нет (`Theme.watch == null`),
  * часы повторяют стиль телефона — см. [Theme.watchSettings].
  */
 @Serializable
@@ -101,9 +143,20 @@ data class WatchSettings(
     val complications: Boolean = true,
     /** Шрифт цифр; null — как задумано в стиле ([ClockStyle.defaultDigitFont]). */
     val digitFont: DigitFont? = null,
+    val live: LiveData = LiveData(),
+    /** Эффект глубины: главный объект фото фона рисуется поверх цифр. */
+    val depth: Boolean = false,
 ) {
     /** Итоговый шрифт цифр; null — системный шрифт с насыщенностью [fontWeight]. */
     fun digits(): DigitFont? = digitFont ?: clockStyle.defaultDigitFont
+
+    fun toJson(): String = json.encodeToString(serializer(), this)
+
+    companion object {
+        private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+        fun fromJson(text: String): WatchSettings = json.decodeFromString(serializer(), text)
+    }
 }
 
 @Serializable
@@ -131,6 +184,12 @@ data class Theme(
     val watch: WatchSettings? = null,
     /** Шрифт цифр циферблата; null — как задумано в стиле. */
     val digitFont: DigitFont? = null,
+    /** Живые данные на циферблате (шаги, пульс, заряд). */
+    val watchLive: LiveData = LiveData(),
+    /** Эффект глубины на циферблате. */
+    val watchDepth: Boolean = false,
+    /** Часы на обоях телефона; null — обычные обои без часов. */
+    val wallClock: WallClock? = null,
 ) {
     /** Итоговые настройки циферблата: свои или повторяющие телефон. */
     fun watchSettings(): WatchSettings = watch ?: followPhone()
@@ -148,6 +207,8 @@ data class Theme(
         dim = dim,
         complications = watchComplications,
         digitFont = digitFont,
+        live = watchLive,
+        depth = watchDepth,
     )
 
     fun watchBackground(): Background = watchSettings().background ?: background

@@ -13,6 +13,7 @@ import java.io.File
 /**
  * Обёртка над Watch Face Push: у приложения на Wear OS 6 один «слот»,
  * поэтому каждая новая тема просто обновляет установленный циферблат.
+ * На Wear OS 3–5 тема достаётся классическому циферблату ([ClassicFace]).
  */
 class WatchFaceInstaller(private val context: Context) {
     private val prefs = context.getSharedPreferences("installer", Context.MODE_PRIVATE)
@@ -26,7 +27,7 @@ class WatchFaceInstaller(private val context: Context) {
 
     suspend fun install(apk: File, token: String, themeName: String, timestamp: Long, activate: Boolean): InstallStatus {
         val manager = manager() ?: return save(
-            InstallStatus(State.UNSUPPORTED, themeName, "Нужен Wear OS 6 или новее. Обновите ПО часов.", timestamp)
+            InstallStatus(State.UNSUPPORTED, themeName, "Watch Face Push недоступен на этих часах.", timestamp)
         )
         save(InstallStatus(State.INSTALLING, themeName, "", timestamp))
         return try {
@@ -66,11 +67,33 @@ class WatchFaceInstaller(private val context: Context) {
         }
     }
 
+    /** Тема сохранена для классического циферблата (часы без Watch Face Push). */
+    fun classicInstalled(themeName: String, timestamp: Long): InstallStatus {
+        prefs.edit().putLong("installed_ts", timestamp).apply()
+        val active = ClassicFace.isActive(context)
+        return save(
+            InstallStatus(
+                State.CLASSIC, themeName,
+                if (active) "" else "Зажмите текущий циферблат и выберите «SyncTheme».", timestamp, isActive = active,
+            )
+        )
+    }
+
     /** Обновляет флаг «активен» по факту (пользователь мог сменить циферблат вручную). */
     suspend fun refreshActive(): InstallStatus {
         val current = InstallState.current(context)
+        if (ClassicFace.needed) {
+            val active = ClassicFace.isActive(context)
+            return save(
+                if (current.state == State.WAITING) current.copy(isActive = active)
+                else current.copy(
+                    state = State.CLASSIC, isActive = active,
+                    message = if (active) "" else "Зажмите текущий циферблат и выберите «SyncTheme».",
+                )
+            )
+        }
         val manager = manager() ?: return save(
-            current.copy(state = State.UNSUPPORTED, message = "Нужен Wear OS 6 или новее. Обновите ПО часов.")
+            current.copy(state = State.UNSUPPORTED, message = "Watch Face Push недоступен на этих часах.")
         )
         return runCatching {
             val slot = manager.listWatchFaces().installedWatchFaceDetails.firstOrNull() ?: return current

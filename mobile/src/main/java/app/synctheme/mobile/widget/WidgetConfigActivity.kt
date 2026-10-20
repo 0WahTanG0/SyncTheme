@@ -96,7 +96,7 @@ class WidgetConfigActivity : ComponentActivity() {
             finish()
             return
         }
-        val theme = ThemeRepository.get(this).applied.value
+        val theme = ThemeRepository.get(this).effective.value
         val stored = WidgetUpdater.config(this, id, kind)
         val initial = if (kind == WidgetKind.APPS && stored.apps.isEmpty()) stored.copy(apps = AppCatalog.defaults(this)) else stored
         setContent {

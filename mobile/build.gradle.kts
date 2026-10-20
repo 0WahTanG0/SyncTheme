@@ -14,8 +14,8 @@ android {
         applicationId = "app.synctheme"
         minSdk = 31
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.7.0"
+        versionCode = 10
+        versionName = "1.8.0"
         // Откуда приложение берёт обновления: релизы GitHub owner/repo (-PupdateRepo=... при сборке).
         resValue("string", "update_repo", providers.gradleProperty("updateRepo").getOrElse(""))
         // Galaxy S25+ и все современные телефоны — arm64; так APK заметно меньше.
@@ -81,6 +81,9 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":faces"))
+    // Эффект глубины: главный объект фото (модель приходит через сервисы Google Play).
+    implementation(libs.mlkit.subject.segmentation)
     implementation(libs.wff.validator.android)
 
     implementation(platform(libs.compose.bom))

@@ -98,7 +98,7 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
     if (!lock) {
         item {
             val saved by a.vm.saved.collectAsStateWithLifecycle()
-            ThemeStrip(saved, theme.id, onPhoto = { a.pickPhoto(BgTarget.HOME) }, onSelect = a.vm::select, onDelete = a.vm::delete)
+            ThemeStrip(saved, theme.id, onPhoto = { a.pickPhoto(BgTarget.HOME) }, onMatch = a.matchCamera, onSelect = a.vm::select, onDelete = a.vm::delete)
         }
         item {
             ExpandableSection("Фон", summary = backgroundSummary(theme.background, theme.dim)) {
@@ -119,7 +119,19 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
                     onEditAccent = { editColor(ColorTarget.Accent) },
                     onAccent = { c -> a.vm.update { it.copy(accentColor = c) } },
                 )
+                Text("В тон вещи — цвет со снимка ремешка, одежды или кроссовок", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = a.matchCamera) { Text("Снять вещь") }
+                    OutlinedButton(onClick = a.matchGallery) { Text("Из галереи") }
+                }
             }
+        }
+        item {
+            ExpandableSection("Часы на обоях", summary = wallClockSummary(theme)) { WallClockContent(theme, a.vm) }
+        }
+        item {
+            val mode by a.vm.chameleon.collectAsStateWithLifecycle()
+            ExpandableSection("Хамелеон", summary = mode.title) { ChameleonContent(a.vm) }
         }
         item {
             ExpandableSection("Сохранить как свою тему", summary = theme.name) {
@@ -152,8 +164,8 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
         }
         item {
             Text(
-                "Часы и дату на экране блокировки рисует One UI: их стиль меняется в «Настройки» → «Экран блокировки» → «Изменить». " +
-                    "Виджеты SyncTheme тоже можно поставить на экран блокировки там же.",
+                "Часы и дату на экране блокировки рисует сам телефон: на Samsung — «Настройки» → «Экран блокировки» → «Изменить», " +
+                    "на других телефонах — в настройках экрана блокировки или обоев. Виджеты SyncTheme тоже можно поставить туда.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
             )
@@ -185,13 +197,13 @@ private fun SwatchPair(text: Int, accent: Int) {
 @Composable
 private fun ThemeStrip(
     saved: List<Theme>, selectedId: String,
-    onPhoto: () -> Unit, onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit,
+    onPhoto: () -> Unit, onMatch: () -> Unit, onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit,
 ) {
     val look = LocalLook.current
     Column(Modifier.padding(vertical = 6.dp)) {
         Text(look.title("Темы"), style = look.sectionTitle, color = look.text)
         Text(
-            "Нажмите тему или «Фото» — обои, виджеты и циферблат подстроятся под цвета.",
+            "Нажмите тему, «Фото» или «В тон вещи» (снимок ремешка, кофты) — обои, виджеты и циферблат подстроятся под цвета.",
             style = MaterialTheme.typography.bodySmall, color = look.muted,
         )
         Spacer(Modifier.height(8.dp))
@@ -206,6 +218,7 @@ private fun ThemeStrip(
                     Text("Фото", style = MaterialTheme.typography.labelMedium, maxLines = 1)
                 }
             }
+            item(key = "match") { StripAction("В тон вещи", NavIcons.Camera, onMatch) }
             items(saved, key = { "s" + it.id }) { t ->
                 Box {
                     ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) })
@@ -320,7 +333,9 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
         val look = LocalLook.current
         Column(Modifier.padding(vertical = 6.dp)) {
             Text(look.title("Циферблат"), style = look.sectionTitle, color = look.text)
-            Text(CLOCK_STYLE_NOTES.getValue(w.clockStyle), style = MaterialTheme.typography.bodySmall, color = look.muted)
+            val note = if (w.clockStyle == ClockStyle.LIQUID && w.live.steps) "Шаги за день наполняют циферблат «жидкостью» с волной и пузырьками."
+                else CLOCK_STYLE_NOTES.getValue(w.clockStyle)
+            Text(note, style = MaterialTheme.typography.bodySmall, color = look.muted)
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(CLOCK_STYLES, key = { it.first.name }) { (style, label) ->
@@ -353,7 +368,10 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
         }
     }
     item {
-        val parts = listOfNotNull("секунды".takeIf { w.showSeconds }, "дата".takeIf { w.showDate }, "мини-виджеты".takeIf { w.complications })
+        val parts = listOfNotNull(
+            "секунды".takeIf { w.showSeconds }, "дата".takeIf { w.showDate }, "мини-виджеты".takeIf { w.complications },
+            "глубина".takeIf { w.depth },
+        )
         ExpandableSection("На циферблате", summary = parts.joinToString(" · ").ifEmpty { "только время" }) {
             if (w.clockStyle == ClockStyle.ANALOG) {
                 ChipRow {
@@ -373,7 +391,17 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
             SwitchRow("Секунды", w.showSeconds) { v -> a.editWatchFace { it.copy(showSeconds = v) } }
             SwitchRow("Дата", w.showDate) { v -> a.editWatchFace { it.copy(showDate = v) } }
             SwitchRow("Мини-виджеты (батарея, шаги)", w.complications) { v -> a.editWatchFace { it.copy(complications = v) } }
+            val photo = theme.watchBackground().type == BackgroundType.PHOTO
+            SwitchRow("Эффект глубины", w.depth && photo, enabled = photo) { v -> a.vm.setWatchDepth(v) { t -> a.editWatchFace(t) } }
+            Text(
+                if (photo) "Главный объект фото фона — человек, питомец, гора — встаёт поверх цифр."
+                else "Эффект глубины работает с фото на фоне часов.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
+    }
+    item {
+        ExpandableSection("Живые данные", summary = liveSummary(w)) { LiveDataContent(w) { t -> a.editWatchFace(t) } }
     }
     item {
         ExpandableSection(
@@ -429,11 +457,12 @@ fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable (
             OutlinedButton(onClick = a.openInstaller) { Text("Установка на часы") }
         }
     }
+    item { OtherDevicesSection(a.vm) }
     item {
         val context = LocalContext.current
         var licenses by remember { mutableStateOf<String?>(null) }
         Section("О приложении") {
-            Text("SyncTheme — обои, виджеты и циферблат Galaxy Watch в одном стиле.", style = MaterialTheme.typography.bodyMedium)
+            Text("SyncTheme — обои, виджеты и циферблат часов в одном стиле.", style = MaterialTheme.typography.bodyMedium)
             TextButton(onClick = {
                 licenses = listOf("licenses/fonts.txt", "licenses/fonts-digits.txt").joinToString("\n\n") { path ->
                     runCatching { context.assets.open(path).bufferedReader().readText() }.getOrDefault("")
@@ -572,11 +601,11 @@ private fun WatchCard(
 ) {
     var details by rememberSaveable { mutableStateOf(false) }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Section("Galaxy Watch") {
+    Section("Часы") {
         val info = when {
             !connection.checked -> "Проверяю подключение…"
             connection.error != null -> "Сервисы Wear OS недоступны: ${connection.error}"
-            !connection.hasWatch -> "Часы не подключены. Проверьте Bluetooth и Galaxy Wearable."
+            !connection.hasWatch -> "Часы не подключены. Проверьте Bluetooth и приложение часов (Galaxy Wearable, Pixel Watch или Wear OS)."
             !connection.hasApp -> "На часах ${connection.connectedNames.joinToString()} ещё нет SyncTheme."
             else -> "${connection.appNodeName}: циферблат обновится по кнопке «Применить»."
         }
@@ -630,7 +659,7 @@ private fun TimeAdvice(result: TimeCheckResult, muted: Color) {
     }
     if (watch != null && kotlin.math.abs(watch) >= TimeCheck.NOTICEABLE_MS) {
         Text(
-            "Циферблат показывает время часов, а его ставит система. На часах: «Настройки» → «Общие» → " +
+            "Циферблат показывает время часов, а его ставит система. На часах: «Настройки» → «Общие» (или «Система») → " +
                 "«Дата и время» → включите «Автоматически» (в SyncTheme на часах есть кнопка «Настройки времени»). " +
                 "Затем переподключите часы: выключите и включите Bluetooth на телефоне.",
             style = MaterialTheme.typography.bodySmall, color = muted,
@@ -638,7 +667,7 @@ private fun TimeAdvice(result: TimeCheckResult, muted: Color) {
     }
     if (phone != null && kotlin.math.abs(phone) >= TimeCheck.NOTICEABLE_MS) {
         Text(
-            "Часы берут время с телефона. На телефоне: «Настройки» → «Общее управление» → «Дата и время» → " +
+            "Часы берут время с телефона. На телефоне: «Настройки» → «Общее управление» (или «Система») → «Дата и время» → " +
                 "включите «Автоматические дата и время».",
             style = MaterialTheme.typography.bodySmall, color = muted,
         )

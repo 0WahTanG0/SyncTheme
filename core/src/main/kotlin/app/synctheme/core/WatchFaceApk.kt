@@ -24,6 +24,8 @@ object WatchFaceApk {
     const val ENTRY_WATCHFACE_XML = "res/raw/watchface.xml"
     const val ENTRY_BACKGROUND = "res/drawable-nodpi-v4/wf_bg.jpg"
     const val ENTRY_PREVIEW = "res/drawable-nodpi-v4/preview.png"
+    /** Слой глубины; в шаблоне — прозрачная заглушка. */
+    const val ENTRY_FOREGROUND = "res/drawable-nodpi-v4/wf_fg.png"
 
     /** Watch Face Push принимает только эти файлы. */
     private fun isAllowed(name: String) =
@@ -47,6 +49,7 @@ object WatchFaceApk {
      * @param background JPEG 450x450.
      * @param preview PNG-превью для списка циферблатов на часах (или null — оставить из шаблона).
      * @param workDir каталог для временных файлов.
+     * @param foreground PNG 450x450 с вырезанным объектом для эффекта глубины (или null — заглушка).
      */
     fun build(
         template: ByteArray,
@@ -55,6 +58,7 @@ object WatchFaceApk {
         preview: ByteArray?,
         signer: Signer,
         workDir: File,
+        foreground: ByteArray? = null,
     ): ByteArray {
         workDir.mkdirs()
         val templateFile = File.createTempFile("wf_template", ".apk", workDir)
@@ -66,6 +70,7 @@ object WatchFaceApk {
                 put(ENTRY_WATCHFACE_XML, watchFaceXml.toByteArray(Charsets.UTF_8))
                 put(ENTRY_BACKGROUND, background)
                 if (preview != null) put(ENTRY_PREVIEW, preview)
+                if (foreground != null) put(ENTRY_FOREGROUND, foreground)
             }
             val found = mutableSetOf<String>()
             ZipFile(templateFile).use { zip ->

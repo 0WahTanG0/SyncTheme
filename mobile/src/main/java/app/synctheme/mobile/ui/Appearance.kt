@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import app.synctheme.R
+import app.synctheme.faces.R as FaceR
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -115,19 +116,19 @@ class Look(
 // Шрифты лежат готовыми начертаниями: вариативные оси применяются не везде одинаково.
 val Manrope = FontFamily(
     Font(R.font.manrope_400, FontWeight.Normal), Font(R.font.manrope_600, FontWeight.SemiBold),
-    Font(R.font.manrope_700, FontWeight.Bold), Font(R.font.manrope_800, FontWeight.ExtraBold),
+    Font(R.font.manrope_700, FontWeight.Bold), Font(FaceR.font.manrope_800, FontWeight.ExtraBold),
 )
 val Nunito = FontFamily(
     Font(R.font.nunito_400, FontWeight.Normal), Font(R.font.nunito_600, FontWeight.SemiBold),
-    Font(R.font.nunito_700, FontWeight.Bold), Font(R.font.nunito_900, FontWeight.Black),
+    Font(R.font.nunito_700, FontWeight.Bold), Font(FaceR.font.nunito_900, FontWeight.Black),
 )
 val Unbounded = FontFamily(
-    Font(R.font.unbounded_500, FontWeight.Medium), Font(R.font.unbounded_700, FontWeight.Bold),
+    Font(R.font.unbounded_500, FontWeight.Medium), Font(FaceR.font.unbounded_700, FontWeight.Bold),
     Font(R.font.unbounded_800, FontWeight.ExtraBold),
 )
 val Onest = FontFamily(
     Font(R.font.onest_400, FontWeight.Normal), Font(R.font.onest_500, FontWeight.Medium),
-    Font(R.font.onest_600, FontWeight.SemiBold), Font(R.font.onest_700, FontWeight.Bold),
+    Font(FaceR.font.onest_600, FontWeight.SemiBold), Font(R.font.onest_700, FontWeight.Bold),
 )
 
 /** Смешивание в sRGB, как в макетах: t = 0 → a, t = 1 → b. */

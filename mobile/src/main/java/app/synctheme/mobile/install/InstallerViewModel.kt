@@ -127,9 +127,9 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
 
             val device = connectWithRetry(s.host)
             _ui.update { it.copy(device = device) }
-            if (!device.supportsWatchFacePush) {
+            if (!device.supported) {
                 return@launch fail(
-                    "На часах ${device.model} Android API ${device.sdk}. Для установки циферблатов нужен Wear OS 6 (API 36): " +
+                    "На часах ${device.model} Android API ${device.sdk}. SyncTheme работает с Wear OS 3 (API 30) и новее: " +
                         "обновите ПО часов и повторите."
                 )
             }
@@ -137,7 +137,7 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
             busy("Устанавливаю SyncTheme на ${device.model.ifBlank { "часы" }}…")
             installer.install { p -> _ui.update { it.copy(progress = p) } }
             busy("Настраиваю приложение на часах…")
-            installer.finishSetup()
+            installer.finishSetup(device)
             installer.disconnect()
             log("Готово")
             _ui.update { it.copy(busy = null, progress = null, done = true) }

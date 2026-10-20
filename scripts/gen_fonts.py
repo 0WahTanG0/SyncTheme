@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Шрифты цифр для часов: скачивает их из github.com/google/fonts (лицензия OFL), оставляет
-нужную насыщенность и только цифры с двоеточием, кладёт в приложение и в шаблон циферблата
+нужную насыщенность и только цифры с двоеточием, кладёт в модуль :faces и в шаблон циферблата
 и записывает метрики в core/DigitFont.kt (по ним виджеты и циферблаты вписывают цифры в рамку).
 
 Запуск: python3 scripts/gen_fonts.py  (нужен интернет и fonttools)
@@ -15,7 +15,8 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib import instancer
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
-MOBILE_FONTS = os.path.join(ROOT, "mobile", "src", "main", "res", "font")
+# Шрифты циферблатов лежат в общем модуле :faces (их видят и телефон, и приложение для часов).
+MOBILE_FONTS = os.path.join(ROOT, "faces", "src", "main", "res", "font")
 WATCH_FONTS = os.path.join(ROOT, "watchface", "src", "main", "res", "font")
 LICENSES = os.path.join(ROOT, "mobile", "src", "main", "assets", "licenses", "fonts-digits.txt")
 KT = os.path.join(ROOT, "core", "src", "main", "kotlin", "app", "synctheme", "core", "DigitFont.kt")

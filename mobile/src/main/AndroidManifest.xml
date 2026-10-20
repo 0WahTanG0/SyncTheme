@@ -41,6 +41,10 @@
             <data android:scheme="https" />
         </intent>
         <package android:name="com.sec.android.daemonapp" />
+        <!-- Снимок «В тон вещи» делает системная камера. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
     </queries>
 
     <application
@@ -85,6 +89,31 @@
         <receiver
             android:name=".mobile.update.UpdateReceiver"
             android:exported="false" />
+
+        <!-- Живые обои с часами и эффектом глубины. -->
+        <service
+            android:name=".mobile.wallpaper.ClockWallpaperService"
+            android:exported="true"
+            android:label="@string/wallpaper_clock"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/clock_wallpaper" />
+        </service>
+
+        <!-- Снимок с камеры для «В тон вещи» и картинки для iPhone, Apple Watch и других часов. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <receiver
             android:name=".mobile.widget.ClockWidget"

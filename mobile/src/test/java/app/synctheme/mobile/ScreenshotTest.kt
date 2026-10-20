@@ -22,6 +22,12 @@ import app.synctheme.mobile.widget.WidgetConfig
 import app.synctheme.mobile.widget.WidgetConfigScreen
 import app.synctheme.mobile.widget.WidgetKind
 import app.synctheme.core.ClockStyle
+import app.synctheme.core.LiveData
+import app.synctheme.core.WallClock
+import app.synctheme.core.WallClockLayout
+import app.synctheme.mobile.ui.MatchColorsDialog
+import app.synctheme.mobile.ui.ThemeColors
+import androidx.compose.ui.graphics.asImageBitmap
 import app.synctheme.core.DialStyle
 import com.github.takahirom.roborazzi.captureRoboImage
 import java.io.File
@@ -41,6 +47,7 @@ class ScreenshotTest {
         tab: Tab,
         appearance: Appearance = Appearance(AppStyle.GLASS, AppMode.DARK),
         lock: Boolean = false,
+        expand: Boolean = false,
         prepare: (Application) -> Unit = {},
     ) {
         val app = ApplicationProvider.getApplicationContext<Application>()
@@ -49,13 +56,14 @@ class ScreenshotTest {
         prepare(app)
         val vm = MainViewModel(app)
         if (tab == Tab.WATCH) vm.wantStylePreviews()
+        if (expand) vm.wantMoodPreviews()
         // Превью рендерятся в фоне после debounce на главном потоке — даём им время.
         repeat(6) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500))
             Thread.sleep(500)
         }
         val out = File(System.getProperty("previewsDir")!!, "$name.png")
-        captureRoboImage(out.absolutePath) { SyncThemeScreen(vm, tab, initialLock = lock) }
+        captureRoboImage(out.absolutePath) { SyncThemeScreen(vm, tab, initialLock = lock, expandSections = expand) }
     }
 
     @Test
@@ -93,6 +101,52 @@ class ScreenshotTest {
     fun watchTabLong() = screen("screen_watch_long", Tab.WATCH, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
         val t = Presets.all[0]
         ThemeRepository.get(app).setDraft(t.copy(watch = t.followPhone().copy(clockStyle = ClockStyle.DRUM)))
+    }
+
+    /** «Обои» целиком: часы на обоях, «Хамелеон», «В тон вещи». */
+    @Test
+    @Config(qualifiers = "w412dp-h3000dp-560dpi")
+    fun wallpaperFeatures() = screen("screen_wallpaper_features", Tab.WALLPAPER, Appearance(AppStyle.NEON, AppMode.DARK), expand = true) { app ->
+        app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit().putString("chameleon", "BOTH").apply()
+        ThemeRepository.get(app).setDraft(Presets.all[1].copy(wallClock = WallClock(WallClockLayout.STACKED, depth = false)))
+    }
+
+    /** «Часы» с живыми данными и глубиной. */
+    @Test
+    @Config(qualifiers = "w412dp-h3000dp-560dpi")
+    fun watchFeatures() = screen("screen_watch_features", Tab.WATCH, Appearance(AppStyle.EXPRESSIVE, AppMode.DARK), expand = true) { app ->
+        val t = Presets.all[2]
+        ThemeRepository.get(app).setDraft(
+            t.copy(clockStyle = ClockStyle.LIQUID, watchLive = LiveData(steps = true, pulse = true, battery = true)),
+        )
+    }
+
+    /** «Ещё»: другие устройства и картинки для Apple. */
+    @Test
+    @Config(qualifiers = "w412dp-h2200dp-560dpi")
+    fun moreFeatures() = screen("screen_more_features", Tab.MORE, Appearance(AppStyle.GLASS, AppMode.LIGHT))
+
+    /** Диалог «В тон вещи» на снимке-заглушке. */
+    @Test
+    fun matchDialog() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
+        val bmp = android.graphics.Bitmap.createBitmap(600, 800, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        c.drawColor(0xFFE8E2D6.toInt())
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.color = 0xFF1E5631.toInt()
+        c.drawRoundRect(200f, 0f, 400f, 800f, 40f, 40f, p)
+        p.color = 0xFF222222.toInt()
+        c.drawCircle(300f, 400f, 170f, p)
+        p.color = 0xFF3A6B4A.toInt()
+        c.drawCircle(300f, 400f, 140f, p)
+        val swatches = ThemeColors.swatches(bmp)
+        val photo = MainViewModel.MatchPhoto(bmp, bmp.asImageBitmap(), swatches)
+        val out = File(System.getProperty("previewsDir")!!, "screen_match.png")
+        captureRoboImage(out.absolutePath) {
+            AppTheme(Presets.all[0].accentColor) { MatchColorsDialog(photo, {}, { _, _ -> }) }
+        }
     }
 
     @Test

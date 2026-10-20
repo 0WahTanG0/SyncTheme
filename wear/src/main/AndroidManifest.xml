@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature android:name="android.hardware.type.watch" />
+    <!-- Watch Face Push (Wear OS 6) вызывается только на API 36+, на старых часах работает классический циферблат. -->
+    <uses-sdk tools:overrideLibrary="androidx.wear.watchfacepush" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Watch Face Push -->
     <uses-permission android:name="com.google.wear.permission.PUSH_WATCH_FACES" />
     <uses-permission android:name="com.google.wear.permission.SET_PUSHED_WATCH_FACE_AS_ACTIVE" />
+    <!-- Классический циферблат (Wear OS 3–5). -->
+    <uses-permission android:name="com.google.android.permission.PROVIDE_BACKGROUND" />
 
     <application
         android:allowBackup="true"
@@ -18,6 +23,11 @@
         <uses-library
             android:name="com.google.android.wearable"
             android:required="false" />
+        <!-- Библиотека Wear SDK есть только с Wear OS 6; без неё приложение тоже должно ставиться. -->
+        <uses-library
+            android:name="wear-sdk"
+            android:required="false"
+            tools:replace="android:required" />
 
         <!-- Работает в паре с приложением на телефоне. -->
         <meta-data
@@ -45,6 +55,28 @@
                 <data android:scheme="synctheme" android:host="watch" />
             </intent-filter>
         </activity>
+
+        <!-- Классический циферблат для часов без Watch Face Push; на Wear OS 6 выключен. -->
+        <service
+            android:name=".wear.SyncThemeFaceService"
+            android:enabled="@bool/classic_face"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+                <category android:name="com.google.android.wearable.watchface.category.WATCH_FACE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/watch_face" />
+            <meta-data
+                android:name="com.google.android.wearable.watchface.preview"
+                android:resource="@drawable/face_preview" />
+            <meta-data
+                android:name="com.google.android.wearable.watchface.preview_circular"
+                android:resource="@drawable/face_preview" />
+        </service>
 
         <service
             android:name=".wear.ThemeListenerService"

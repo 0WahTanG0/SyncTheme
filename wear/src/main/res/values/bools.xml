@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Классический циферблат нужен часам без Watch Face Push (Wear OS 3–5). -->
+    <bool name="classic_face">true</bool>
+</resources>

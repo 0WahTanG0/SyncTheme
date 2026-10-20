@@ -40,6 +40,8 @@ fun main(args: Array<String>) {
     val bg = DefaultAssets.background(theme, WatchFaceXml.SIZE)
     DefaultAssets.writeJpeg(bg, drawable.resolve("wf_bg.jpg"))
     ImageIO.write(DefaultAssets.preview(theme, bg), "png", drawable.resolve("preview.png"))
+    // Заглушка слоя глубины: телефон подменяет её вырезанным с фото объектом.
+    ImageIO.write(BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), "png", drawable.resolve("${WatchFaceXml.FG_RESOURCE}.png"))
     ImageIO.write(DefaultAssets.hand(18, 150), "png", drawable.resolve("${WatchFaceXml.HAND_HOUR}.png"))
     ImageIO.write(DefaultAssets.hand(12, 210), "png", drawable.resolve("${WatchFaceXml.HAND_MINUTE}.png"))
     ImageIO.write(DefaultAssets.hand(6, 240), "png", drawable.resolve("${WatchFaceXml.HAND_SECOND}.png"))

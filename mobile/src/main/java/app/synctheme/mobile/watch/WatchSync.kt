@@ -54,6 +54,9 @@ class WatchSync(private val context: Context) {
             dataMap.putString(SyncProtocol.KEY_THEME_NAME, theme.name)
             dataMap.putLong(SyncProtocol.KEY_TIMESTAMP, System.currentTimeMillis())
             dataMap.putBoolean(SyncProtocol.KEY_ACTIVATE, true)
+            dataMap.putString(SyncProtocol.KEY_SETTINGS, theme.watchSettings().toJson())
+            dataMap.putAsset(SyncProtocol.KEY_BACKGROUND, Asset.createFromBytes(built.background))
+            built.foreground?.let { dataMap.putAsset(SyncProtocol.KEY_FOREGROUND, Asset.createFromBytes(it)) }
         }.asPutDataRequest().setUrgent()
         Wearable.getDataClient(context).putDataItem(request).await()
     }

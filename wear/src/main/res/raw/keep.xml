@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ресурс читают Play Services, а не код, поэтому R8 считал его лишним и удалял. -->
+<!-- Ресурс читают Play Services, а не код, поэтому R8 считал его лишним и удалял.
+     Шрифты циферблата берутся по имени (getIdentifier) — их тоже оставляем. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@array/android_wear_capabilities" />
+    tools:keep="@array/android_wear_capabilities,@font/*" />
