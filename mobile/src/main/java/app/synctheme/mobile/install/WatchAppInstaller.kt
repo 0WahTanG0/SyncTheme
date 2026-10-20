@@ -15,11 +15,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /** Сведения о подключённых часах. */
 data class WatchDevice(val model: String, val sdk: Int, val isWatch: Boolean, val installedVersion: Long?) {
-    /** Watch Face Push появился в Wear OS 6 (Android 16, API 36); на Wear OS 3–5 — классический циферблат. */
+    /** Watch Face Push появился в Wear OS 6 (Android 16, API 36). */
     val supportsWatchFacePush get() = sdk >= 36
-
-    /** SyncTheme для часов работает с Wear OS 3 (Android 11, API 30). */
-    val supported get() = sdk >= 30
 }
 
 class InstallException(message: String) : Exception(message)
@@ -103,14 +100,10 @@ class WatchAppInstaller(private val context: Context, private val log: (String) 
             readAll(stream)
         } ?: throw WatchUnreachableException("Передача на часы прервалась (нет ответа ${INSTALL_TIMEOUT / 1000} с)")
 
-    /** Выдаёт разрешение «менять циферблат» (Wear OS 6) и открывает приложение на часах. */
-    suspend fun finishSetup(device: WatchDevice) {
-        if (device.supportsWatchFacePush) {
-            log("Разрешение на смену циферблата: " +
-                shell("pm grant $PACKAGE com.google.wear.permission.SET_PUSHED_WATCH_FACE_AS_ACTIVE").trim().ifEmpty { "выдано" })
-        } else {
-            log("Wear OS 3–5: тема будет на классическом циферблате «SyncTheme»")
-        }
+    /** Выдаёт разрешение «менять циферблат» и открывает приложение на часах. */
+    suspend fun finishSetup() {
+        log("Разрешение на смену циферблата: " +
+            shell("pm grant $PACKAGE com.google.wear.permission.SET_PUSHED_WATCH_FACE_AS_ACTIVE").trim().ifEmpty { "выдано" })
         shell("am start -n $PACKAGE/.wear.MainActivity")
         log("SyncTheme открыт на часах")
     }
@@ -157,7 +150,7 @@ class WatchAppInstaller(private val context: Context, private val log: (String) 
 
     private fun explain(output: String): String = when {
         "MISSING_SHARED_LIBRARY" in output || "OLDER_SDK" in output ->
-            "На часах слишком старая Wear OS — нужна Wear OS 3 или новее. Обновите ПО часов и повторите."
+            "На часах нет Wear OS 6. Обновите ПО часов (Galaxy Wearable или приложение Pixel Watch) и повторите."
         "INSUFFICIENT_STORAGE" in output -> "На часах не хватает памяти."
         "VERSION_DOWNGRADE" in output -> "На часах более новая версия SyncTheme. Удалите её и повторите."
         else -> "Часы отказали в установке: ${output.trim().ifEmpty { "нет ответа" }}"

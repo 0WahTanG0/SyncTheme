@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.BlendMode
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Canvas
@@ -72,15 +71,12 @@ object ThemeRenderer {
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         drawBackground(canvas, bg, width.toFloat(), height.toFloat(), photo(context, bg))
-        finish(canvas, bg, dim)
+        darken(canvas, dim)
         return bmp
     }
 
-    /** Оттенок «Хамелеона» и затемнение — одинаково для фона и для слоя глубины. */
-    private fun finish(canvas: Canvas, bg: Background, dim: Float) {
-        if (bg.tint ushr 24 != 0) {
-            canvas.drawPaint(Paint().apply { color = bg.tint; blendMode = BlendMode.SOFT_LIGHT })
-        }
+    /** Затемнение — одинаково для фона и для слоя глубины. */
+    private fun darken(canvas: Canvas, dim: Float) {
         if (dim > 0f) canvas.drawColor(Colors.withAlpha(Color.BLACK, dim.coerceIn(0f, 0.8f)))
     }
 
@@ -95,7 +91,7 @@ object ThemeRenderer {
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         drawCenterCrop(canvas, photo, width.toFloat(), height.toFloat())
-        finish(canvas, bg, dim)
+        darken(canvas, dim)
         val cut = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
         drawCenterCrop(canvas, mask, width.toFloat(), height.toFloat(), cut)
         return bmp
@@ -244,6 +240,10 @@ object ThemeRenderer {
         }
     }
 
+    /** Тот же циферблат в режиме Always-On (без фона, светлыми цветами). */
+    fun watchAmbientPreview(context: Context, theme: Theme, sizePx: Int): Bitmap =
+        FaceRenderer.render(context, theme.watchSettings(), null, null, FaceState.preview(DateFormat.is24HourFormat(context), ambient = true), sizePx, fonts(context))
+
     @Volatile private var faceFonts: FaceFonts? = null
 
     private fun fonts(context: Context): FaceFonts =
@@ -292,6 +292,7 @@ object ThemeRenderer {
             if (wall.depth) foreground(context, theme.background, theme.dim, width, height)?.let {
                 canvas.drawBitmap(it, 0f, 0f, null)
                 it.recycle()
+                drawWallClock(context, canvas, theme, width, height, previewMillis(), alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
             }
         } else {
             // Виджет часов 4x2.
@@ -347,7 +348,7 @@ object ThemeRenderer {
      * Часы на обоях телефона (рисуют живые обои SyncTheme): время шрифтом цифр темы,
      * дата цветом акцента, лёгкая тень для читаемости на фото.
      */
-    fun drawWallClock(context: Context, canvas: Canvas, theme: Theme, width: Int, height: Int, millis: Long) {
+    fun drawWallClock(context: Context, canvas: Canvas, theme: Theme, width: Int, height: Int, millis: Long, alpha: Int = 255) {
         val wall = theme.wallClock ?: return
         val font = wallClockFont(theme)
         val tf = fonts(context).of(font)
@@ -359,13 +360,16 @@ object ThemeRenderer {
         val w = width.toFloat()
         val h = height.toFloat()
         val shadow = Colors.withAlpha(Color.BLACK, 0.35f)
+        // alpha < 255 — время поверх объекта с фото (эффект глубины): без тени и даты.
+        val ghost = alpha < 255
         fun digitsAt(text: String, cy: Float, maxW: Float, maxH: Float, color: Int) {
             val size = WatchFaceXml.fit(font, text.replace(Regex("[0-9]"), "0"), maxW.toInt(), maxH.toInt())
-            val p = textPaint(color, size, tf).apply { setShadowLayer(size * 0.04f, 0f, size * 0.02f, shadow) }
+            val p = textPaint(Colors.withAlpha(color, alpha / 255f), size, tf)
+            if (!ghost) p.setShadowLayer(size * 0.04f, 0f, size * 0.02f, shadow)
             canvas.drawText(text, w / 2, cy + (font.top + font.bottom) / 2 * size, p)
         }
         fun date(cy: Float, size: Float) {
-            if (!wall.showDate) return
+            if (!wall.showDate || ghost) return
             val p = textPaint(theme.accentColor, size, fonts(context).label).apply { setShadowLayer(size * 0.15f, 0f, 2f, shadow) }
             canvas.textCentered(dateString(millis, "EEEE, d MMMM"), w / 2, cy, p)
         }
@@ -389,14 +393,24 @@ object ThemeRenderer {
     private fun dateString(millis: Long, pattern: String) =
         SimpleDateFormat(pattern, Locale.getDefault()).format(Date(millis)).replace(".", "")
 
-    /** Превью экрана блокировки: обои блокировки и крупные часы One UI сверху. */
+    /**
+     * Превью экрана блокировки: обои блокировки и крупные часы One UI сверху. С эффектом глубины —
+     * как у «Адаптивных часов» One UI 8: крупнее, а главный объект фото стоит перед ними.
+     */
     fun lockPreview(context: Context, theme: Theme, width: Int, height: Int): Bitmap {
         val bmp = lockBackground(context, theme, width, height)
         val canvas = Canvas(bmp)
         val u = width / 100f
         val white = Color.WHITE
+        val depth = if (theme.lockDepth) foreground(context, theme.lockScreenBackground(), theme.lockScreenDim(), width, height) else null
         canvas.textCentered(dateString("EEE, d MMMM"), 50 * u, 22 * u, textPaint(white, 4.6f * u))
-        canvas.textCentered("10:08", 50 * u, 40 * u, textPaint(white, 26 * u, typeface(FontWeight.LIGHT)))
+        if (depth != null) {
+            canvas.textCentered("10:08", 50 * u, 46 * u, textPaint(white, 38 * u, typeface(FontWeight.BOLD)))
+            canvas.drawBitmap(depth, 0f, 0f, null)
+            depth.recycle()
+        } else {
+            canvas.textCentered("10:08", 50 * u, 40 * u, textPaint(white, 26 * u, typeface(FontWeight.LIGHT)))
+        }
         val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Color.BLACK, 0.35f) }
         canvas.drawCircle(14 * u, height - 14 * u, 7 * u, icon)
         canvas.drawCircle(86 * u, height - 14 * u, 7 * u, icon)

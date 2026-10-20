@@ -25,25 +25,13 @@ object ThemeSync {
         val name = map.getString(SyncPaths.KEY_THEME_NAME).orEmpty()
         val activate = map.getBoolean(SyncPaths.KEY_ACTIVATE, true)
 
-        val status = if (ClassicFace.needed) {
-            // Wear OS 3–5: Watch Face Push нет — тему рисует классический циферблат SyncTheme.
-            val settings = map.getString(SyncPaths.KEY_SETTINGS) ?: return@withLock
-            val bg = map.getAsset(SyncPaths.KEY_BACKGROUND)?.let { read(context, it) } ?: return@withLock
-            val fg = map.getAsset(SyncPaths.KEY_FOREGROUND)?.let { read(context, it) }
-            ClassicFace.save(context, settings, bg, fg)
-            installer.classicInstalled(name, timestamp)
-        } else {
-            val apk = File(context.filesDir, "watchface.apk")
-            Wearable.getDataClient(context).getFdForAsset(asset).await().inputStream.use { input ->
-                apk.outputStream().use { input.copyTo(it) }
-            }
-            installer.install(apk, token, name, timestamp, activate)
+        val apk = File(context.filesDir, "watchface.apk")
+        Wearable.getDataClient(context).getFdForAsset(asset).await().inputStream.use { input ->
+            apk.outputStream().use { input.copyTo(it) }
         }
+        val status = installer.install(apk, token, name, timestamp, activate)
         sendStatus(context, sourceNodeId, status)
     }
-
-    private suspend fun read(context: Context, asset: com.google.android.gms.wearable.Asset): ByteArray =
-        Wearable.getDataClient(context).getFdForAsset(asset).await().inputStream.use { it.readBytes() }
 
     /** На случай, если сервис пропустил событие (часы были выключены и т.п.). */
     suspend fun checkPending(context: Context, force: Boolean = false) {

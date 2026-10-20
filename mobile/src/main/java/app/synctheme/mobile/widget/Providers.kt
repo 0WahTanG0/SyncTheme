@@ -7,12 +7,18 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.util.SizeF
 import app.synctheme.mobile.data.ThemeRepository
 
 /** Базовый виджет: у каждого экземпляра свои настройки ([WidgetConfigStore]). */
 abstract class ThemedWidget(val kind: WidgetKind) : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { WidgetUpdater.updateOne(context, manager, it, kind) }
+    }
+
+    /** Виджет растянули или сжали: лаунчер прислал новые размеры — подбираем разметку под них. */
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, newOptions: android.os.Bundle) {
+        WidgetUpdater.updateOne(context, manager, id, kind)
     }
 
     override fun onDeleted(context: Context, ids: IntArray) {
@@ -63,7 +69,7 @@ object WidgetUpdater {
     }
 
     fun config(context: Context, id: Int, kind: WidgetKind): WidgetConfig =
-        WidgetConfigStore.get(context, id, kind, ThemeRepository.get(context).effective.value.widgetOpacity)
+        WidgetConfigStore.get(context, id, kind, ThemeRepository.get(context).applied.value.widgetOpacity)
 
     fun placed(context: Context): List<PlacedWidget> =
         WidgetKind.entries.flatMap { kind -> ids(context, kind).map { PlacedWidget(it, kind, config(context, it, kind)) } }
@@ -76,9 +82,18 @@ object WidgetUpdater {
     }
 
     fun updateOne(context: Context, manager: AppWidgetManager, id: Int, kind: WidgetKind) {
-        val theme = ThemeRepository.get(context).effective.value
-        runCatching { manager.updateAppWidget(id, WidgetRenderer.build(context, kind, config(context, id, kind), theme)) }
+        val theme = ThemeRepository.get(context).applied.value
+        runCatching {
+            manager.updateAppWidget(id, WidgetRenderer.build(context, kind, config(context, id, kind), theme, sizes = sizes(manager, id)))
+        }
     }
+
+    /** Точные размеры виджета от лаунчера (Android 12+), dp. */
+    private fun sizes(manager: AppWidgetManager, id: Int): List<SizeF> = runCatching {
+        manager.getAppWidgetOptions(id)
+            .getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
+            .orEmpty().filter { it.width > 0 && it.height > 0 }
+    }.getOrDefault(emptyList())
 
     /** Одинаковая прозрачность для всех размещённых виджетов. */
     fun setOpacityForAll(context: Context, opacity: Float) {

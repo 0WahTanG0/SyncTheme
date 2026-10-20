@@ -16,91 +16,90 @@
         android:tint="#E61B1B24" />
 
     <LinearLayout
-        android:padding="14dp"
-        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center">
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:layout_width="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical|start"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
 
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:gravity="start"
-                android:layout_height="match_parent"
-                android:orientation="vertical">
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:id="@+id/wx_now"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/wx_partly_day"
+                    android:importantForAccessibility="no" />
 
                 <TextView
-                    android:id="@+id/m_city"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="start"
-                    android:fontFamily="sans-serif-light"
-                    android:textSize="15sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:textColor="#FFFFFFFF" />
-
-                <TextView
-                    android:id="@+id/a_desc"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="start"
-                    android:fontFamily="sans-serif-light"
-                    android:textSize="12sp"
+                    android:id="@+id/m_temp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:gravity="start|center_vertical"
+                    android:fontFamily="sans-serif-thin"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="16sp"
+                    android:autoSizeMaxTextSize="40sp"
+                    android:autoSizeStepGranularity="1sp"
+                    android:includeFontPadding="false"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
             </LinearLayout>
 
-            <ImageView
-                android:id="@+id/wx_now"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:scaleType="fitCenter"
-                android:src="@drawable/wx_partly_day"
-                android:importantForAccessibility="no" />
+            <TextView
+                android:id="@+id/m_city"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="start"
+                android:fontFamily="sans-serif-light"
+                android:textSize="13sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
 
             <TextView
-                android:id="@+id/m_temp"
-                android:layout_marginStart="6dp"
-                android:includeFontPadding="false"
-                android:layout_width="wrap_content"
+                android:id="@+id/s_range"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center"
-                android:fontFamily="sans-serif-thin"
-                android:textSize="34sp"
+                android:gravity="start"
+                android:fontFamily="sans-serif-light"
+                android:textSize="11sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/s_range"
-            android:layout_marginBottom="4dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="start"
-            android:fontFamily="sans-serif-light"
-            android:textSize="12sp"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#FFFFFFFF" />
-
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+        <ImageView
+            android:id="@+id/if_vline"
+            android:layout_marginVertical="6dp"
+            android:layout_marginHorizontal="10dp"
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY"
+            android:src="@drawable/wline"
+            android:importantForAccessibility="no" />
 
         <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1.5"
+            android:layout_height="match_parent"
             android:gravity="center"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:orientation="horizontal">
 
             <LinearLayout
@@ -117,16 +116,16 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:fontFamily="sans-serif-light"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
                 <ImageView
                     android:id="@+id/wx_h0"
-                    android:layout_marginVertical="3dp"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_marginVertical="2dp"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/wx_clear_day"
                     android:importantForAccessibility="no" />
@@ -137,7 +136,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:fontFamily="sans-serif-light"
-                    android:textSize="13sp"
+                    android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
@@ -157,16 +156,16 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:fontFamily="sans-serif-light"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
                 <ImageView
                     android:id="@+id/wx_h1"
-                    android:layout_marginVertical="3dp"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_marginVertical="2dp"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/wx_clear_day"
                     android:importantForAccessibility="no" />
@@ -177,7 +176,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:fontFamily="sans-serif-light"
-                    android:textSize="13sp"
+                    android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
@@ -197,16 +196,16 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:fontFamily="sans-serif-light"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
                 <ImageView
                     android:id="@+id/wx_h2"
-                    android:layout_marginVertical="3dp"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_marginVertical="2dp"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/wx_clear_day"
                     android:importantForAccessibility="no" />
@@ -217,7 +216,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:fontFamily="sans-serif-light"
-                    android:textSize="13sp"
+                    android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
@@ -237,16 +236,16 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:fontFamily="sans-serif-light"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
                 <ImageView
                     android:id="@+id/wx_h3"
-                    android:layout_marginVertical="3dp"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_marginVertical="2dp"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/wx_clear_day"
                     android:importantForAccessibility="no" />
@@ -257,47 +256,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:fontFamily="sans-serif-light"
-                    android:textSize="13sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:textColor="#FFFFFFFF" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/cell_h4"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:gravity="center">
-
-                <TextView
-                    android:id="@+id/s_h4_time"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="sans-serif-light"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:textColor="#FFFFFFFF" />
-
-                <ImageView
-                    android:id="@+id/wx_h4"
-                    android:layout_marginVertical="3dp"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/wx_clear_day"
-                    android:importantForAccessibility="no" />
-
-                <TextView
-                    android:id="@+id/m_h4_temp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="sans-serif-light"
-                    android:textSize="13sp"
+                    android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />

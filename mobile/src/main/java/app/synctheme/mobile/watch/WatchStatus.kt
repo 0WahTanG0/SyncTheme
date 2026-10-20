@@ -24,8 +24,7 @@ data class WatchReport(
             "INSTALLED" -> if (active) "«$theme» на циферблате часов ✓" else "«$theme» установлен на часах"
             "NEEDS_PERMISSION" -> "Откройте SyncTheme на часах и разрешите менять циферблат"
             "NEEDS_MANUAL_SELECT" -> "Зажмите циферблат на часах и выберите «SyncTheme»"
-            "UNSUPPORTED" -> "Часы не принимают циферблаты: $message"
-            "CLASSIC" -> if (active) "«$theme» на циферблате часов ✓" else "«$theme» готов — на часах зажмите циферблат и выберите «SyncTheme»"
+            "UNSUPPORTED" -> "Часам нужен Wear OS 6 (обновите ПО часов)"
             "ERROR" -> "Ошибка на часах: $message"
             else -> ""
         }

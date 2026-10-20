@@ -3,6 +3,9 @@ package app.synctheme.mobile.render
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import app.synctheme.core.Background
+import app.synctheme.core.BackgroundType
+import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ThemeRepository
 import com.google.android.gms.common.moduleinstall.InstallStatusListener
 import com.google.android.gms.common.moduleinstall.ModuleInstall
@@ -139,4 +142,23 @@ object SubjectMask {
             throw DepthException("Не удалось скачать модель распознавания — проверьте интернет и повторите")
         }
     }
+}
+
+/** Маски для всех фото темы, где включён эффект глубины. */
+object DepthMasks {
+    private fun photo(bg: Background) = bg.photoFile?.takeIf { bg.type == BackgroundType.PHOTO }
+
+    /** Фото, для которых нужна маска: часы на обоях, экран блокировки, циферблат. */
+    fun photosFor(theme: Theme): List<String> = buildList {
+        if (theme.wallClock?.depth == true) photo(theme.background)?.let(::add)
+        if (theme.lockDepth) photo(theme.lockScreenBackground())?.let(::add)
+        if (theme.watchSettings().depth) photo(theme.watchBackground())?.let(::add)
+    }.distinct()
+
+    /**
+     * Считает недостающие маски. Ошибка распознавания не мешает поставить тему — просто без слоя
+     * глубины; её текст возвращается, чтобы сказать о ней пользователю.
+     */
+    suspend fun ensureFor(context: Context, theme: Theme): List<String> =
+        photosFor(theme).mapNotNull { name -> runCatching { SubjectMask.ensure(context, name) }.exceptionOrNull()?.message }
 }

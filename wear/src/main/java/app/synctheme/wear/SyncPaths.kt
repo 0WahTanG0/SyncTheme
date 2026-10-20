@@ -11,8 +11,5 @@ object SyncPaths {
     const val KEY_THEME_NAME = "name"
     const val KEY_TIMESTAMP = "ts"
     const val KEY_ACTIVATE = "activate"
-    const val KEY_SETTINGS = "settings"
-    const val KEY_BACKGROUND = "bg"
-    const val KEY_FOREGROUND = "fg"
     const val PHONE_OPEN_URI = "synctheme://phone"
 }

@@ -41,10 +41,6 @@
             <data android:scheme="https" />
         </intent>
         <package android:name="com.sec.android.daemonapp" />
-        <!-- Снимок «В тон вещи» делает системная камера. -->
-        <intent>
-            <action android:name="android.media.action.IMAGE_CAPTURE" />
-        </intent>
     </queries>
 
     <application
@@ -104,7 +100,7 @@
                 android:resource="@xml/clock_wallpaper" />
         </service>
 
-        <!-- Снимок с камеры для «В тон вещи» и картинки для iPhone, Apple Watch и других часов. -->
+        <!-- Обои блокировки файлом для системного «Установить как» (адаптивные часы One UI). -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

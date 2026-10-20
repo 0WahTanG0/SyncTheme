@@ -80,25 +80,7 @@ data class Background(
     val angle: Float = 135f,
     /** Имя файла фото в каталоге приложения на телефоне (только для PHOTO). */
     val photoFile: String? = null,
-    /**
-     * Оттенок поверх фона (ARGB, альфа — сила), смешивается мягким светом; 0 — без оттенка.
-     * Его ставит «Хамелеон», чтобы подкрасить и фото.
-     */
-    val tint: Int = 0,
 )
-
-/** Живые данные на циферблате: картинка меняется вместе с шагами, пульсом и зарядом. */
-@Serializable
-data class LiveData(
-    /** Шаги за день наполняют циферблат цветом акцента (у «Заливки» — вместо секунд). */
-    val steps: Boolean = false,
-    /** Кольцо по краю вспыхивает в такт пульсу. */
-    val pulse: Boolean = false,
-    /** Чем меньше заряд, тем темнее фон и слабее свечение. */
-    val battery: Boolean = false,
-) {
-    val any get() = steps || pulse || battery
-}
 
 /** Где на обоях стоят часы. */
 @Serializable
@@ -143,7 +125,6 @@ data class WatchSettings(
     val complications: Boolean = true,
     /** Шрифт цифр; null — как задумано в стиле ([ClockStyle.defaultDigitFont]). */
     val digitFont: DigitFont? = null,
-    val live: LiveData = LiveData(),
     /** Эффект глубины: главный объект фото фона рисуется поверх цифр. */
     val depth: Boolean = false,
 ) {
@@ -184,12 +165,15 @@ data class Theme(
     val watch: WatchSettings? = null,
     /** Шрифт цифр циферблата; null — как задумано в стиле. */
     val digitFont: DigitFont? = null,
-    /** Живые данные на циферблате (шаги, пульс, заряд). */
-    val watchLive: LiveData = LiveData(),
     /** Эффект глубины на циферблате. */
     val watchDepth: Boolean = false,
     /** Часы на обоях телефона; null — обычные обои без часов. */
     val wallClock: WallClock? = null,
+    /**
+     * Глубина на экране блокировки: там часы рисует One UI («Адаптивные часы» обтекают объект фото),
+     * поэтому обои блокировки ставятся чистым фото — без затемнения, чтобы телефон нашёл объект.
+     */
+    val lockDepth: Boolean = false,
 ) {
     /** Итоговые настройки циферблата: свои или повторяющие телефон. */
     fun watchSettings(): WatchSettings = watch ?: followPhone()
@@ -207,7 +191,6 @@ data class Theme(
         dim = dim,
         complications = watchComplications,
         digitFont = digitFont,
-        live = watchLive,
         depth = watchDepth,
     )
 
@@ -215,7 +198,8 @@ data class Theme(
 
     fun lockScreenBackground(): Background = lockBackground ?: background
 
-    fun lockScreenDim(): Float = lockDim ?: dim
+    /** С глубиной на экране блокировки фото ставится без затемнения: так One UI надёжнее находит объект. */
+    fun lockScreenDim(): Float = if (lockDepth && lockScreenBackground().type == BackgroundType.PHOTO) 0f else lockDim ?: dim
 
     fun toJson(): String = json.encodeToString(serializer(), this)
 

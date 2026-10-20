@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widgets.py — не редактировать вручную. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg_s"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/wbg_r24"
+        android:importantForAccessibility="no"
+        android:tint="#E61B1B24" />
+
+    <ImageView
+        android:id="@+id/fx_g"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/wfx_neon"
+        android:importantForAccessibility="no"
+        android:tint="#FF8B6CF6" />
+
+    <LinearLayout
+        android:padding="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <ImageView
+            android:id="@+id/ia_bolt"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/wic_bolt"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/m_pct"
+            android:layout_weight="1"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:gravity="center"
+            android:fontFamily="@font/unbounded_700"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="10sp"
+            android:autoSizeMaxTextSize="34sp"
+            android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:shadowColor="#80FFFFFF"
+            android:shadowRadius="14"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:textColor="#FFFFFFFF" />
+
+        <ProgressBar
+            android:id="@+id/pb_bar"
+            android:layout_marginTop="4dp"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="75"
+            android:progressDrawable="@drawable/wbar_progress"
+            android:layout_width="match_parent"
+            android:layout_height="5dp" />
+    </LinearLayout>
+</FrameLayout>

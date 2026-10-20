@@ -14,6 +14,7 @@ import app.synctheme.core.DialStyle
 import app.synctheme.core.DigitFont
 import app.synctheme.core.FontWeight
 import app.synctheme.core.WatchFaceXml
+import app.synctheme.core.WatchFaceXml.Layer
 import app.synctheme.core.WatchSettings
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,8 +37,8 @@ class FaceFonts(private val context: Context) {
 }
 
 /**
- * Рисует циферблат на Canvas так же, как его описывает WatchFaceXml: превью на телефоне
- * и живой классический циферблат на часах без Watch Face Push. Координаты — в «точках» 450×450.
+ * Рисует циферблат на Canvas так же, как его описывает WatchFaceXml (те же слои: обычный,
+ * «время поверх объекта» и Always-On) — для превью на телефоне. Координаты — в «точках» 450×450.
  */
 object FaceRenderer {
     const val SIZE = WatchFaceXml.SIZE.toFloat()
@@ -56,26 +57,28 @@ object FaceRenderer {
     }
 
     /** Рисует циферблат на canvas, уже масштабированный к 450×450. */
-    fun draw(canvas: Canvas, w0: WatchSettings, bg: Bitmap?, fg: Bitmap?, state: FaceState, fonts: FaceFonts) {
-        val ambient = state.ambient
-        // В Always-On нет фона и секунд — как в Variant mode="AMBIENT" у WFF.
-        val w = if (ambient) w0.copy(showSeconds = false) else w0
+    fun draw(canvas: Canvas, w: WatchSettings, bg: Bitmap?, fg: Bitmap?, state: FaceState, fonts: FaceFonts) {
         canvas.save()
         canvas.clipPath(Path().apply { addCircle(C, C, C, Path.Direction.CW) })
         canvas.drawColor(Color.BLACK)
-        val frame = Frame(canvas, w, state, fonts)
-        if (!ambient) {
-            bg?.let { canvas.drawBitmap(it, null, RectF(0f, 0f, SIZE, SIZE), Paint(Paint.FILTER_BITMAP_FLAG)) }
-            frame.liveUnderlay()
+        if (state.ambient) {
+            // Always-On: фона, объекта с фото и мини-виджетов нет, время — светлыми цветами.
+            Frame(canvas, WatchFaceXml.forLayer(w, Layer.AMBIENT), state, fonts, Layer.AMBIENT).style()
+            canvas.restore()
+            return
         }
-        if (ambient) canvas.saveLayerAlpha(0f, 0f, SIZE, SIZE, 190)
-        frame.style()
-        if (!ambient && w.depth && fg != null) {
+        bg?.let { canvas.drawBitmap(it, null, RectF(0f, 0f, SIZE, SIZE), Paint(Paint.FILTER_BITMAP_FLAG)) }
+        val full = Frame(canvas, w, state, fonts, Layer.FULL)
+        full.style()
+        if (w.depth && fg != null) {
             canvas.drawBitmap(fg, null, RectF(0f, 0f, SIZE, SIZE), Paint(Paint.FILTER_BITMAP_FLAG))
+            // Время поверх объекта — полупрозрачное, чтобы его было видно сквозь объект.
+            canvas.saveLayerAlpha(0f, 0f, SIZE, SIZE, WatchFaceXml.DEPTH_TIME_ALPHA)
+            Frame(canvas, WatchFaceXml.forLayer(w, Layer.TIME), state, fonts, Layer.TIME).style()
+            canvas.restore()
         }
         // Мини-виджеты — поверх слоя глубины, как в WatchFaceXml.
-        if (!ambient) frame.complications.forEach { it() }
-        if (ambient) canvas.restore()
+        full.complications.forEach { it() }
         canvas.restore()
     }
 
@@ -84,10 +87,12 @@ object FaceRenderer {
 
     private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
 
-    /** Один кадр: всё, что нужно функциям стилей. */
-    private class Frame(val canvas: Canvas, val w: WatchSettings, val s: FaceState, val f: FaceFonts) {
+    /** Один слой кадра: всё, что нужно функциям стилей. */
+    private class Frame(val canvas: Canvas, val w: WatchSettings, val s: FaceState, val f: FaceFonts, val layer: Layer) {
         /** Мини-виджеты откладываются и рисуются после слоя глубины. */
         val complications = mutableListOf<() -> Unit>()
+        val full get() = layer == Layer.FULL
+        val ambient get() = layer == Layer.AMBIENT
 
         fun style() = when (w.clockStyle) {
             ClockStyle.DIGITAL -> digital()
@@ -105,36 +110,6 @@ object FaceRenderer {
             ClockStyle.MATRIX -> matrix()
             ClockStyle.LIQUID -> liquid()
             ClockStyle.DIAGONAL -> diagonal()
-        }
-
-        // ------------------------------------------------------------ живые данные
-
-        val stepsLevel: Float? get() = s.stepPercent?.let { it.coerceIn(0, 100) * 4.5f }
-
-        /** Множитель свечения по заряду, как BATTERY_GLOW в WatchFaceXml. */
-        val batteryGlow: Float get() = s.battery?.let { (0.25f + it / 80f).coerceIn(0.25f, 1f) } ?: 1f
-
-        fun liveUnderlay() {
-            val live = w.live
-            val battery = s.battery
-            if (live.battery && battery != null) {
-                val alpha = ((50 - battery) * 3.6f).coerceIn(0f, 170f).toInt()
-                if (alpha > 0) canvas.drawColor(withAlpha(Color.BLACK, alpha))
-            }
-            val level = stepsLevel
-            if (live.steps && level != null && w.clockStyle != ClockStyle.LIQUID) {
-                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = withAlpha(w.accentColor, 0x33) }
-                canvas.drawRect(0f, SIZE - level, SIZE, SIZE, p)
-                val wave = if (s.second.toInt() % 2 == 0) -80f else -40f
-                canvas.drawOval(RectF(wave, SIZE - 12 - level, wave + 570f, SIZE + 12 - level), p)
-            }
-            if (live.pulse && w.clockStyle != ClockStyle.NEON) {
-                val alpha = (35 + 220 * s.beat).toInt()
-                canvas.saveLayerAlpha(0f, 0f, SIZE, SIZE, alpha)
-                ringArc(213f, 0f, 360f, withAlpha(w.accentColor, 0x30), 16f)
-                ringArc(213f, 0f, 360f, w.accentColor or 0xFF000000.toInt(), 6f)
-                canvas.restore()
-            }
         }
 
         // ------------------------------------------------------------ примитивы
@@ -258,41 +233,46 @@ object FaceRenderer {
         fun analog() {
             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
             val edge = 222f
-            for (i in 0 until 60) {
-                val main = i % 15 == 0
-                val hour = i % 5 == 0
-                val len: Float
-                when (w.dialStyle) {
-                    DialStyle.TICKS -> {
-                        len = if (main) 30f else if (hour) 20f else 7f
-                        p.strokeWidth = if (main) 8f else if (hour) 5f else 2f
-                        p.color = when {
-                            main -> w.accentColor
-                            hour -> withAlpha(w.textColor, 0.9f)
-                            else -> withAlpha(w.textColor, 0.5f)
+            if (layer != Layer.TIME) {
+                for (i in 0 until 60) {
+                    val main = i % 15 == 0
+                    val hour = i % 5 == 0
+                    if (ambient && !hour) continue
+                    val len: Float
+                    when (w.dialStyle) {
+                        DialStyle.TICKS -> {
+                            len = if (main) 30f else if (hour) 20f else 7f
+                            p.strokeWidth = if (main) (if (ambient) 4f else 8f) else if (hour) (if (ambient) 3f else 5f) else 2f
+                            p.color = when {
+                                main -> w.accentColor
+                                hour -> withAlpha(w.textColor, if (ambient) 0.7f else 0.9f)
+                                else -> withAlpha(w.textColor, 0.5f)
+                            }
+                        }
+                        DialStyle.NUMBERS -> {
+                            len = if (hour) 8f else 5f
+                            p.strokeWidth = if (hour) 3f else 1.5f
+                            p.color = withAlpha(w.textColor, if (hour) 0.7f else 0.4f)
+                        }
+                        DialStyle.MINIMAL -> {
+                            if (!main) continue
+                            len = 26f
+                            p.strokeWidth = if (ambient) 4f else 7f
+                            p.color = w.accentColor
                         }
                     }
-                    DialStyle.NUMBERS -> {
-                        len = if (hour) 8f else 5f
-                        p.strokeWidth = if (hour) 3f else 1.5f
-                        p.color = withAlpha(w.textColor, if (hour) 0.7f else 0.4f)
-                    }
-                    DialStyle.MINIMAL -> {
-                        if (!main) continue
-                        len = 26f
-                        p.strokeWidth = 7f
-                        p.color = w.accentColor
-                    }
+                    val (x1, y1) = pointOn(edge, i * 6f)
+                    val (x2, y2) = pointOn(edge - len, i * 6f)
+                    canvas.drawLine(x1, y1, x2, y2, p)
                 }
-                val (x1, y1) = pointOn(edge, i * 6f)
-                val (x2, y2) = pointOn(edge - len, i * 6f)
-                canvas.drawLine(x1, y1, x2, y2, p)
             }
             if (w.dialStyle == DialStyle.NUMBERS) {
-                val tf = typeface(w.fontWeight)
-                for (h in 1..12) {
-                    val (x, y) = pointOn(186f, h * 30f)
-                    textCentered("$h", x, y, textPaint(if (h % 3 == 0) w.accentColor else w.textColor, 38f, tf))
+                if (layer != Layer.TIME) {
+                    val tf = typeface(w.fontWeight)
+                    for (h in 1..12) {
+                        val (x, y) = pointOn(186f, h * 30f)
+                        textCentered("$h", x, y, textPaint(if (h % 3 == 0) w.accentColor else w.textColor, 38f, tf))
+                    }
                 }
                 if (w.showDate) textCentered(date("EEE d"), 225f, 132f, textPaint(w.accentColor, 26f))
                 if (w.complications) {
@@ -314,8 +294,8 @@ object FaceRenderer {
                 p.strokeWidth = width
                 canvas.drawLine(C - tail * sn + offset, C + tail * co + offset, C + length * sn + offset, C - length * co + offset, p)
             }
-            // Сначала тени (если не Always-On), потом стрелки.
-            val passes = if (s.ambient) listOf(false) else listOf(true, false)
+            // Тени стрелок — только в обычном режиме.
+            val passes = if (full) listOf(true, false) else listOf(false)
             for (shadow in passes) {
                 val off = if (shadow) 3f else 0f
                 val sh = 0x59000000
@@ -341,11 +321,18 @@ object FaceRenderer {
 
         fun orbit() {
             val track = withAlpha(w.textColor, 0x26)
-            ringArc(166f, 0f, 360f, track, 12f)
-            ringArc(166f, 0f, s.hourAngle, withAlpha(w.accentColor, 0.8f), 12f)
-            ringArc(190f, 0f, 360f, track, 8f)
-            ringArc(190f, 0f, s.minuteAngle, w.textColor, 8f)
-            dot(190f, s.minuteAngle, w.accentColor, 18f)
+            if (layer != Layer.TIME) {
+                if (ambient) {
+                    ringArc(166f, 0f, s.hourAngle, withAlpha(w.accentColor, 0x99), 4f)
+                    ringArc(190f, 0f, s.minuteAngle, withAlpha(w.textColor, 0x99), 3f)
+                } else {
+                    ringArc(166f, 0f, 360f, track, 12f)
+                    ringArc(166f, 0f, s.hourAngle, withAlpha(w.accentColor, 0.8f), 12f)
+                    ringArc(190f, 0f, 360f, track, 8f)
+                    ringArc(190f, 0f, s.minuteAngle, w.textColor, 8f)
+                    dot(190f, s.minuteAngle, w.accentColor, 18f)
+                }
+            }
             if (w.showSeconds) {
                 ringArc(212f, 0f, 360f, track, 4f)
                 ringArc(212f, 0f, s.secondAngle, w.accentColor, 4f)
@@ -361,21 +348,17 @@ object FaceRenderer {
 
         fun neon() {
             val text = if (WatchFaceXml.isLight(w.textColor)) w.textColor else Color.WHITE
-            val live = w.live
-            val glow = when {
-                s.ambient -> 0f
-                live.pulse && live.battery -> batteryGlow * (90 + 165 * s.beat) / 255f
-                live.pulse -> (90 + 165 * s.beat) / 255f
-                live.battery -> batteryGlow
-                else -> -1f
+            if (full) {
+                for ((width, alpha) in listOf(22f to 0x10, 14f to 0x22, 8f to 0x50)) {
+                    ringArc(210f, 0f, 360f, withAlpha(w.accentColor, alpha), width)
+                }
             }
-            for ((width, alpha) in listOf(22f to 0x10, 14f to 0x22, 8f to 0x50)) {
-                val a = if (glow < 0) alpha else (minOf(alpha * 2, 0xFF) * glow).toInt()
-                ringArc(210f, 0f, 360f, withAlpha(w.accentColor, a), width)
-            }
-            ringArc(210f, 0f, 360f, w.accentColor, 3.5f)
-            for (h in 0 until 12) {
-                dot(186f, h * 30f, if (h % 3 == 0) text else withAlpha(text, 0.6f), if (h % 3 == 0) 14f else 6f)
+            if (layer != Layer.TIME) {
+                ringArc(210f, 0f, 360f, if (ambient) withAlpha(w.accentColor, 0x80) else w.accentColor, if (ambient) 2f else 3.5f)
+                for (h in 0 until 12) {
+                    if (ambient && h % 3 != 0) continue
+                    dot(186f, h * 30f, if (h % 3 == 0) text else withAlpha(text, 0.6f), if (h % 3 == 0) 14f else 6f)
+                }
             }
             if (w.showSeconds) {
                 val head = s.secondAngle
@@ -385,7 +368,7 @@ object FaceRenderer {
                 dot(210f, head, Color.WHITE, 11f)
             }
             val font = w.digits() ?: DigitFont.TUBE
-            if (!s.ambient) {
+            if (full) {
                 val halo = withAlpha(w.accentColor, 0x66)
                 digits(s.timeText, 222f, 225f, 300, 84, font, halo)
                 digits(s.timeText, 228f, 231f, 300, 84, font, halo)
@@ -399,8 +382,11 @@ object FaceRenderer {
         }
 
         fun blob() {
-            val on = if (s.ambient) Color.WHITE else WatchFaceXml.onAccent(w.accentColor)
-            if (w.showDate && !s.ambient) textCentered(date("d"), 340f, 225f, textPaint(on, 34f, f.round))
+            val on = if (ambient) w.textColor else WatchFaceXml.onAccent(w.accentColor)
+            if (ambient) {
+                for (h in 0 until 12) dot(160f, h * 30f, withAlpha(w.accentColor, 0xB3), if (h % 3 == 0) 12f else 6f)
+            }
+            if (w.showDate) textCentered(date("d"), 340f, 225f, textPaint(on, 34f, f.round))
             if (w.complications) complication(225f, 339f, 39f, true)
             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; color = on }
             fun hand(angle: Float, length: Float, tail: Float, width: Float) {
@@ -415,7 +401,7 @@ object FaceRenderer {
             if (w.showSeconds) hand(s.secondAngle, 182f, 37f, 6f)
             p.style = Paint.Style.FILL
             canvas.drawCircle(C, C, 18f, p)
-            p.color = w.accentColor
+            p.color = if (ambient) Color.BLACK else w.accentColor
             canvas.drawCircle(C, C, 7f, p)
         }
 
@@ -433,18 +419,21 @@ object FaceRenderer {
         }
 
         fun minimal() {
-            val edge = 222f
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
-            for (i in 0 until 60) {
-                val hour = i % 5 == 0
-                val len = if (hour) 16f else 7f
-                p.strokeWidth = if (hour) 3f else 1.5f
-                p.color = withAlpha(w.textColor, if (hour) 0.7f else 0.25f)
-                val (x1, y1) = pointOn(edge, i * 6f)
-                val (x2, y2) = pointOn(edge - len, i * 6f)
-                canvas.drawLine(x1, y1, x2, y2, p)
+            if (layer != Layer.TIME) {
+                val edge = 222f
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
+                for (i in 0 until 60) {
+                    val hour = i % 5 == 0
+                    if (ambient && !hour) continue
+                    val len = if (hour) 16f else 7f
+                    p.strokeWidth = if (hour) (if (ambient) 2f else 3f) else 1.5f
+                    p.color = withAlpha(w.textColor, if (hour) 0.7f else 0.25f)
+                    val (x1, y1) = pointOn(edge, i * 6f)
+                    val (x2, y2) = pointOn(edge - len, i * 6f)
+                    canvas.drawLine(x1, y1, x2, y2, p)
+                }
+                dot(196f, s.minuteAngle, w.accentColor, if (ambient) 10f else 16f)
             }
-            dot(196f, s.minuteAngle, w.accentColor, 16f)
             if (w.showSeconds) dot(180f, s.secondAngle, withAlpha(w.textColor, 0.6f), 7f)
             digits(s.timeText, 225f, 220f, 320, 90, w.digits() ?: DigitFont.THIN, w.textColor)
             if (w.showDate) textCentered(date("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 22f, f.label))
@@ -457,22 +446,27 @@ object FaceRenderer {
         fun drum() {
             val font = w.digits() ?: DigitFont.MONO
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
-            p.color = withAlpha(w.accentColor, 0.2f)
-            canvas.drawRoundRect(RectF(296f, 191f, 446f, 259f), 34f, 34f, p)
+            val window = RectF(296f, 191f, 446f, 259f)
+            if (full) {
+                p.color = withAlpha(w.accentColor, 0.2f)
+                canvas.drawRoundRect(window, 34f, 34f, p)
+            }
             p.style = Paint.Style.STROKE
-            p.strokeWidth = 3f
+            p.strokeWidth = if (full) 3f else 2f
             p.color = w.accentColor
-            canvas.drawRoundRect(RectF(296f, 191f, 446f, 259f), 34f, 34f, p)
+            canvas.drawRoundRect(window, 34f, 34f, p)
             val minuteTurn = 90f - s.minuteAngle
             val hourTurn = 90f - s.hourAngle
-            p.strokeWidth = 2f
-            p.strokeCap = Paint.Cap.ROUND
-            p.color = withAlpha(w.textColor, 0x55)
-            for (m in 0 until 60) {
-                if (m % 5 == 0) continue
-                val (x1, y1) = pointOn(219f, m * 6f + minuteTurn)
-                val (x2, y2) = pointOn(212f, m * 6f + minuteTurn)
-                canvas.drawLine(x1, y1, x2, y2, p)
+            if (full) {
+                p.strokeWidth = 2f
+                p.strokeCap = Paint.Cap.ROUND
+                p.color = withAlpha(w.textColor, 0x55)
+                for (m in 0 until 60) {
+                    if (m % 5 == 0) continue
+                    val (x1, y1) = pointOn(219f, m * 6f + minuteTurn)
+                    val (x2, y2) = pointOn(212f, m * 6f + minuteTurn)
+                    canvas.drawLine(x1, y1, x2, y2, p)
+                }
             }
             fun label(text: String, angle: Float, r: Float, maxW: Int, maxH: Int, color: Int) {
                 val (x, y) = pointOn(r, angle)
@@ -496,12 +490,12 @@ object FaceRenderer {
 
         fun columns() {
             val font = w.digits() ?: DigitFont.SERIF
-            val faded = withAlpha(w.textColor, 0x59)
             val h = s.hour
             val m = s.minute
             digits("%02d".format(h), 140f, 225f, 150, 116, font, w.textColor)
             digits("%02d".format(m), 310f, 225f, 150, 116, font, w.accentColor)
-            if (!s.ambient) {
+            if (full) {
+                val faded = withAlpha(w.textColor, 0x59)
                 digits("%02d".format((h + 23) % 24), 140f, 92f, 90, 46, font, faded)
                 digits("%02d".format((h + 1) % 24), 140f, 358f, 90, 46, font, faded)
                 digits("%02d".format((m + 59) % 60), 310f, 92f, 90, 46, font, faded)
@@ -518,25 +512,38 @@ object FaceRenderer {
 
         fun planets() {
             val font = w.digits() ?: DigitFont.WIDE
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2f; color = withAlpha(w.textColor, 0.2f) }
-            canvas.drawCircle(C, C, 105f, p)
-            canvas.drawCircle(C, C, 178f, p)
-            p.style = Paint.Style.FILL
-            p.color = w.accentColor
-            canvas.drawCircle(C, C, 9f, p)
+            if (layer != Layer.TIME) {
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2f; color = withAlpha(w.textColor, if (ambient) 0.25f else 0.2f) }
+                canvas.drawCircle(C, C, 105f, p)
+                canvas.drawCircle(C, C, 178f, p)
+                p.style = Paint.Style.FILL
+                p.color = w.accentColor
+                canvas.drawCircle(C, C, 9f, p)
+            }
             fun planet(r: Float, radius: Float, angle: Float, fill: Int, textColor: Int, text: String) {
-                if (!s.ambient) {
+                if (full) {
                     val (x, y) = pointOn(r - radius, angle)
                     val (sx, sy) = pointOn(12f, angle)
                     val ray = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 2f; color = withAlpha(Color.WHITE, 0.25f); strokeCap = Paint.Cap.ROUND }
                     canvas.drawLine(sx, sy, x, y, ray)
                 }
                 val (px, py) = pointOn(r, angle)
-                canvas.drawCircle(px, py, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fill })
+                val body = Paint(Paint.ANTI_ALIAS_FLAG)
+                if (ambient) {
+                    body.color = Color.BLACK
+                    canvas.drawCircle(px, py, radius - 2, body)
+                    body.style = Paint.Style.STROKE
+                    body.strokeWidth = 3f
+                    body.color = fill
+                    canvas.drawCircle(px, py, radius - 2, body)
+                } else {
+                    body.color = fill
+                    canvas.drawCircle(px, py, radius - 2, body)
+                }
                 digits(text, px, py, (radius * 2 * 0.72f).toInt(), (radius * 2 * 0.42f).toInt(), font, textColor)
             }
-            planet(105f, 44f, s.hourAngle, w.accentColor, WatchFaceXml.onAccent(w.accentColor), "${s.hour}")
-            planet(178f, 36f, s.minuteAngle, w.textColor, WatchFaceXml.onAccent(w.textColor), s.minuteText)
+            planet(105f, 44f, s.hourAngle, w.accentColor, if (ambient) w.accentColor else WatchFaceXml.onAccent(w.accentColor), "${s.hour}")
+            planet(178f, 36f, s.minuteAngle, w.textColor, if (ambient) w.textColor else WatchFaceXml.onAccent(w.textColor), s.minuteText)
             if (w.showSeconds) {
                 ringArc(214f, s.secondAngle - 30, s.secondAngle, withAlpha(w.accentColor, 0.4f), 4f)
                 dot(214f, s.secondAngle, w.accentColor, 12f)
@@ -546,15 +553,23 @@ object FaceRenderer {
 
         fun matrix() {
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
-            val second = s.second.toInt()
-            for (i in 0 until 60) {
-                val (x, y) = pointOn(207f, i * 6f)
-                p.color = when {
-                    !w.showSeconds -> withAlpha(w.textColor, 0.4f)
-                    i <= second -> w.accentColor
-                    else -> withAlpha(w.accentColor, 60)
+            if (full) {
+                val second = s.second.toInt()
+                for (i in 0 until 60) {
+                    val (x, y) = pointOn(207f, i * 6f)
+                    p.color = when {
+                        !w.showSeconds -> withAlpha(w.textColor, 0.4f)
+                        i <= second -> w.accentColor
+                        else -> withAlpha(w.accentColor, 60)
+                    }
+                    canvas.drawCircle(x, y, if (i % 5 == 0) 5f else 3f, p)
                 }
-                canvas.drawCircle(x, y, if (i % 5 == 0) 5f else 3f, p)
+            } else if (ambient) {
+                p.color = withAlpha(w.accentColor, 0x99)
+                for (h in 0 until 12) {
+                    val (x, y) = pointOn(207f, h * 30f)
+                    canvas.drawCircle(x, y, 3f, p)
+                }
             }
             digits(s.timeText, 225f, 212f, 330, 112, w.digits() ?: DigitFont.DOTS, w.textColor)
             if (w.showDate) textCentered(date("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 24f, f.label))
@@ -566,25 +581,29 @@ object FaceRenderer {
 
         fun liquid() {
             val second = s.second.toInt()
-            if (!s.ambient) {
-                val level = if (w.live.steps) stepsLevel ?: 0f else (second + 1) * 7.5f
+            val font = w.digits() ?: DigitFont.BUBBLE
+            if (full) {
+                val level = (second + 1) * 7.5f
                 val fluid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = withAlpha(w.accentColor, 0x8C) }
                 canvas.drawRect(0f, SIZE - level, SIZE, SIZE, fluid)
                 val wave = if (second % 2 == 0) -90f else -30f
                 canvas.drawOval(RectF(wave, 430f - level, wave + 570f, 470f - level), fluid)
-                val bubble = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = withAlpha(Color.WHITE, 0.4f) }
                 // Пузырьки поднимаются до поверхности; пока «воды» почти нет, их не видно.
                 val top = 456f - level
                 if (top <= 440f) {
+                    val bubble = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = withAlpha(Color.WHITE, 0.4f) }
                     for ((k, bx) in listOf(0 to 120, 1 to 210, 2 to 300, 3 to 165)) {
                         val r = 6f + k * 2
                         val y = (440f - ((second * 7 + k * 17) % 60) * 6f).coerceIn(top, 440f)
                         canvas.drawCircle(bx + r, y + r, r, bubble)
                     }
                 }
+                digits(s.timeText, 228f, 213f, 330, 110, font, 0x40000000)
+            } else if (ambient) {
+                canvas.drawLine(40f, 330f, 410f, 330f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = withAlpha(w.accentColor, 0x80); strokeWidth = 2f; strokeCap = Paint.Cap.ROUND
+                })
             }
-            val font = w.digits() ?: DigitFont.BUBBLE
-            if (!s.ambient) digits(s.timeText, 228f, 213f, 330, 110, font, 0x40000000)
             digits(s.timeText, 225f, 210f, 330, 110, font, w.textColor)
             if (w.showDate) textCentered(date("EEE d MMM"), 225f, 128f, textPaint(w.textColor, 26f, f.label))
             if (w.complications) complication(225f, 335f, 39f, true)

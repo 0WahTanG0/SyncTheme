@@ -111,15 +111,7 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { vm.pickPhoto(it, photoTarget) }
     }
-    // «В тон вещи»: снимок системной камерой (разрешение на камеру не нужно) или фото из галереи.
-    var captureUri by rememberSaveable { mutableStateOf<android.net.Uri?>(null) }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        captureUri?.takeIf { ok }?.let(vm::loadMatch)
-    }
-    val matchPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        uri?.let(vm::loadMatch)
-    }
-    val match by vm.match.collectAsStateWithLifecycle()
+
     val actions = remember(vm) {
         ScreenActions(
             vm = vm,
@@ -128,17 +120,6 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
                 photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
             openInstaller = onOpenInstaller,
-            matchCamera = {
-                runCatching {
-                    val uri = captureUri(context)
-                    captureUri = uri
-                    camera.launch(uri)
-                }.onFailure {
-                    // Нет камеры или приложения камеры — тогда снимок вещи из галереи.
-                    matchPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }
-            },
-            matchGallery = { matchPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
             configureWidget = { id ->
                 context.startActivity(
                     Intent(context, WidgetConfigActivity::class.java)
@@ -197,8 +178,6 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
             }
         }
 
-        match?.let { photo -> MatchColorsDialog(photo, onDismiss = vm::dismissMatch, onApply = vm::applyMatch) }
-
         colorTarget?.let { target ->
             val watch = theme.watchSettings()
             val (title, initial) = when (target) {
@@ -239,8 +218,6 @@ class ScreenActions(
     val pickPhoto: (BgTarget) -> Unit,
     val openInstaller: () -> Unit,
     val configureWidget: (Int) -> Unit,
-    val matchCamera: () -> Unit = {},
-    val matchGallery: () -> Unit = {},
 ) {
     /** Меняет циферблат: в отдельных настройках часов или, если их нет, в общей теме. */
     fun editWatchFace(transform: (app.synctheme.core.WatchSettings) -> app.synctheme.core.WatchSettings) {
@@ -251,7 +228,7 @@ class ScreenActions(
             it.copy(
                 clockStyle = n.clockStyle, dialStyle = n.dialStyle, fontWeight = n.fontWeight, showSeconds = n.showSeconds,
                 showDate = n.showDate, watchComplications = n.complications, digitFont = n.digitFont,
-                watchLive = n.live, watchDepth = n.depth,
+                watchDepth = n.depth,
             )
         }
     }
@@ -263,12 +240,6 @@ class ScreenActions(
             BgTarget.WATCH -> vm.updateWatch { it.copy(background = transform(it.background ?: vm.theme.value.background)) }
         }
     }
-}
-
-/** Куда системная камера кладёт снимок вещи (FileProvider, cache/shared). */
-private fun captureUri(context: android.content.Context): android.net.Uri {
-    val file = java.io.File(context.cacheDir, "shared").apply { mkdirs() }.resolve("capture.jpg")
-    return androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
 }
 
 @Composable

@@ -52,9 +52,6 @@ class MainActivity : ComponentActivity() {
         runCatching { startActivity(Intent(Settings.ACTION_DATE_SETTINGS)) }
     }
 
-    /** Классический циферблат: системный экран выбора циферблата (или подсказка, если его нет). */
-    fun chooseClassicFace(): Boolean = runCatching { startActivity(ClassicFace.chooseIntent(this)) }.isSuccess
-
     fun openAppSettings() {
         startActivity(
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
@@ -113,18 +110,7 @@ private fun WearApp(activity: MainActivity) {
                         )
                     }
                 }
-                if (status.state == State.CLASSIC && !status.isActive) {
-                    item {
-                        Button(
-                            onClick = {
-                                if (!activity.chooseClassicFace()) {
-                                    android.widget.Toast.makeText(context, "Зажмите циферблат и выберите «SyncTheme»", android.widget.Toast.LENGTH_LONG).show()
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Сделать циферблатом") }
-                    }
-                } else if (!status.isActive && status.state != State.UNSUPPORTED && status.state != State.INSTALLING && !ClassicFace.needed) {
+                if (!status.isActive && status.state != State.UNSUPPORTED && status.state != State.INSTALLING) {
                     item {
                         Button(
                             onClick = { permissionLauncher.launch(WatchFaceInstaller.PERMISSION_SET_ACTIVE) },
@@ -165,6 +151,5 @@ private fun title(status: InstallStatus): String = when (status.state) {
     State.NEEDS_PERMISSION -> "Разрешите сменить циферблат"
     State.NEEDS_MANUAL_SELECT -> "Выберите циферблат SyncTheme вручную"
     State.UNSUPPORTED -> "Часы не поддерживают установку"
-    State.CLASSIC -> if (status.isActive) "«${status.themeName}» на циферблате ✓" else "«${status.themeName}» готов"
     State.ERROR -> "Ошибка установки"
 }

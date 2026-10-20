@@ -59,17 +59,48 @@ fun defaultDigitFont(style: String): DigitFont = when (style) {
 }
 
 /**
- * Размер виджета. Лаунчер сам выбирает подходящую разметку: самую большую, которая помещается
- * (minW × minH, dp). previewW/H — размер превью в настройке.
+ * Разметка виджета под его форму: квадратные (S, M, L), вытянутые по горизонтали (BAR, STRIP, WIDE)
+ * и по вертикали (NARROW, COLUMN, TALL). Какую показать, решает [classify] по размерам, которые
+ * сообщает лаунчер. minW × minH (dp) — «идеальный» размер, когда размеры ещё неизвестны;
+ * previewW/H — размер превью в настройке.
  */
 enum class WidgetSize(val key: String, val title: String, val minW: Float, val minH: Float, val previewW: Int, val previewH: Int) {
-    S("s", "1×1", 50f, 50f, 100, 100),
-    STRIP("strip", "4×1", 180f, 50f, 320, 84),
-    M("m", "2×2", 110f, 110f, 170, 170),
-    WIDE("wide", "4×2", 190f, 110f, 330, 170),
-    L("l", "4×4", 190f, 280f, 330, 330);
+    S("s", "Квадратик", 40f, 40f, 100, 100),
+    BAR("bar", "Полоска", 100f, 40f, 200, 84),
+    STRIP("strip", "Длинная полоска", 170f, 40f, 320, 84),
+    NARROW("narrow", "Столбик", 40f, 100f, 72, 200),
+    COLUMN("column", "Высокий столбик", 40f, 200f, 72, 330),
+    M("m", "Квадрат", 90f, 90f, 170, 170),
+    TALL("tall", "Высокий", 90f, 170f, 170, 330),
+    WIDE("wide", "Широкий", 170f, 90f, 330, 170),
+    L("l", "Большой", 200f, 200f, 330, 330);
 
     val sizeF get() = SizeF(minW, minH)
+
+    companion object {
+        /**
+         * Разметка для виджета w × h dp: сначала по пропорциям (вытянут ли он), потом по размеру —
+         * так и столбик 1×5, и полоска 4×1, и квадрат 2×2 показывают своё, а не растянутый квадратик.
+         */
+        fun classify(w: Float, h: Float): WidgetSize {
+            val aspect = w / h
+            return when {
+                aspect >= 1.6f -> when {
+                    h >= 100f -> WIDE
+                    w < 150f -> BAR
+                    else -> STRIP
+                }
+                aspect <= 0.62f -> when {
+                    w >= 75f -> TALL
+                    h < 170f -> NARROW
+                    else -> COLUMN
+                }
+                minOf(w, h) < 95f -> S
+                minOf(w, h) < 200f -> M
+                else -> L
+            }
+        }
+    }
 }
 
 @Serializable

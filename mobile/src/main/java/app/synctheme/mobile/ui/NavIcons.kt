@@ -70,16 +70,6 @@ object NavIcons {
         }
     }
 
-    /** Камера: «В тон вещи». */
-    val Camera = icon("Camera") {
-        stroke {
-            moveTo(4.5f, 7.5f); lineTo(8f, 7.5f); lineTo(9.5f, 5f); lineTo(14.5f, 5f); lineTo(16f, 7.5f); lineTo(19.5f, 7.5f)
-            quadTo(21f, 7.5f, 21f, 9f); lineTo(21f, 18f); quadTo(21f, 19.5f, 19.5f, 19.5f); lineTo(4.5f, 19.5f)
-            quadTo(3f, 19.5f, 3f, 18f); lineTo(3f, 9f); quadTo(3f, 7.5f, 4.5f, 7.5f); close()
-        }
-        stroke { moveTo(12f, 9.5f); arcTo(3.5f, 3.5f, 0f, true, true, 12f, 16.5f); arcTo(3.5f, 3.5f, 0f, true, true, 12f, 9.5f); close() }
-    }
-
     /** Экран блокировки: замок. */
     val Lock = icon("LockScreen") {
         stroke {

@@ -1,51 +1,53 @@
 package app.synctheme.mobile
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
+import android.os.Looper
+import android.view.View
+import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
 import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
-import app.synctheme.core.Chameleon
 import app.synctheme.core.ClockStyle
-import app.synctheme.core.DayPart
-import app.synctheme.core.LiveData
-import app.synctheme.core.Mood
 import app.synctheme.core.Presets
-import app.synctheme.core.Sky
 import app.synctheme.core.Theme
 import app.synctheme.core.WallClock
 import app.synctheme.core.WallClockLayout
+import app.synctheme.core.WatchFaceXml
 import app.synctheme.faces.FaceRenderer
 import app.synctheme.faces.FaceState
 import app.synctheme.mobile.data.ThemeRepository
-import app.synctheme.mobile.render.ExportKind
-import app.synctheme.mobile.render.ExportKit
+import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
-import app.synctheme.mobile.ui.ThemeColors
 import app.synctheme.mobile.watch.WatchFaceBuilder
+import app.synctheme.mobile.widget.WidgetConfig
+import app.synctheme.mobile.widget.WidgetKind
+import app.synctheme.mobile.widget.WidgetRenderer
+import app.synctheme.mobile.widget.WidgetSize
 import java.io.File
 import java.util.Calendar
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Эффект глубины, живые данные, «Хамелеон», «В тон вещи», классический циферблат и картинки для Apple. */
+/** Эффект глубины, Always-On, виджеты любой формы. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(qualifiers = "w411dp-h891dp-xhdpi")
@@ -92,162 +94,159 @@ class FeaturesTest {
         dim = 0.1f, accentColor = 0xFFFFD166.toInt(),
     )
 
+    /** Телефон: часы на обоях (три раскладки) и экран блокировки с «адаптивными часами». */
     @Test
-    fun depthOnWatchAndWallpaper() = runBlocking<Unit> {
+    fun depthOnPhone() = runBlocking<Unit> {
         SubjectMask.ensure(context, photo)
         assertTrue(SubjectMask.exists(context, photo))
         val base = photoTheme()
-        // Телефон: часы на обоях в трёх раскладках, с глубиной и без.
-        val variants = listOf(
-            WallClock(WallClockLayout.TOP, depth = true), WallClock(WallClockLayout.STACKED, depth = true),
-            WallClock(WallClockLayout.CENTER, depth = true), WallClock(WallClockLayout.STACKED, depth = false),
-        )
+        val variants = listOf(WallClockLayout.TOP, WallClockLayout.STACKED, WallClockLayout.CENTER).map { base.copy(wallClock = WallClock(it, depth = true)) }
         val pw = 270
         val ph = 585
-        val sheet = Bitmap.createBitmap(variants.size * (pw + 16) + 16, ph + 32, Bitmap.Config.ARGB_8888)
+        val sheet = Bitmap.createBitmap((variants.size + 1) * (pw + 16) + 16, ph + 32, Bitmap.Config.ARGB_8888)
         val c = Canvas(sheet)
         c.drawColor(0xFF202024.toInt())
         variants.forEachIndexed { i, v ->
-            val preview = ThemeRenderer.phonePreview(context, base.copy(wallClock = v), 540, 1170)
-            c.drawBitmap(preview, null, RectF(16f + i * (pw + 16), 16f, 16f + i * (pw + 16) + pw, 16f + ph), null)
+            c.drawBitmap(ThemeRenderer.phonePreview(context, v, 540, 1170), null, RectF(16f + i * (pw + 16), 16f, 16f + i * (pw + 16) + pw, 16f + ph), null)
         }
-        sheet.save("depth_wallpaper.png")
-
-        // Часы: слой глубины в нескольких стилях.
-        val styles = listOf(ClockStyle.BOLD, ClockStyle.STACKED, ClockStyle.DIGITAL, ClockStyle.DIAGONAL, ClockStyle.LIQUID)
-        val size = 260
-        val watchSheet = Bitmap.createBitmap(styles.size * (size + 16) + 16, size * 2 + 48, Bitmap.Config.ARGB_8888)
-        val wc = Canvas(watchSheet)
-        wc.drawColor(0xFF202024.toInt())
-        styles.forEachIndexed { i, style ->
-            for ((row, depth) in listOf(false, true).withIndex()) {
-                val t = base.copy(clockStyle = style, watchDepth = depth)
-                val fg = ThemeRenderer.watchForeground(context, t)
-                assertNotNull(fg)
-                wc.drawBitmap(ThemeRenderer.watchPreview(context, t, size), 16f + i * (size + 16), 16f + row * (size + 16), null)
-            }
-        }
-        watchSheet.save("depth_watch.png")
+        val lock = ThemeRenderer.lockPreview(context, base.copy(lockDepth = true), 540, 1170)
+        c.drawBitmap(lock, null, RectF(16f + 3 * (pw + 16), 16f, 16f + 3 * (pw + 16) + pw, 16f + ph), null)
+        sheet.save("depth_phone.png")
+        // Фото экрана блокировки с глубиной ставится без затемнения.
+        assertEquals(0f, base.copy(lockDepth = true).lockScreenDim())
     }
 
+    /**
+     * Все циферблаты: обычный вид, с объектом поверх цифр (время видно сквозь него) и Always-On.
+     * Тёмная и светлая темы — в Always-On тёмные цифры светлой темы должны стать светлыми.
+     */
     @Test
-    fun liveDataOnAllStyles() {
-        val size = 220
-        val gap = 14
+    fun watchFacesDepthAndAlwaysOn() = runBlocking<Unit> {
+        SubjectMask.ensure(context, photo)
+        val size = 200
+        val gap = 12
         val styles = ClockStyle.entries
-        val sheet = Bitmap.createBitmap(styles.size * (size + gap) + gap, 3 * (size + gap) + gap, Bitmap.Config.ARGB_8888)
+        val sakura = Presets.all.first { it.id == "sakura" }
+        val rows = listOf(
+            photoTheme() to false, photoTheme().copy(watchDepth = true) to false, photoTheme() to true,
+            sakura to false, sakura to true,
+        )
+        val sheet = Bitmap.createBitmap(styles.size * (size + gap) + gap, rows.size * (size + gap) + gap, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(sheet)
         canvas.drawColor(0xFF202024.toInt())
-        val theme = Presets.all[0]
-        val w = theme.watchSettings()
-        // Строки: без данных; все данные при 62% шагов и 80% заряда; 15% заряда и 95% шагов.
-        val rows = listOf(
-            w to FaceState.preview(),
-            w.copy(live = LiveData(steps = true, pulse = true, battery = true)) to FaceState.preview(),
-            w.copy(live = LiveData(steps = true, pulse = true, battery = true)) to FaceState.preview().copy(battery = 15, stepPercent = 95, beatOverride = 0.1f),
-        )
-        rows.forEachIndexed { r, (settings, state) ->
+        rows.forEachIndexed { r, (base, ambient) ->
             styles.forEachIndexed { c, style ->
-                val s = settings.copy(clockStyle = style)
-                val bg = ThemeRenderer.watchBackground(context, theme.copy(clockStyle = style))
-                val face = FaceRenderer.render(context, s, bg, null, state, size)
+                val t = base.copy(clockStyle = style)
+                val face = if (ambient) ThemeRenderer.watchAmbientPreview(context, t, size) else ThemeRenderer.watchPreview(context, t, size)
                 canvas.drawBitmap(face, (gap + c * (size + gap)).toFloat(), (gap + r * (size + gap)).toFloat(), null)
             }
         }
-        sheet.save("watch_live.png")
+        sheet.save("watch_depth_aod.png")
+        // В Always-On цифры светлой темы — светлые.
+        assertTrue(WatchFaceXml.isLight(WatchFaceXml.forLayer(sakura.watchSettings(), WatchFaceXml.Layer.AMBIENT).textColor))
     }
 
-    /** Классический циферблат (Wear OS 3–5) в разное время и в режиме Always-On. */
+    /** Время в Always-On в разные часы — проверка, что рисуется без ошибок и читается. */
     @Test
-    fun classicFaceAtDifferentTimes() {
-        val size = 200
-        val gap = 12
-        val times = listOf(Triple(0, 0, 0), Triple(7, 30, 5), Triple(13, 45, 59), Triple(23, 59, 58))
+    fun alwaysOnAtDifferentTimes() {
+        val size = 160
+        val gap = 10
         val styles = ClockStyle.entries
-        val sheet = Bitmap.createBitmap(styles.size * (size + gap) + gap, (times.size + 1) * (size + gap) + gap, Bitmap.Config.ARGB_8888)
+        val times = listOf(Triple(0, 0, 0), Triple(7, 30, 5), Triple(23, 59, 58))
+        val sheet = Bitmap.createBitmap(styles.size * (size + gap) + gap, times.size * (size + gap) + gap, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(sheet)
         canvas.drawColor(0xFF202024.toInt())
-        val theme = Presets.all[2]
         times.forEachIndexed { r, (h, m, s) ->
             val millis = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, h); set(Calendar.MINUTE, m); set(Calendar.SECOND, s) }.timeInMillis
             styles.forEachIndexed { c, style ->
-                val t = theme.copy(clockStyle = style)
-                val bg = ThemeRenderer.watchBackground(context, t)
-                val state = FaceState.now(millis, is24h = r % 2 == 0).copy(battery = 64)
-                canvas.drawBitmap(FaceRenderer.render(context, t.watchSettings(), bg, null, state, size), (gap + c * (size + gap)).toFloat(), (gap + r * (size + gap)).toFloat(), null)
+                val t = Presets.all[2].copy(clockStyle = style)
+                val state = FaceState.now(millis, is24h = true).copy(ambient = true)
+                canvas.drawBitmap(FaceRenderer.render(context, t.watchSettings(), null, null, state, size), (gap + c * (size + gap)).toFloat(), (gap + r * (size + gap)).toFloat(), null)
             }
         }
-        styles.forEachIndexed { c, style ->
-            val t = theme.copy(clockStyle = style)
-            val state = FaceState.preview().copy(ambient = true)
-            canvas.drawBitmap(FaceRenderer.render(context, t.watchSettings(), null, null, state, size), (gap + c * (size + gap)).toFloat(), (gap + times.size * (size + gap)).toFloat(), null)
-        }
-        sheet.save("watch_classic.png")
+        sheet.save("watch_aod_times.png")
     }
 
     @Test
-    fun chameleonChangesColorsNotDigits() {
-        val themes = listOf(Presets.all[0], Presets.all[1], photoTheme())
-        val moods = DayPart.entries.map { Mood(part = it) } + listOf(Sky.RAIN, Sky.SNOW, Sky.STORM).map { Mood(DayPart.DAY, it) }
-        val w = 120
-        val h = 260
-        val sheet = Bitmap.createBitmap(moods.size * (w + 10) + 10, themes.size * (h + 10) + 10, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(sheet)
-        canvas.drawColor(0xFF202024.toInt())
-        themes.forEachIndexed { r, theme ->
-            moods.forEachIndexed { c, mood ->
-                val v = Chameleon.adapt(theme, mood)
-                assertEquals(theme.textColor, v.textColor)
-                if (mood != Mood(DayPart.DAY)) assertNotEquals("${theme.id} $mood", theme.background, v.background)
-                canvas.drawBitmap(ThemeRenderer.background(context, v, w, h), (10 + c * (w + 10)).toFloat(), (10 + r * (h + 10)).toFloat(), null)
+    fun classifiesWidgetShapes() {
+        // Столбики с рабочего стола пользователя: 1 колонка × 5 рядов и 2 колонки × 5 рядов.
+        assertEquals(WidgetSize.COLUMN, WidgetSize.classify(41f, 625f))
+        assertEquals(WidgetSize.TALL, WidgetSize.classify(96f, 625f))
+        assertEquals(WidgetSize.NARROW, WidgetSize.classify(55f, 130f))
+        assertEquals(WidgetSize.S, WidgetSize.classify(73f, 100f))
+        assertEquals(WidgetSize.S, WidgetSize.classify(80f, 80f))
+        assertEquals(WidgetSize.BAR, WidgetSize.classify(140f, 60f))
+        assertEquals(WidgetSize.STRIP, WidgetSize.classify(330f, 60f))
+        assertEquals(WidgetSize.WIDE, WidgetSize.classify(330f, 120f))
+        assertEquals(WidgetSize.STRIP, WidgetSize.classify(330f, 90f))
+        assertEquals(WidgetSize.M, WidgetSize.classify(150f, 160f))
+        assertEquals(WidgetSize.L, WidgetSize.classify(300f, 330f))
+    }
+
+    /**
+     * Виджеты всех видов в формах, как на рабочем столе: столбики, полоски, квадраты.
+     * Строки — виды, столбцы — размеры (dp).
+     */
+    @Test
+    fun widgetsInEveryShape() {
+        val weather = WeatherRepository.parseForecast(
+            javaClass.classLoader!!.getResource("forecast.json")!!.readText(), "Москва", System.currentTimeMillis(),
+        )
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val d = context.resources.displayMetrics.density
+        val shapes = listOf(41 to 400, 96 to 400, 60 to 150, 75 to 75, 140 to 60, 300 to 60, 150 to 150, 300 to 105, 300 to 300)
+        val theme = Presets.all[0]
+        for (family in listOf("bold", "glass", "neon", "blob", "minimal")) {
+            val kinds = WidgetKind.entries
+            val gap = (10 * d).toInt()
+            val rowH = (400 * d).toInt()
+            val sheetW = shapes.sumOf { (it.first * d).toInt() + gap } + gap
+            val sheet = Bitmap.createBitmap(sheetW, kinds.size * (rowH + gap) + gap, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(sheet)
+            canvas.drawColor(0xFF202024.toInt())
+            kinds.forEachIndexed { r, kind ->
+                val style = kind.styles.firstOrNull { it.id == family }?.id
+                    ?: if (kind == WidgetKind.APPS) mapOf("bold" to "flower", "blob" to "cookie").getValue(family) else kind.defaultStyle
+                val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
+                var x = gap
+                for ((w, h) in shapes) {
+                    val size = WidgetSize.classify(w.toFloat(), h.toFloat())
+                    val views = WidgetRenderer.buildSize(context, kind, WidgetConfig(style = style, opacity = 0.5f, apps = apps), theme, size, weather)
+                    val host = FrameLayout(activity)
+                    activity.setContentView(host)
+                    val view = views.apply(activity, host)
+                    host.addView(view)
+                    shadowOf(Looper.getMainLooper()).idle()
+                    val bmp = render(view, w, h, ThemeRenderer.background(context, theme, (w * d).toInt(), (h * d).toInt()))
+                    canvas.drawBitmap(bmp, x.toFloat(), (gap + r * (rowH + gap)).toFloat(), null)
+                    x += (w * d).toInt() + gap
+                }
             }
+            sheet.save("widgets_shapes_$family.png")
         }
-        sheet.save("chameleon.png")
-        // Ночь темнее дня.
-        val night = Chameleon.adapt(Presets.all[1], Mood(DayPart.NIGHT))
-        assertTrue(night.dim > Presets.all[1].dim)
     }
 
+    /** Циферблат с глубиной собирается и проходит валидатор Watch Face Push на «телефоне». */
     @Test
-    fun themeFromClothingColor() {
-        val colors = listOf(0xFF1E5631.toInt(), 0xFFB22222.toInt(), 0xFF2F3640.toInt(), 0xFFF5DEB3.toInt(), 0xFF6C5CE7.toInt())
-        val w = 120
-        val h = 260
-        val sheet = Bitmap.createBitmap(colors.size * (w + 10) + 10, h + 60, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(sheet)
-        canvas.drawColor(0xFF202024.toInt())
-        colors.forEachIndexed { i, color ->
-            val t = ThemeColors.fromColor(Presets.all[0], color, colors)
-            assertTrue(Chameleon.hsv(t.accentColor).third >= 0.85f)
-            canvas.drawBitmap(ThemeRenderer.phonePreview(context, t, w, h), (10 + i * (w + 10)).toFloat(), 10f, null)
-            canvas.drawCircle(10 + i * (w + 10) + w / 2f, h + 35f, 16f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
-        }
-        sheet.save("match_colors.png")
-    }
-
-    @Test
-    fun exportsImagesForAppleAndOtherWatches() = runBlocking<Unit> {
-        val files = ExportKit.render(context, photoTheme(), ExportKind.entries.toSet())
-        assertEquals(7, files.size)
-        val iphone = files.first { it.name == "SyncTheme-iPhone.jpg" }
-        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(iphone.path, opts)
-        assertEquals(1290, opts.outWidth)
-        assertEquals(2796, opts.outHeight)
-        val watch = BitmapFactory.decodeFile(files.first { it.name == "SyncTheme-AppleWatch.jpg" }.path)
-        assertEquals(410, watch.width)
-        watch.save("export_apple_watch.png")
-        assertNotNull(ExportKit.shareIntent(context, files))
-    }
-
-    /** Циферблат с глубиной и живыми данными собирается и проходит валидатор Watch Face Push на «телефоне». */
-    @Test
-    fun buildsWatchFaceWithDepthAndLiveData() = runBlocking<Unit> {
+    fun buildsWatchFaceWithDepth() = runBlocking<Unit> {
         SubjectMask.ensure(context, photo)
-        val theme = photoTheme().copy(clockStyle = ClockStyle.BOLD, watchDepth = true, watchLive = LiveData(steps = true, pulse = true, battery = true))
+        val theme = photoTheme().copy(clockStyle = ClockStyle.BOLD, watchDepth = true)
         val result = WatchFaceBuilder(context).build(theme)
         assertTrue(result.token.isNotEmpty())
-        assertNotNull(result.foreground)
-        assertTrue(result.background.isNotEmpty())
+        assertTrue(result.hasDepth)
+        assertNotNull(ThemeRenderer.watchForeground(context, theme))
+    }
+
+    private fun render(view: View, wDp: Int, hDp: Int, background: Bitmap): Bitmap {
+        val d = context.resources.displayMetrics.density
+        val w = (wDp * d).toInt()
+        val h = (hDp * d).toInt()
+        view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+        view.layout(0, 0, w, h)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawBitmap(background, null, android.graphics.Rect(0, 0, w, h), null)
+        view.draw(canvas)
+        return bmp
     }
 }

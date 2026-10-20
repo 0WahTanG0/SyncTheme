@@ -49,7 +49,11 @@ def load_digit_fonts():
 
 
 DIGIT_FONTS = load_digit_fonts()
-SIZES = ["s", "strip", "m", "wide", "l"]
+# Размеры: квадратные (s, m, l), вытянутые по горизонтали (bar, strip, wide) и по вертикали
+# (narrow, column, tall). Какой показать, решает WidgetSize.classify по пропорциям виджета.
+SIZES = ["s", "bar", "strip", "narrow", "column", "m", "tall", "wide", "l"]
+# Вытянутые размеры: у них общая для стилей раскладка в шрифтах и подложке стиля.
+SHAPED = {"bar", "narrow", "column", "tall"}
 
 FONTS = {
     "bold": dict(main="@font/oswald_700", sub="@font/oswald_500", label="@font/onest_600", body="@font/onest_500"),
@@ -286,6 +290,37 @@ def alarm_row(f, role="s", size=12, **kw):
         id="row_alarm", w="wrap", **kw)
 
 
+# Автоподбор кегля не уменьшает по ширине значение без переносов («1», «0%»), если высота позволяет больше:
+# в высоких узких виджетах у чисел свой предел кегля по ширине разметки.
+NUM_NARROW = (10, 34)
+NUM_TALL = (18, 72)
+
+# Часы над минутами одной строкой текста «чч\nмм»: автоподбор кегля вписывает обе строки по ширине и высоте,
+# поэтому в узком высоком виджете цифры крупные и стоят плотно, без пустот между часами и минутами.
+TIME2 = ("hh\\nmm", "HH\\nmm")
+
+
+def time2(id_, F, weight=1, auto=(12, 400), **kw):
+    m = F["digits"]
+    line = m["ascent"] + m["descent"]
+    lsm = max(0.6, min(1.0, 1.08 * (m["top"] - m["bottom"]) / line))
+    return text(id_, clock=TIME2, font=F["time"], auto=auto, h="0dp", weight=weight, lines=2,
+                lineSpacingMultiplier=f"{lsm:.2f}", **kw)
+
+
+def alarm_col(f, role="s"):
+    """Будильник столбиком (значок над временем) — для узких виджетов."""
+    F = FONTS[f]
+    return col(img(f"i{role}_alarm", "wic_alarm", w="12dp", h="12dp"),
+               text(f"{role}_alarm", font=F["body"], auto=(7, 11), mt="2dp"),
+               id="row_alarm", w="match", h="wrap", mt="4dp")
+
+
+def shaped_bg(f):
+    """Подложка вытянутых размеров: у «Облака» — скруглённый прямоугольник вместо фигуры."""
+    return bg(f)
+
+
 # ---------------------------------------------------------------- часы: цифровые
 
 
@@ -295,6 +330,8 @@ def clock_digital(f, size, digit_key):
     F["time"] = F["digits"]["family"]
     name = f"w_clock_{f}_{size}_{digit_key}"
     sh = f == "neon"
+    if size in SHAPED:
+        return clock_shaped(f, size, F, name)
     if f == "diag":
         # Часы — в левом верхнем углу, минуты — в правом нижнем; дата и будильник — в свободных углах.
         corner_top = text("a_weekday", clock=WEEKDAY, font=F["label"], size=11 if size != "l" else 14, caps=True, spacing=0.08,
@@ -473,6 +510,49 @@ def clock_digital(f, size, digit_key):
     return layout(name, *bg(f), body)
 
 
+def clock_shaped(f, size, F, name):
+    """Цифровые часы в вытянутых размерах: полоска 2×1, столбики 1×N, высокий 2×N."""
+    sh = f == "neon"
+    if f == "diag":
+        # Часы — в верхнем левом углу, минуты — в нижнем правом, как в остальных размерах «Диагонали».
+        if size == "bar":
+            body = row(text("m_hours", clock=HOURS, font=F["time"], auto=(12, 200), w="0dp", h="match", weight=1, g="top|start"),
+                       text("a_minutes", clock=MINS, font=F["time"], auto=(12, 200), w="0dp", h="match", weight=1, g="bottom|end"),
+                       h="match", padH="10dp", padV="4dp")
+        else:
+            middle = None if size == "narrow" else text("s_date", clock=DAY_MONTH if size == "tall" else ("d MMM", "d MMM"),
+                                                       font=F["sub"], auto=(7, 16), mv="4dp")
+            body = col(text("m_hours", clock=HOURS, font=F["time"], auto=(12, 400), h="0dp", weight=1, g="top|start"),
+                       middle,
+                       text("a_minutes", clock=MINS, font=F["time"], auto=(12, 400), h="0dp", weight=1, g="bottom|end"),
+                       pad="4dp" if size != "tall" else "14dp")
+        return layout(name, *shaped_bg(f), body)
+    if size == "bar":
+        body = col(text("m_time", clock=TIME, font=F["time"], auto=(12, 200), h="0dp", weight=1, shadow=sh),
+                   text("s_date", clock=DATE_SHORT, font=F["sub"], auto=(7, 12), caps=f in ("neon", "minimal")),
+                   padH="10dp", padV="4dp")
+    elif size == "narrow":
+        body = col(text("a_weekday", clock=WEEKDAY_SHORT, font=F["label"], auto=(7, 14), caps=True, spacing=0.06),
+                   time2("m_time", F, shadow=sh),
+                   text("s_date", clock=("d MMM", "d MMM"), font=F["sub"], auto=(7, 13)),
+                   pad="4dp")
+    elif size == "column":
+        body = col(text("a_weekday", clock=WEEKDAY_SHORT, font=F["label"], auto=(7, 14), caps=True, spacing=0.06),
+                   time2("m_time", F, weight=1.7, shadow=sh),
+                   hline("if_line", mv="6dp"),
+                   text("m_day", clock=DAY, font=F["main"], auto=NUM_NARROW, h="0dp", weight=0.55),
+                   text("s_month", clock=("LLL", "LLL"), font=F["sub"], auto=(7, 13), caps=True),
+                   alarm_col(f),
+                   pad="4dp")
+    else:
+        body = col(text("a_weekday", clock=WEEKDAY, font=F["label"], auto=(9, 16), caps=True, spacing=0.06),
+                   time2("m_time", F, shadow=sh),
+                   text("s_date", clock=DAY_MONTH, font=F["sub"], auto=(10, 18)),
+                   alarm_row(f, mt="4dp"),
+                   pad="12dp")
+    return layout(name, *shaped_bg(f), body)
+
+
 # ---------------------------------------------------------------- часы: стрелки
 
 ANALOG = {
@@ -499,6 +579,26 @@ def clock_analog(style, size, seconds):
     F = FONTS[fam]
     name = f"w_clock_{style}_{size}" + ("" if seconds else "_ns")
     layers = [] if style in ("analog_blob", "analog_neon") and size in ("s", "m") else bg(fam)
+    if size == "bar":
+        body = row(analog_view(style, seconds, w="0dp", weight=0.5, mv="2dp"),
+                   col(text("a_weekday", clock=WEEKDAY_SHORT, font=F["label"], auto=(7, 13), caps=True),
+                       text("m_day", clock=DAY, font=F["main"], auto=(10, 30), h="0dp", weight=1),
+                       w="0dp", weight=0.5),
+                   h="match", padH="8dp", padV="4dp")
+        return layout(name, *layers, body)
+    if size in ("narrow", "column"):
+        body = col(analog_view(style, seconds, h="0dp", weight=1),
+                   text("a_weekday", clock=WEEKDAY_SHORT, font=F["label"], auto=(7, 13), caps=True, mt="4dp"),
+                   text("m_day", clock=DAY, font=F["main"], auto=NUM_NARROW, h="0dp", weight=0.45 if size == "column" else 0.35),
+                   text("s_month", clock=("LLL", "LLL"), font=F["sub"], auto=(7, 12), caps=True) if size == "column" else None,
+                   pad="6dp")
+        return layout(name, *layers, body)
+    if size == "tall":
+        body = col(analog_view(style, seconds, h="0dp", weight=1),
+                   text("m_date", clock=DATE_MID, font=F["sub"], auto=(10, 16), mt="8dp"),
+                   alarm_row(fam, mt="2dp"),
+                   pad="12dp")
+        return layout(name, *layers, body)
     if size in ("s", "m"):
         return layout(name, *layers, analog_view(style, seconds, m="4dp" if size == "s" else "8dp"))
     if size == "strip":
@@ -528,10 +628,17 @@ def clock_analog(style, size, seconds):
 EVENTS = 3
 
 
-def event_rows(f, n, size=13, compact=False):
+def event_rows(f, n, size=13, compact=False, inline=False):
+    """События: название и время под ним, только название (compact) или время справа в той же строке (inline)."""
     F = FONTS[f]
     rows = []
     for i in range(n):
+        if inline:
+            rows.append(row(img(f"ed_{i}", "wdot", w="7dp", h="7dp"),
+                            text(f"m_ev{i}_title", font=F["body"], size=size, g="start", w="0dp", weight=1, ms="8dp"),
+                            text(f"s_ev{i}_time", font=F["body"], size=size - 2, g="end", w="wrap", ms="6dp"),
+                            id=f"row_ev{i}", mv="2dp"))
+            continue
         rows.append(row(img(f"ed_{i}", "wdot", w="7dp", h="7dp"),
                         col(text(f"m_ev{i}_title", font=F["body"], size=size, g="start"),
                             text(f"s_ev{i}_time", font=F["body"], size=size - 2, g="start") if not compact else None,
@@ -559,9 +666,52 @@ def month_grid(f):
     return rows
 
 
+def event_dots(f, n):
+    """Ближайшие события столбиком для узкого виджета: цветная точка и время."""
+    F = FONTS[f]
+    rows = [col(img(f"ed_{i}", "wdot", w="6dp", h="6dp"),
+                text(f"s_ev{i}_time", font=F["body"], auto=(6, 10), mt="2dp"),
+                id=f"row_ev{i}", w="match", h="wrap", mv="3dp") for i in range(n)]
+    rows.append(text("s_ev_empty", font=F["body"], auto=(6, 10), lines=2, txt="Событий нет", vis="gone"))
+    return rows
+
+
+def calendar_shaped(f, size, name):
+    F = FONTS[f]
+    sh = f == "neon"
+    if size == "bar":
+        body = row(text("m_day", clock=DAY, font=F["main"], auto=(12, 120), w="0dp", h="match", weight=0.8, shadow=sh),
+                   col(text("a_weekday", clock=WEEKDAY_SHORT, font=F["label"], auto=(7, 13), caps=True, g="start"),
+                       text("s_month", clock=("LLL", "LLL"), font=F["sub"], auto=(7, 13), caps=True, g="start"),
+                       w="0dp", weight=1, g="center_vertical|start", ms="6dp"),
+                   h="match", padH="10dp", padV="4dp")
+    elif size == "narrow":
+        body = col(text("a_weekday", clock=WEEKDAY_SHORT, font=F["label"], auto=(7, 14), caps=True, spacing=0.06),
+                   text("m_day", clock=DAY, font=F["main"], auto=NUM_NARROW, h="0dp", weight=1, shadow=sh),
+                   text("s_month", clock=("LLL", "LLL"), font=F["sub"], auto=(7, 13), caps=True),
+                   pad="4dp")
+    elif size == "column":
+        body = col(text("a_weekday", clock=WEEKDAY_SHORT, font=F["label"], auto=(7, 14), caps=True, spacing=0.06),
+                   text("m_day", clock=DAY, font=F["main"], auto=NUM_NARROW, h="0dp", weight=1, shadow=sh),
+                   text("s_month", clock=("LLL", "LLL"), font=F["sub"], auto=(7, 13), caps=True),
+                   hline("if_line", mv="6dp"),
+                   *event_dots(f, 3),
+                   pad="4dp")
+    else:
+        body = col(text("a_weekday", clock=WEEKDAY, font=F["label"], auto=(9, 15), caps=True, spacing=0.06),
+                   text("m_day", clock=DAY, font=F["main"], auto=NUM_TALL, h="0dp", weight=1, shadow=sh),
+                   text("s_month", clock=MONTH, font=F["sub"], size=13, caps=f == "minimal"),
+                   hline("if_line", mv="6dp"),
+                   *event_rows(f, EVENTS, size=12, compact=True),
+                   pad="12dp")
+    return layout(name, *shaped_bg(f), body)
+
+
 def calendar(f, size):
     F = FONTS[f]
     name = f"w_cal_{f}_{size}"
+    if size in SHAPED:
+        return calendar_shaped(f, size, name)
     if size == "s":
         if f == "blob":
             return layout(name, *bg(f, "scallop"),
@@ -622,7 +772,7 @@ def calendar(f, size):
                        w="0dp", weight=0.8)
         body = row(left,
                    vline("if_vline", mh="12dp", mv="4dp") if f != "blob" else None,
-                   col(*event_rows(f, EVENTS), w="0dp", weight=1.4, g="center_vertical", ms="12dp" if f == "blob" else None),
+                   col(*event_rows(f, EVENTS, inline=True), w="0dp", weight=1.4, g="center_vertical", ms="12dp" if f == "blob" else None),
                    h="match", pad="14dp")
         return layout(name, *bg(f), body)
     # l: месяц + события
@@ -663,10 +813,50 @@ def daily(f, size=12, icon=22):
     return rows
 
 
+def weather_shaped(f, size, name):
+    F = FONTS[f]
+    sh = f == "neon"
+    if size == "bar":
+        body = row(img("wx_now", "wx_partly_day", w="0dp", h="match", weight=0.7),
+                   text("m_temp", font=F["main"], auto=(12, 80), w="0dp", h="match", weight=1, shadow=sh),
+                   h="match", padH="8dp", padV="4dp")
+    elif size == "narrow":
+        body = col(img("wx_now", "wx_partly_day", w="match", h="0dp", weight=0.9),
+                   text("m_temp", font=F["main"], auto=NUM_NARROW, h="0dp", weight=1, shadow=sh),
+                   text("s_range", font=F["body"], auto=(6, 11)),
+                   pad="4dp")
+    elif size == "column":
+        hours = [col(text(f"s_h{i}_time", font=F["body"], auto=(6, 10)),
+                     img(f"wx_h{i}", "wx_clear_day", w="18dp", h="18dp", mv="2dp"),
+                     text(f"m_h{i}_temp", font=F["sub"], auto=(7, 12)),
+                     id=f"cell_h{i}", w="match", h="0dp", weight=1) for i in range(3)]
+        body = col(img("wx_now", "wx_partly_day", w="match", h="0dp", weight=0.8),
+                   text("m_temp", font=F["main"], auto=NUM_NARROW, h="0dp", weight=0.9, shadow=sh),
+                   text("s_range", font=F["body"], auto=(6, 11)),
+                   hline("if_line", mv="6dp"),
+                   *hours,
+                   pad="4dp")
+    else:
+        hours = [row(text(f"s_h{i}_time", font=F["body"], auto=(8, 12), w="0dp", weight=1.2, g="start|center_vertical"),
+                     img(f"wx_h{i}", "wx_clear_day", w="20dp", h="20dp"),
+                     text(f"m_h{i}_temp", font=F["sub"], auto=(9, 14), w="0dp", weight=1, g="end|center_vertical"),
+                     id=f"cell_h{i}", h="0dp", weight=1) for i in range(4)]
+        body = col(row(img("wx_now", "wx_partly_day", w="36dp", h="36dp"),
+                       text("m_temp", font=F["main"], auto=(16, 44), w="0dp", h="52dp", weight=1, ms="6dp", shadow=sh)),
+                   text("m_city", font=F["sub"], size=14),
+                   text("a_desc", font=F["body"], size=11),
+                   hline("if_line", mv="8dp"),
+                   *hours,
+                   pad="12dp")
+    return layout(name, *shaped_bg(f), body)
+
+
 def weather(f, size):
     F = FONTS[f]
     name = f"w_wx_{f}_{size}"
     shadow = f == "neon"
+    if size in SHAPED:
+        return weather_shaped(f, size, name)
     if size == "s":
         if f == "blob":
             return layout(name, *bg(f, "cloud"),
@@ -734,11 +924,18 @@ def weather(f, size):
                text("m_temp", font=F["main"], size=34 if f != "neon" else 26, w="wrap", ms="6dp", shadow=shadow, includeFontPadding="false"),
                )
     if size == "wide":
-        body = col(head,
-                   text("s_range", font=F["body"], size=12, g="start", mb="4dp"),
-                   spacer(),
-                   hourly(f),
-                   pad="14dp")
+        # Слева — сейчас, справа — ближайшие часы: помещается и в невысокий широкий виджет.
+        now = col(row(img("wx_now", "wx_partly_day", w="34dp", h="34dp"),
+                      text("m_temp", font=F["main"], auto=(16, 40), w="0dp", h="44dp", weight=1, ms="4dp", g="start|center_vertical", shadow=shadow)),
+                  text("m_city", font=F["sub"], size=13, g="start"),
+                  text("s_range", font=F["body"], size=11, g="start"),
+                  w="0dp", weight=1, g="center_vertical|start")
+        hours = row(*[col(text(f"s_h{i}_time", font=F["body"], size=10),
+                          img(f"wx_h{i}", "wx_clear_day", w="20dp", h="20dp", mv="2dp"),
+                          text(f"m_h{i}_temp", font=F["sub"], size=12),
+                          id=f"cell_h{i}", w="0dp", h="wrap", weight=1) for i in range(4)],
+                    w="0dp", weight=1.5, h="match", g="center")
+        body = row(now, vline("if_vline", mv="6dp", mh="10dp"), hours, h="match", padH="14dp", padV="10dp")
         return layout(name, *bg(f), body)
     body = col(head,
                text("s_range", font=F["body"], size=12, g="start", mb="8dp"),
@@ -773,10 +970,46 @@ def bar(id_="pb_bar", h="10dp", **kw):
     return E("ProgressBar", attrs_of(kw))
 
 
+def battery_shaped(f, size, name):
+    F = FONTS[f]
+    sh = f == "neon"
+    bolt = img("ia_bolt", "wic_bolt", w="14dp", h="14dp")
+    if size == "bar":
+        body = col(row(bolt, text("m_pct", font=F["main"], auto=(12, 80), w="0dp", h="match", weight=1, shadow=sh), h="0dp", weight=1),
+                   bar(h="5dp", mt="3dp"),
+                   padH="10dp", padV="6dp")
+    elif size == "narrow":
+        body = col(bolt,
+                   text("m_pct", font=F["main"], auto=NUM_NARROW, h="0dp", weight=1, shadow=sh),
+                   bar(h="5dp", mt="4dp"),
+                   pad="4dp")
+    elif size == "column":
+        body = col(bolt,
+                   text("m_pct", font=F["main"], auto=NUM_NARROW, h="0dp", weight=1, shadow=sh),
+                   bar(h="5dp", mv="6dp"),
+                   text("s_state", font=F["body"], auto=(6, 10), lines=2),
+                   text("s_temp", font=F["body"], auto=(6, 10), mt="2dp"),
+                   pad="4dp")
+    else:
+        big = (frame(img("sh_a", "wsh_flower"), text("o_pct", font=F["main"], auto=(10, 30), pad="12dp"), h="0dp", weight=1) if f == "blob" else
+               frame(ring_pct(f, 88, shadow=sh), h="0dp", weight=1) if f in ("glass", "neon", "minimal") else
+               text("m_pct", font=F["main"], auto=NUM_TALL, h="0dp", weight=1))
+        body = col(big,
+                   row(img("ia_bolt", "wic_bolt", w="14dp", h="14dp"), text("m_state", font=F["body"], size=14, w="wrap", ms="4dp"), w="wrap", mt="6dp"),
+                   text("s_remain", font=F["body"], size=11),
+                   bar(h="6dp", mv="6dp") if f == "bold" else hline("if_line", mv="6dp"),
+                   text("s_temp", font=F["body"], size=12),
+                   text("s_health", font=F["body"], size=11),
+                   pad="12dp")
+    return layout(name, *shaped_bg(f), body)
+
+
 def battery(f, size):
     F = FONTS[f]
     name = f"w_bat_{f}_{size}"
     shadow = f == "neon"
+    if size in SHAPED:
+        return battery_shaped(f, size, name)
     def state(role="a", sz=12, **kw):
         return row(img(f"i{role}_bolt", "wic_bolt", w=f"{sz}dp", h=f"{sz}dp"),
                    text(f"{role}_state", font=F["body"], size=sz, w="wrap", ms="3dp"),
@@ -812,13 +1045,12 @@ def battery(f, size):
                 frame(ring_pct(f, 88, shadow=shadow), w="0dp", weight=0.8) if f in ("glass", "neon") else
                 text("m_pct", font=F["main"], auto=(20, 200), w="0dp", h="match", weight=0.9, g="center_vertical|start"))
         body = row(left,
-                   col(text("a_title", font=F["label"], size=12, caps=True, g="start", spacing=0.06, txt="Батарея"),
-                       state("m", 15, mt="2dp", lg="start"),
+                   col(state("m", 15, lg="start"),
                        text("s_remain", font=F["body"], size=12, g="start"),
-                       bar(h="8dp", mv="8dp"),
+                       bar(h="8dp", mv="6dp"),
                        details,
                        w="0dp", weight=1.2, g="center_vertical", ms="14dp"),
-                   h="match", pad="14dp")
+                   h="match", pad="12dp")
         return layout(name, *bg(f), body)
     big = (frame(img("sh_a", "wsh_flower"), text("o_pct", font=F["main"], auto=(16, 120), pad="34dp"), h="0dp", weight=1) if f == "blob" else
            frame(ring_pct(f, 160, shadow=shadow), h="0dp", weight=1) if f in ("glass", "neon", "minimal") else
@@ -850,10 +1082,35 @@ def app_cell(i, f, icon, label, lsize=11):
                id=f"cell_ap{i}", w="0dp", h="wrap", weight=1)
 
 
+def app_vcell(i, f, icon):
+    """Значок приложения в столбике (без подписи — в узком виджете она не помещается)."""
+    ring_ = img(f"fx_ap{i}", "wfx_ring_small", w=f"{icon + 8}dp", h=f"{icon + 8}dp", lg="center") if f == "neon" else None
+    return frame(ring_, img(f"ap_{i}", "wapp_placeholder", w=f"{icon}dp", h=f"{icon}dp", lg="center"),
+                 id=f"cell_ap{i}", w="match", h="0dp", weight=1)
+
+
+def apps_shaped(style, size, name):
+    f = APP_FAMILY[style]
+    F = FONTS[f]
+    layers = [img("bg_s", "wbg_r36", scale="fitXY")] if style in ("capsule", "flower", "cookie") else bg(f)
+    if size == "bar":
+        body = row(*[app_cell(i, f, 28, False) for i in range(3)], h="match", padH="8dp")
+    elif size in ("narrow", "column"):
+        n = 3 if size == "narrow" else 5
+        body = col(*[app_vcell(i, f, 28) for i in range(n)], pad="4dp")
+    else:
+        rows = [row(*[app_cell(r * 2 + c, f, 30, False) for c in range(2)], g="center", h="0dp", weight=1) for r in range(3)]
+        title = text("m_title", font=F["label"], size=13, mb="4dp", vis="gone", caps=f in ("neon", "minimal"))
+        body = col(title, *rows, pad="12dp")
+    return layout(name, *layers, body)
+
+
 def apps(style, size):
     f = APP_FAMILY[style]
     F = FONTS[f]
     name = f"w_apps_{style}_{size}"
+    if size in SHAPED:
+        return apps_shaped(style, size, name)
     if size in ("s", "m"):
         icon = 22 if size == "s" else 46
         grid = col(row(app_cell(0, f, icon, False), app_cell(1, f, icon, False), g="center"),
@@ -876,10 +1133,11 @@ def apps(style, size):
         layers = [img("bg_s", "wbg_pill", scale="fitXY")] if style in ("capsule", "flower", "cookie") else bg(f)
         return layout(name, *layers, row(*cells, h="match", padH="12dp"))
     rows_n = 2
-    icon = 40 if size == "wide" else 48
+    # В широком виджете (от 100 dp в высоту) подписи под значками не помещаются — только значки.
+    icon = 34 if size == "wide" else 48
     rows = []
     for r in range(rows_n):
-        rows.append(row(*[app_cell(r * 4 + c, f, icon, True) for c in range(4)], id=f"row_apps{r}", g="center", h="0dp", weight=1))
+        rows.append(row(*[app_cell(r * 4 + c, f, icon, size != "wide") for c in range(4)], id=f"row_apps{r}", g="center", h="0dp", weight=1))
     title = text("m_title", font=F["label"], size=13 if size == "wide" else 15, g="start", mb="4dp", vis="gone",
                  caps=f in ("neon", "minimal"), spacing=0.04)
     layers = [img("bg_s", "wbg_r36", scale="fitXY")] if style in ("capsule", "flower", "cookie") else bg(f)

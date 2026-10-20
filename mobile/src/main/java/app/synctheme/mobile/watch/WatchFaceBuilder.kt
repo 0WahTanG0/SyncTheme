@@ -18,11 +18,8 @@ import kotlinx.coroutines.withContext
  * официальным валидатором Watch Face Push (без него часы не примут циферблат).
  */
 class WatchFaceBuilder(private val context: Context) {
-    /**
-     * Готовый циферблат. Фон, слой глубины и настройки нужны ещё и часам с Wear OS 3–5:
-     * там нет Watch Face Push, и циферблат рисует само приложение SyncTheme.
-     */
-    class Result(val apk: ByteArray, val token: String, val background: ByteArray, val foreground: ByteArray?)
+    /** Готовый циферблат; hasDepth — в него вошёл слой глубины. */
+    class Result(val apk: ByteArray, val token: String, val hasDepth: Boolean)
 
     class ValidationException(message: String) : Exception(message)
 
@@ -51,7 +48,7 @@ class WatchFaceBuilder(private val context: Context) {
         if (result.failures().isNotEmpty()) {
             throw ValidationException(result.failures().joinToString("\n") { "${it.name()}: ${it.failureMessage()}" })
         }
-        Result(apk, result.validationToken(), bgJpeg, fgPng)
+        Result(apk, result.validationToken(), fgPng != null)
     }
 
     private fun Bitmap.encode(format: Bitmap.CompressFormat, quality: Int): ByteArray =

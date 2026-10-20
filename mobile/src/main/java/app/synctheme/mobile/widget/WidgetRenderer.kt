@@ -9,6 +9,7 @@ import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.os.BatteryManager
 import android.text.format.DateFormat
+import android.util.SizeF
 import android.view.Gravity
 import android.view.View
 import android.widget.RemoteViews
@@ -94,14 +95,29 @@ object WidgetRenderer {
         }
     }
 
+    /**
+     * @param sizes размеры виджета, которые сообщил лаунчер (обычно для портрета и альбома):
+     * для каждого — своя разметка по [WidgetSize.classify]. Пока их нет — все разметки
+     * со своими «идеальными» размерами, лаунчер выберет ближайшую.
+     */
     fun build(
         context: Context,
         kind: WidgetKind,
         config: WidgetConfig,
         theme: Theme,
         weather: WeatherData? = WeatherRepository(context).cached,
+        sizes: List<SizeF> = emptyList(),
     ): RemoteViews {
         val data = Data(context, config, weather)
+        if (sizes.isNotEmpty()) {
+            val byClass = HashMap<WidgetSize, RemoteViews>()
+            return RemoteViews(
+                sizes.take(16).associateWith { s ->
+                    val cls = WidgetSize.classify(s.width, s.height)
+                    byClass.getOrPut(cls) { sized(context, kind, config, theme, cls, data) }
+                },
+            )
+        }
         return RemoteViews(WidgetSize.entries.associate { it.sizeF to sized(context, kind, config, theme, it, data) })
     }
 

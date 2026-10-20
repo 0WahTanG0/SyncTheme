@@ -48,7 +48,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.synctheme.mobile.devices.InstallGuide
+import app.synctheme.mobile.devices.MyDevices
 import app.synctheme.mobile.ui.AppBackdrop
+import app.synctheme.mobile.ui.StepText
+import app.synctheme.mobile.ui.WatchPicker
 import app.synctheme.mobile.ui.AppTheme
 import app.synctheme.mobile.ui.Section
 
@@ -74,9 +78,8 @@ fun WatchInstallerScreen(vm: InstallerViewModel, accentColor: Int, onClose: () -
                     }
                     Text(
                         "Приложение для часов уже внутри SyncTheme — сторонние программы и компьютер не нужны. " +
-                            "Подойдут часы на Wear OS: Galaxy Watch 4 и новее, Pixel Watch, OnePlus, TicWatch, Xiaomi, Fossil " +
-                            "и другие. С Wear OS 6 циферблат ставится сам; на старых часах с Wear OS 3–5 его нужно один раз " +
-                            "выбрать в списке циферблатов.",
+                            "Нужны часы на Wear OS 6 или новее: Galaxy Watch4–Watch8 и Watch Ultra с One UI 8 Watch, " +
+                            "Pixel Watch 2–4.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 8.dp),
@@ -91,30 +94,25 @@ fun WatchInstallerScreen(vm: InstallerViewModel, accentColor: Int, onClose: () -
     }
 }
 
-@Composable
-private fun StepText(number: Int, text: String) {
-    Row(verticalAlignment = Alignment.Top) {
-        Box(
-            Modifier.size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-            contentAlignment = Alignment.Center,
-        ) { Text("$number", style = MaterialTheme.typography.labelMedium) }
-        Spacer(Modifier.width(10.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium)
-    }
-}
 
 @Composable
 private fun PrepareStep() {
+    val context = LocalContext.current
+    var watch by remember { mutableStateOf(MyDevices.watch(context)) }
     Section("1. Подготовьте часы") {
-        StepText(
-            1,
-            "Часы: «Настройки» → «О часах» → «Программное обеспечение» → 7 раз нажмите «Версия ПО». " +
-                "На Pixel Watch и других часах — «Настройки» → «Система» → «О часах» → 7 раз «Номер сборки».",
-        )
-        StepText(2, "«Настройки» → «Параметры разработчика» (или «Для разработчиков») → включите «Отладка ADB» и «Отладка по Wi‑Fi».")
-        StepText(3, "Подключите часы к той же сети Wi‑Fi, что и телефон («Настройки» → «Подключения» → Wi‑Fi).")
-        StepText(4, "Откройте «Отладка по Wi‑Fi» → «Сопряжение нового устройства». На часах появится 6-значный код.")
-        StepText(5, "Пока идёт установка, не давайте экрану часов погаснуть — касайтесь его.")
+        // Пункты меню у Galaxy Watch и Pixel Watch разные — инструкция под выбранные часы.
+        WatchPicker(watch) {
+            watch = it
+            MyDevices.setWatch(context, it)
+        }
+        val chosen = watch
+        if (chosen == null) {
+            Text("Выберите свои часы — покажу, где что включить.", style = MaterialTheme.typography.bodyMedium)
+        } else {
+            // Последний шаг общей инструкции — про выключение отладки после установки, он ниже, в «Готово».
+            InstallGuide.watch(chosen).dropLast(1).forEachIndexed { i, step -> StepText(i + 1, step) }
+            StepText(InstallGuide.watch(chosen).size, "Пока идёт установка, не давайте экрану часов погаснуть — касайтесь его.")
+        }
     }
 }
 
@@ -212,7 +210,7 @@ private fun ActionStep(ui: InstallerUi, vm: InstallerViewModel, onClose: () -> U
                 Text(
                     "Готово! SyncTheme установлен и открыт на часах.\n" +
                         "Вернитесь назад и нажмите «Применить» — циферблат появится на часах.\n" +
-                        "«Отладку по Wi‑Fi» на часах теперь можно выключить.",
+                        "Включите на часах Bluetooth, если выключали, а «Отладку по Wi‑Fi» теперь можно выключить.",
                     style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary,
                 )
                 Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Готово") }

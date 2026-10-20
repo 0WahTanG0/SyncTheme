@@ -98,7 +98,7 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
     if (!lock) {
         item {
             val saved by a.vm.saved.collectAsStateWithLifecycle()
-            ThemeStrip(saved, theme.id, onPhoto = { a.pickPhoto(BgTarget.HOME) }, onMatch = a.matchCamera, onSelect = a.vm::select, onDelete = a.vm::delete)
+            ThemeStrip(saved, theme.id, onPhoto = { a.pickPhoto(BgTarget.HOME) }, onSelect = a.vm::select, onDelete = a.vm::delete)
         }
         item {
             ExpandableSection("Фон", summary = backgroundSummary(theme.background, theme.dim)) {
@@ -119,20 +119,12 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
                     onEditAccent = { editColor(ColorTarget.Accent) },
                     onAccent = { c -> a.vm.update { it.copy(accentColor = c) } },
                 )
-                Text("В тон вещи — цвет со снимка ремешка, одежды или кроссовок", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = a.matchCamera) { Text("Снять вещь") }
-                    OutlinedButton(onClick = a.matchGallery) { Text("Из галереи") }
-                }
             }
         }
         item {
             ExpandableSection("Часы на обоях", summary = wallClockSummary(theme)) { WallClockContent(theme, a.vm) }
         }
-        item {
-            val mode by a.vm.chameleon.collectAsStateWithLifecycle()
-            ExpandableSection("Хамелеон", summary = mode.title) { ChameleonContent(a.vm) }
-        }
+
         item {
             ExpandableSection("Сохранить как свою тему", summary = theme.name) {
                 NameRow(theme, onRename = { name -> a.vm.update { it.copy(name = name) } }, onSave = a.vm::saveCurrent)
@@ -163,9 +155,15 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
             }
         }
         item {
+            ExpandableSection(
+                "Эффект глубины", summary = if (theme.lockDepth) "Часы за объектом фото" else "Выключен",
+                initiallyExpanded = theme.lockDepth,
+            ) { LockDepthContent(theme, a.vm) }
+        }
+        item {
             Text(
-                "Часы и дату на экране блокировки рисует сам телефон: на Samsung — «Настройки» → «Экран блокировки» → «Изменить», " +
-                    "на других телефонах — в настройках экрана блокировки или обоев. Виджеты SyncTheme тоже можно поставить туда.",
+                "Часы и дату на экране блокировки рисует One UI: их стиль меняется, если зажать экран блокировки → «Изменить». " +
+                    "Виджеты SyncTheme тоже можно поставить туда.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
             )
@@ -197,13 +195,13 @@ private fun SwatchPair(text: Int, accent: Int) {
 @Composable
 private fun ThemeStrip(
     saved: List<Theme>, selectedId: String,
-    onPhoto: () -> Unit, onMatch: () -> Unit, onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit,
+    onPhoto: () -> Unit, onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit,
 ) {
     val look = LocalLook.current
     Column(Modifier.padding(vertical = 6.dp)) {
         Text(look.title("Темы"), style = look.sectionTitle, color = look.text)
         Text(
-            "Нажмите тему, «Фото» или «В тон вещи» (снимок ремешка, кофты) — обои, виджеты и циферблат подстроятся под цвета.",
+            "Нажмите тему или «Фото» — обои, виджеты и циферблат подстроятся под цвета.",
             style = MaterialTheme.typography.bodySmall, color = look.muted,
         )
         Spacer(Modifier.height(8.dp))
@@ -218,7 +216,6 @@ private fun ThemeStrip(
                     Text("Фото", style = MaterialTheme.typography.labelMedium, maxLines = 1)
                 }
             }
-            item(key = "match") { StripAction("В тон вещи", NavIcons.Camera, onMatch) }
             items(saved, key = { "s" + it.id }) { t ->
                 Box {
                     ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) })
@@ -333,9 +330,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
         val look = LocalLook.current
         Column(Modifier.padding(vertical = 6.dp)) {
             Text(look.title("Циферблат"), style = look.sectionTitle, color = look.text)
-            val note = if (w.clockStyle == ClockStyle.LIQUID && w.live.steps) "Шаги за день наполняют циферблат «жидкостью» с волной и пузырьками."
-                else CLOCK_STYLE_NOTES.getValue(w.clockStyle)
-            Text(note, style = MaterialTheme.typography.bodySmall, color = look.muted)
+            Text(CLOCK_STYLE_NOTES.getValue(w.clockStyle), style = MaterialTheme.typography.bodySmall, color = look.muted)
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(CLOCK_STYLES, key = { it.first.name }) { (style, label) ->
@@ -394,14 +389,22 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
             val photo = theme.watchBackground().type == BackgroundType.PHOTO
             SwitchRow("Эффект глубины", w.depth && photo, enabled = photo) { v -> a.vm.setWatchDepth(v) { t -> a.editWatchFace(t) } }
             Text(
-                if (photo) "Главный объект фото фона — человек, питомец, гора — встаёт поверх цифр."
+                if (photo) "Главный объект фото фона — человек, питомец, гора — встаёт поверх цифр, а время видно сквозь него."
                 else "Эффект глубины работает с фото на фоне часов.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            val ambient by a.vm.ambientPreview.collectAsStateWithLifecycle()
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(84.dp).clip(CircleShape).background(Color.Black)) {
+                    ambient?.let { Image(it, contentDescription = "Always-On", modifier = Modifier.fillMaxSize()) }
+                }
+                Text(
+                    "Always-On: у каждого стиля свой контрастный вид — время и дата светлыми цветами на чёрном, без фона и секунд.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
-    }
-    item {
-        ExpandableSection("Живые данные", summary = liveSummary(w)) { LiveDataContent(w) { t -> a.editWatchFace(t) } }
     }
     item {
         ExpandableSection(
@@ -457,7 +460,10 @@ fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable (
             OutlinedButton(onClick = a.openInstaller) { Text("Установка на часы") }
         }
     }
-    item { OtherDevicesSection(a.vm) }
+    item {
+        val connection by a.vm.connection.collectAsStateWithLifecycle()
+        MyDevicesSection(connection.appNodeName ?: connection.connectedNames.firstOrNull())
+    }
     item {
         val context = LocalContext.current
         var licenses by remember { mutableStateOf<String?>(null) }

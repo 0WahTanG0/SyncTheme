@@ -3,8 +3,8 @@ package app.synctheme.faces
 import java.util.Calendar
 
 /**
- * Что показывает циферблат в данный момент: время и живые данные.
- * null у данных — значение неизвестно (тогда соответствующий эффект не рисуется).
+ * Что показывает циферблат в данный момент: время и данные мини-виджетов
+ * (null — неизвестно, мини-виджет не рисуется).
  */
 data class FaceState(
     /** Момент времени (для даты) и часовой пояс устройства. */
@@ -16,11 +16,8 @@ data class FaceState(
     val is24h: Boolean = true,
     val battery: Int? = null,
     val steps: Int? = null,
-    val stepPercent: Int? = null,
-    val heartRate: Int? = null,
+    /** Режим Always-On. */
     val ambient: Boolean = false,
-    /** Доля удара сердца 0..1, если её нужно задать явно (превью); иначе считается по секундам. */
-    val beatOverride: Float? = null,
 ) {
     val hour12 get() = if (hour % 12 == 0) 12 else hour % 12
 
@@ -34,20 +31,11 @@ data class FaceState(
     val minuteAngle get() = (minute + second.toInt() / 60f) * 6f
     val secondAngle get() = second.toInt() * 6f
 
-    /** Вспышка пульса: |sin| с периодом в один удар, острее за счёт степени. */
-    val beat: Float
-        get() {
-            beatOverride?.let { return it }
-            val hr = heartRate ?: return 0f
-            val s = kotlin.math.abs(kotlin.math.sin(second * hr * Math.PI / 60)).toFloat()
-            return s * s * s * s
-        }
-
     companion object {
         /** Состояние для превью: 10:08:32, как PREVIEW_TIME циферблата, и правдоподобные данные. */
-        fun preview(is24h: Boolean = true): FaceState = FaceState(
+        fun preview(is24h: Boolean = true, ambient: Boolean = false): FaceState = FaceState(
             millis = System.currentTimeMillis(), hour = 10, minute = 8, second = 32f, is24h = is24h,
-            battery = 80, steps = 6241, stepPercent = 62, heartRate = 72, beatOverride = 0.8f,
+            battery = 80, steps = 6241, ambient = ambient,
         )
 
         fun now(millis: Long, is24h: Boolean): FaceState {

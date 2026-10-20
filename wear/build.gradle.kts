@@ -1,5 +1,5 @@
-// Приложение для часов на Wear OS: принимает циферблат от телефона и ставит его через
-// Watch Face Push (Wear OS 6+), а на Wear OS 3–5 рисует его само как классический циферблат.
+// Приложение для часов на Wear OS 6+: принимает циферблат от телефона
+// и ставит его через Watch Face Push.
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
@@ -12,11 +12,10 @@ android {
     defaultConfig {
         // Тот же applicationId и ключ, что у телефона, — иначе Data Layer не свяжет приложения.
         applicationId = "app.synctheme"
-        // Wear OS 3 (Android 11) и новее.
-        minSdk = 30
+        minSdk = 33
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 6
+        versionName = "1.5"
     }
 
     signingConfigs {
@@ -56,8 +55,6 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.core.ktx)
     implementation(libs.watchface.push)
-    implementation(libs.watchface)
-    implementation(project(":faces"))
     implementation(libs.play.services.wearable)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.wear.remote.interactions)
@@ -73,8 +70,6 @@ val watchfaceApk = project(":watchface").layout.buildDirectory
 val defaultWfAssets = layout.buildDirectory.dir("generated/defaultWatchFace/assets").get().asFile
 val defaultWfRes = layout.buildDirectory.dir("generated/defaultWatchFace/res").get().asFile
 val tokenFile = layout.buildDirectory.file("intermediates/defaultWatchFace/token.txt").get().asFile
-val defaultPreview = project(":watchface").layout.buildDirectory
-    .file("generated/wfDefaults/res/drawable-nodpi/preview.png").get().asFile
 
 val copyDefaultWatchFace = tasks.register<Copy>("copyDefaultWatchFace") {
     dependsOn(":watchface:assembleRelease")
@@ -92,13 +87,10 @@ val validateDefaultWatchFace = tasks.register<JavaExec>("validateDefaultWatchFac
 }
 
 val defaultWatchFaceTokenRes = tasks.register("defaultWatchFaceTokenRes") {
-    dependsOn(validateDefaultWatchFace, ":watchface:generateWatchFaceDefaults")
+    dependsOn(validateDefaultWatchFace)
     inputs.file(tokenFile)
-    inputs.file(defaultPreview)
     outputs.dir(defaultWfRes)
     doLast {
-        // Превью классического циферблата в списке циферблатов — как у шаблона WFF.
-        defaultPreview.copyTo(defaultWfRes.resolve("drawable-nodpi/face_preview.png"), overwrite = true)
         val out = defaultWfRes.resolve("values/wf_token.xml")
         out.parentFile.mkdirs()
         out.writeText(

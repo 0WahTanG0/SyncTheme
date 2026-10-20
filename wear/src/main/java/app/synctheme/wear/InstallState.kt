@@ -13,8 +13,7 @@ data class InstallStatus(
     val timestamp: Long = 0L,
     val isActive: Boolean = false,
 ) {
-    /** CLASSIC — часы без Watch Face Push: тема у классического циферблата SyncTheme. */
-    enum class State { WAITING, INSTALLING, INSTALLED, NEEDS_PERMISSION, NEEDS_MANUAL_SELECT, UNSUPPORTED, CLASSIC, ERROR }
+    enum class State { WAITING, INSTALLING, INSTALLED, NEEDS_PERMISSION, NEEDS_MANUAL_SELECT, UNSUPPORTED, ERROR }
 }
 
 object InstallState {

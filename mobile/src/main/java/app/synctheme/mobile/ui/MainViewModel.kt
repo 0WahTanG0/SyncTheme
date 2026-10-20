@@ -16,19 +16,13 @@ import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.Theme
 import app.synctheme.core.WatchSettings
-import app.synctheme.core.ChameleonMode
-import app.synctheme.core.Chameleon
-import app.synctheme.core.DayPart
-import app.synctheme.core.Mood
-import app.synctheme.core.Sky
 import app.synctheme.core.WallClock
 import app.synctheme.mobile.data.ApplyTargets
-import app.synctheme.mobile.data.ChameleonSettings
 import app.synctheme.mobile.data.ThemeApplier
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.DepthException
-import app.synctheme.mobile.render.ExportKind
-import app.synctheme.mobile.render.ExportKit
+import app.synctheme.mobile.render.DepthMasks
+import app.synctheme.mobile.render.LockScreenImage
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.install.WatchAppInstaller
@@ -77,6 +71,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val watchPreview: StateFlow<ImageBitmap?> = _watchPreview.asStateFlow()
     private val _lockPreview = MutableStateFlow<ImageBitmap?>(null)
     val lockPreview: StateFlow<ImageBitmap?> = _lockPreview.asStateFlow()
+    /** Циферблат в режиме Always-On. */
+    private val _ambientPreview = MutableStateFlow<ImageBitmap?>(null)
+    val ambientPreview: StateFlow<ImageBitmap?> = _ambientPreview.asStateFlow()
 
     /** Виджеты SyncTheme, которые сейчас стоят на экранах. */
     private val _placed = MutableStateFlow<List<PlacedWidget>>(emptyList())
@@ -108,15 +105,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val stylePreviews: StateFlow<Map<ClockStyle, ImageBitmap>> = _stylePreviews.asStateFlow()
     private val stylesWanted = MutableStateFlow(false)
 
-    private val _chameleon = MutableStateFlow(ChameleonSettings.mode(app))
-    val chameleon: StateFlow<ChameleonMode> = _chameleon.asStateFlow()
-    val mood: StateFlow<Mood?> = repo.mood
-
-    /** Как тема будет выглядеть в разное время суток и погоду — миниатюры для раздела «Хамелеон». */
-    private val _moodPreviews = MutableStateFlow<List<Pair<String, ImageBitmap>>>(emptyList())
-    val moodPreviews: StateFlow<List<Pair<String, ImageBitmap>>> = _moodPreviews.asStateFlow()
-    private val moodsWanted = MutableStateFlow(false)
-
     /** Галерею открыли — начинаем рисовать миниатюры (и обновлять их при смене цветов). */
     fun wantStylePreviews() {
         stylesWanted.value = true
@@ -129,27 +117,35 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Растёт, когда появилась новая маска эффекта глубины, — превью нужно перерисовать. */
+    private val masks = MutableStateFlow(0)
+
     init {
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
-            theme.debounce(60).collectLatest { renderPreviews(it) }
+            combine(theme, masks) { t, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
+        }
+        // Сменили фото, а глубина уже включена, — сразу ищем объект на новом фото (каждое фото — один раз).
+        viewModelScope.launch {
+            val tried = HashSet<String>()
+            theme.collectLatest { t ->
+                val missing = DepthMasks.photosFor(t).filter { !SubjectMask.exists(app, it) && tried.add(it) }
+                if (missing.isEmpty()) return@collectLatest
+                for (photo in missing) {
+                    runCatching { SubjectMask.ensure(app, photo) }
+                        .onFailure { _messages.tryEmit("Эффект глубины: ${it.message ?: it.javaClass.simpleName}") }
+                }
+                masks.value++
+            }
         }
         // Стиль на миниатюры не влияет — перерисовываем, только когда меняется остальное.
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
-            combine(theme, stylesWanted) { t, wanted -> if (wanted) t.watchSettings().copy(clockStyle = ClockStyle.DIGITAL) to t else null }
+            combine(theme, stylesWanted, masks) { t, wanted, m -> if (wanted) Triple(t.watchSettings().copy(clockStyle = ClockStyle.DIGITAL), m, t) else null }
                 .filterNotNull()
-                .distinctUntilChanged { a, b -> a.first == b.first }
+                .distinctUntilChanged { a, b -> a.first == b.first && a.second == b.second }
                 .debounce(300)
-                .collectLatest { (_, t) -> renderStylePreviews(t) }
-        }
-        @OptIn(FlowPreview::class)
-        viewModelScope.launch {
-            combine(theme, moodsWanted, chameleon) { t, wanted, mode -> if (wanted) t to mode else null }
-                .filterNotNull()
-                .distinctUntilChanged { a, b -> a.first.background == b.first.background && a.first.dim == b.first.dim && a.second == b.second }
-                .debounce(300)
-                .collectLatest { (t, mode) -> renderMoodPreviews(t, mode) }
+                .collectLatest { (_, _, t) -> renderStylePreviews(t) }
         }
         refreshWatch()
         WidgetUpdater.updateAll(app)
@@ -217,6 +213,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val phone = ThemeRenderer.phonePreview(app, t, 540, 1170)
         val lock = ThemeRenderer.lockPreview(app, t, 540, 1170)
         val watch = ThemeRenderer.watchPreview(app, t, 450)
+        _ambientPreview.value = ThemeRenderer.watchAmbientPreview(app, t, 240).asImageBitmap()
         _phonePreview.value = phone.asImageBitmap()
         _lockPreview.value = lock.asImageBitmap()
         _watchPreview.value = watch.asImageBitmap()
@@ -372,96 +369,30 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         withSubject(photoOf(theme.value.background)) { update { it.copy(wallClock = clock) } }
     }
 
-    // ---------------------------------------------------------------- Хамелеон
-
-
-    fun setChameleon(mode: ChameleonMode) {
-        _chameleon.value = mode
-        ChameleonSettings.setMode(app, mode)
-        if (mode.byWeather && WeatherRepository(app).place == null) {
-            _messages.tryEmit("Для погоды выберите город: «Виджеты» → «Город для погоды»")
-        }
+    /**
+     * Глубина на экране блокировки: часы там рисует One UI, его «Адаптивные часы» обтекают объект
+     * фото. SyncTheme проверяет, что объект на фото есть, и ставит фото без затемнения.
+     */
+    fun setLockDepth(enabled: Boolean) {
+        if (!enabled) return update { it.copy(lockDepth = false) }
+        withSubject(photoOf(theme.value.lockScreenBackground())) { update { it.copy(lockDepth = true) } }
     }
 
-
-    fun wantMoodPreviews() {
-        moodsWanted.value = true
-    }
-
-    private suspend fun renderMoodPreviews(t: Theme, mode: ChameleonMode) = withContext(Dispatchers.Default) {
-        val moods = buildList {
-            if (mode != ChameleonMode.WEATHER) DayPart.entries.forEach { add(Mood(part = it)) }
-            if (mode.byWeather) listOf(Sky.CLEAR, Sky.CLOUDS, Sky.RAIN, Sky.SNOW).forEach { add(Mood(sky = it)) }
-        }
-        _moodPreviews.value = moods.map { m ->
-            val v = Chameleon.adapt(t, m)
-            m.title.replaceFirstChar { it.uppercase() } to ThemeRenderer.background(app, v, 120, 260).asImageBitmap()
-        }
-    }
-
-    // ---------------------------------------------------------------- В тон вещи
-
-    /** Снимок вещи и цвета с него — для диалога «В тон вещи». */
-    class MatchPhoto(val bitmap: android.graphics.Bitmap, val image: ImageBitmap, val swatches: List<Int>)
-
-    private val _match = MutableStateFlow<MatchPhoto?>(null)
-    val match: StateFlow<MatchPhoto?> = _match.asStateFlow()
-
-    fun loadMatch(uri: Uri) = viewModelScope.launch {
-        _busy.value = "Смотрю цвета на снимке…"
+    /**
+     * Запасной способ для экрана блокировки: отдать картинку системному «Установить как» — тогда
+     * её ставит приложение обоев Samsung, и адаптивные часы точно знают про объект на фото.
+     */
+    fun lockViaSystem(onIntent: (android.content.Intent) -> Unit) = viewModelScope.launch {
+        _busy.value = "Готовлю обои блокировки…"
         try {
-            val bmp = withContext(Dispatchers.IO) {
-                val source = android.graphics.ImageDecoder.createSource(app.contentResolver, uri)
-                android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                    val longSide = maxOf(info.size.width, info.size.height)
-                    if (longSide > 1080) {
-                        val k = 1080f / longSide
-                        decoder.setTargetSize((info.size.width * k).toInt(), (info.size.height * k).toInt())
-                    }
-                    decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
-                }
-            }
-            val swatches = withContext(Dispatchers.Default) { ThemeColors.swatches(bmp) }
-            _match.value = MatchPhoto(bmp, bmp.asImageBitmap(), swatches)
+            val uri = withContext(Dispatchers.Default) { LockScreenImage.export(app, theme.value) }
+            onIntent(LockScreenImage.setAsIntent(uri))
         } catch (e: Exception) {
-            _messages.tryEmit("Не удалось открыть снимок: ${e.message ?: e.javaClass.simpleName}")
+            _messages.tryEmit("Не удалось подготовить обои: ${e.message ?: e.javaClass.simpleName}")
         } finally {
             _busy.value = null
         }
     }
-
-    fun dismissMatch() {
-        _match.value = null
-    }
-
-    /** Тема в цвет вещи (или только акцент). */
-    fun applyMatch(color: Int, wholeTheme: Boolean) {
-        val swatches = _match.value?.swatches.orEmpty()
-        update { if (wholeTheme) ThemeColors.fromColor(it, color, swatches) else it.copy(accentColor = ThemeColors.accent(color)) }
-        _match.value = null
-        _messages.tryEmit(if (wholeTheme) "Тема в тон вещи готова — нажмите «Применить»" else "Акцент взят с вещи")
-    }
-
-    // ---------------------------------------------------------------- Картинки для Apple и других часов
-
-    fun export(kinds: Set<ExportKind>, toGallery: Boolean, onShare: (android.content.Intent) -> Unit) =
-        viewModelScope.launch {
-            if (kinds.isEmpty()) return@launch
-            _busy.value = "Рисую картинки…"
-            try {
-                val files = ExportKit.render(app, theme.value, kinds)
-                if (toGallery) {
-                    ExportKit.saveToGallery(app, files)
-                    _messages.tryEmit("Сохранено в «Галерею»: Pictures/SyncTheme (${files.size} шт.)")
-                } else {
-                    onShare(ExportKit.shareIntent(app, files))
-                }
-            } catch (e: Exception) {
-                _messages.tryEmit("Не удалось сделать картинки: ${e.message ?: e.javaClass.simpleName}")
-            } finally {
-                _busy.value = null
-            }
-        }
 
     fun refreshWatch() = viewModelScope.launch { _connection.value = sync.connection() }
 

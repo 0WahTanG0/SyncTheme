@@ -4,7 +4,6 @@ import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.DialStyle
-import app.synctheme.core.LiveData
 import app.synctheme.core.Presets
 import app.synctheme.core.SyncProtocol
 import app.synctheme.core.Theme
@@ -43,17 +42,11 @@ class WatchFaceValidationTest {
                 add(Presets.default.copy(id = "min-$style", clockStyle = style, showSeconds = false, showDate = false, watchComplications = false))
                 add(Presets.default.copy(id = "max-$style", clockStyle = style, showSeconds = true, showDate = true, watchComplications = true))
             }
-            // Живые данные (шаги, пульс, заряд) и слой глубины — во всех стилях.
+            // Слой глубины — во всех стилях; светлая тема — для слоя Always-On со светлыми цветами.
             for (style in ClockStyle.entries) {
-                add(
-                    Presets.default.copy(
-                        id = "live-$style", clockStyle = style,
-                        watchLive = LiveData(steps = true, pulse = true, battery = true), watchDepth = true,
-                    )
-                )
+                add(Presets.default.copy(id = "depth-$style", clockStyle = style, watchDepth = true))
+                add(Presets.all.first { it.id == "sakura" }.copy(id = "light-$style", clockStyle = style, watchDepth = true))
             }
-            add(Presets.default.copy(id = "live-neon-pulse", clockStyle = ClockStyle.NEON, watchLive = LiveData(pulse = true)))
-            add(Presets.default.copy(id = "live-neon-battery", clockStyle = ClockStyle.NEON, watchLive = LiveData(battery = true)))
             for (dial in DialStyle.entries) {
                 add(Presets.default.copy(id = "dial-$dial", clockStyle = ClockStyle.ANALOG, dialStyle = dial))
                 add(Presets.default.copy(id = "dial-min-$dial", clockStyle = ClockStyle.ANALOG, dialStyle = dial, showDate = false, watchComplications = false, showSeconds = false))

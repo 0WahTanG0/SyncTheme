@@ -204,3 +204,16 @@ fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Unit, onPick
         },
     )
 }
+
+/** Шаг инструкции: номер в кружке и текст. */
+@Composable
+fun StepText(number: Int, text: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Box(
+            Modifier.size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+            contentAlignment = Alignment.Center,
+        ) { Text("$number", style = MaterialTheme.typography.labelMedium) }
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}

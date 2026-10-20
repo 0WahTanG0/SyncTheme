@@ -63,14 +63,14 @@
                 android:gravity="center">
 
                 <FrameLayout
-                    android:layout_width="50dp"
-                    android:layout_height="50dp">
+                    android:layout_width="44dp"
+                    android:layout_height="44dp">
 
                     <ImageView
                         android:id="@+id/fx_ap0"
                         android:layout_gravity="center"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no"
@@ -79,28 +79,12 @@
                     <ImageView
                         android:id="@+id/ap_0"
                         android:layout_gravity="center"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wapp_placeholder"
                         android:importantForAccessibility="no" />
                 </FrameLayout>
-
-                <TextView
-                    android:id="@+id/m_ap0_label"
-                    android:layout_marginTop="4dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="@font/onest_500"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:shadowColor="#80FFFFFF"
-                    android:shadowRadius="14"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:textColor="#FFFFFFFF" />
             </LinearLayout>
 
             <LinearLayout
@@ -112,14 +96,14 @@
                 android:gravity="center">
 
                 <FrameLayout
-                    android:layout_width="50dp"
-                    android:layout_height="50dp">
+                    android:layout_width="44dp"
+                    android:layout_height="44dp">
 
                     <ImageView
                         android:id="@+id/fx_ap1"
                         android:layout_gravity="center"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no"
@@ -128,28 +112,12 @@
                     <ImageView
                         android:id="@+id/ap_1"
                         android:layout_gravity="center"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wapp_placeholder"
                         android:importantForAccessibility="no" />
                 </FrameLayout>
-
-                <TextView
-                    android:id="@+id/m_ap1_label"
-                    android:layout_marginTop="4dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="@font/onest_500"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:shadowColor="#80FFFFFF"
-                    android:shadowRadius="14"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:textColor="#FFFFFFFF" />
             </LinearLayout>
 
             <LinearLayout
@@ -161,14 +129,14 @@
                 android:gravity="center">
 
                 <FrameLayout
-                    android:layout_width="50dp"
-                    android:layout_height="50dp">
+                    android:layout_width="44dp"
+                    android:layout_height="44dp">
 
                     <ImageView
                         android:id="@+id/fx_ap2"
                         android:layout_gravity="center"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no"
@@ -177,28 +145,12 @@
                     <ImageView
                         android:id="@+id/ap_2"
                         android:layout_gravity="center"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wapp_placeholder"
                         android:importantForAccessibility="no" />
                 </FrameLayout>
-
-                <TextView
-                    android:id="@+id/m_ap2_label"
-                    android:layout_marginTop="4dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="@font/onest_500"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:shadowColor="#80FFFFFF"
-                    android:shadowRadius="14"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:textColor="#FFFFFFFF" />
             </LinearLayout>
 
             <LinearLayout
@@ -210,14 +162,14 @@
                 android:gravity="center">
 
                 <FrameLayout
-                    android:layout_width="50dp"
-                    android:layout_height="50dp">
+                    android:layout_width="44dp"
+                    android:layout_height="44dp">
 
                     <ImageView
                         android:id="@+id/fx_ap3"
                         android:layout_gravity="center"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no"
@@ -226,28 +178,12 @@
                     <ImageView
                         android:id="@+id/ap_3"
                         android:layout_gravity="center"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wapp_placeholder"
                         android:importantForAccessibility="no" />
                 </FrameLayout>
-
-                <TextView
-                    android:id="@+id/m_ap3_label"
-                    android:layout_marginTop="4dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="@font/onest_500"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:shadowColor="#80FFFFFF"
-                    android:shadowRadius="14"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:textColor="#FFFFFFFF" />
             </LinearLayout>
         </LinearLayout>
 
@@ -268,14 +204,14 @@
                 android:gravity="center">
 
                 <FrameLayout
-                    android:layout_width="50dp"
-                    android:layout_height="50dp">
+                    android:layout_width="44dp"
+                    android:layout_height="44dp">
 
                     <ImageView
                         android:id="@+id/fx_ap4"
                         android:layout_gravity="center"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no"
@@ -284,28 +220,12 @@
                     <ImageView
                         android:id="@+id/ap_4"
                         android:layout_gravity="center"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wapp_placeholder"
                         android:importantForAccessibility="no" />
                 </FrameLayout>
-
-                <TextView
-                    android:id="@+id/m_ap4_label"
-                    android:layout_marginTop="4dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="@font/onest_500"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:shadowColor="#80FFFFFF"
-                    android:shadowRadius="14"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:textColor="#FFFFFFFF" />
             </LinearLayout>
 
             <LinearLayout
@@ -317,14 +237,14 @@
                 android:gravity="center">
 
                 <FrameLayout
-                    android:layout_width="50dp"
-                    android:layout_height="50dp">
+                    android:layout_width="44dp"
+                    android:layout_height="44dp">
 
                     <ImageView
                         android:id="@+id/fx_ap5"
                         android:layout_gravity="center"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no"
@@ -333,28 +253,12 @@
                     <ImageView
                         android:id="@+id/ap_5"
                         android:layout_gravity="center"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wapp_placeholder"
                         android:importantForAccessibility="no" />
                 </FrameLayout>
-
-                <TextView
-                    android:id="@+id/m_ap5_label"
-                    android:layout_marginTop="4dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="@font/onest_500"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:shadowColor="#80FFFFFF"
-                    android:shadowRadius="14"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:textColor="#FFFFFFFF" />
             </LinearLayout>
 
             <LinearLayout
@@ -366,14 +270,14 @@
                 android:gravity="center">
 
                 <FrameLayout
-                    android:layout_width="50dp"
-                    android:layout_height="50dp">
+                    android:layout_width="44dp"
+                    android:layout_height="44dp">
 
                     <ImageView
                         android:id="@+id/fx_ap6"
                         android:layout_gravity="center"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no"
@@ -382,28 +286,12 @@
                     <ImageView
                         android:id="@+id/ap_6"
                         android:layout_gravity="center"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wapp_placeholder"
                         android:importantForAccessibility="no" />
                 </FrameLayout>
-
-                <TextView
-                    android:id="@+id/m_ap6_label"
-                    android:layout_marginTop="4dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="@font/onest_500"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:shadowColor="#80FFFFFF"
-                    android:shadowRadius="14"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:textColor="#FFFFFFFF" />
             </LinearLayout>
 
             <LinearLayout
@@ -415,14 +303,14 @@
                 android:gravity="center">
 
                 <FrameLayout
-                    android:layout_width="50dp"
-                    android:layout_height="50dp">
+                    android:layout_width="44dp"
+                    android:layout_height="44dp">
 
                     <ImageView
                         android:id="@+id/fx_ap7"
                         android:layout_gravity="center"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no"
@@ -431,28 +319,12 @@
                     <ImageView
                         android:id="@+id/ap_7"
                         android:layout_gravity="center"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
                         android:scaleType="fitCenter"
                         android:src="@drawable/wapp_placeholder"
                         android:importantForAccessibility="no" />
                 </FrameLayout>
-
-                <TextView
-                    android:id="@+id/m_ap7_label"
-                    android:layout_marginTop="4dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:fontFamily="@font/onest_500"
-                    android:textSize="11sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:shadowColor="#80FFFFFF"
-                    android:shadowRadius="14"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:textColor="#FFFFFFFF" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

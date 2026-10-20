@@ -15,11 +15,6 @@ object SyncProtocol {
     const val KEY_TIMESTAMP = "ts"
     const val KEY_ACTIVATE = "activate"
 
-    /** Для классического циферблата (часы без Watch Face Push): настройки JSON, фон JPEG и слой глубины PNG. */
-    const val KEY_SETTINGS = "settings"
-    const val KEY_BACKGROUND = "bg"
-    const val KEY_FOREGROUND = "fg"
-
     /** Сообщение часы -> телефон с результатом установки. */
     const val PATH_STATUS = "/synctheme/status"
 
