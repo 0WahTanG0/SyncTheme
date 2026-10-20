@@ -9,3 +9,6 @@ local.properties
 dist/
 # Ключи подписи — только локально; в репозитории лежит зашифрованный keystore.tar.gz.enc
 keystore/
+
+# Результаты graphify (граф знаний, кэш)
+graphify-out/
