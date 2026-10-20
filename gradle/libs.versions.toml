@@ -17,6 +17,9 @@ apksig = "8.11.0"
 wffValidator = "1.1.0-alpha01"
 materialIcons = "1.7.8"
 junit = "4.13.2"
+libadb = "3.1.1"
+conscrypt = "2.5.3"
+bouncycastle = "1.81"
 robolectric = "4.17"
 roborazzi = "1.76.0"
 
@@ -29,6 +32,9 @@ apksig = { module = "com.android.tools.build:apksig", version.ref = "apksig" }
 wff-validator-jvm = { module = "com.google.android.wearable.watchface.validator:validator-push", version.ref = "wffValidator" }
 wff-validator-android = { module = "com.google.android.wearable.watchface.validator:validator-push-android", version.ref = "wffValidator" }
 junit = { module = "junit:junit", version.ref = "junit" }
+libadb = { module = "com.github.MuntashirAkon:libadb-android", version.ref = "libadb" }
+conscrypt = { module = "org.conscrypt:conscrypt-android", version.ref = "conscrypt" }
+bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk15to18", version.ref = "bouncycastle" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }

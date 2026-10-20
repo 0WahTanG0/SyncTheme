@@ -14,8 +14,8 @@ android {
         applicationId = "app.synctheme"
         minSdk = 33
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     signingConfigs {
@@ -31,7 +31,10 @@ android {
     buildTypes {
         debug { signingConfig = signingConfigs.getByName("app") }
         release {
-            isMinifyEnabled = false
+            // Сжатие уменьшает APK, который телефон передаёт на часы по Wi‑Fi (без переименования классов).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("app")
         }
     }

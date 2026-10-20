@@ -17,10 +17,13 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Нужен только для зависимости валидатора Watch Face Push (AXML).
+        // JitPack: зависимость валидатора Watch Face Push (AXML) и libadb-android (установка на часы по Wi‑Fi).
         maven {
             url = uri("https://jitpack.io")
-            content { includeGroup("com.github.xgouchet") }
+            content {
+                includeGroup("com.github.xgouchet")
+                includeGroupByRegex("com\\.github\\.MuntashirAkon.*")
+            }
         }
     }
 }

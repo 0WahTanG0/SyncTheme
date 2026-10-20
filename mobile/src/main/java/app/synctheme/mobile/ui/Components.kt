@@ -25,6 +25,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -40,6 +41,22 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.Theme
+import app.synctheme.mobile.render.Colors
+
+/** Тёмная тема приложения; основной цвет берётся из акцента текущей темы. */
+@Composable
+fun AppTheme(accentColor: Int, content: @Composable () -> Unit) {
+    val accent = Color(accentColor)
+    val scheme = darkColorScheme(
+        primary = accent,
+        onPrimary = if (Colors.isLight(accentColor)) Color(0xFF111111) else Color.White,
+        secondaryContainer = accent.copy(alpha = 0.25f),
+        background = Color(0xFF0E0E12),
+        surface = Color(0xFF0E0E12),
+        surfaceContainer = Color(0xFF1A1A21),
+    )
+    MaterialTheme(colorScheme = scheme, content = content)
+}
 
 @Composable
 fun Section(title: String, content: @Composable () -> Unit) {

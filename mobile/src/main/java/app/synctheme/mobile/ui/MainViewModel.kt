@@ -14,6 +14,7 @@ import app.synctheme.core.BackgroundType
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.install.WatchAppInstaller
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.render.WallpaperApplier
 import app.synctheme.mobile.watch.WatchConnection
@@ -57,6 +58,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _busy = MutableStateFlow<String?>(null)
     val busy: StateFlow<String?> = _busy.asStateFlow()
 
+    /** Версия приложения для часов, вшитого в приложение телефона. */
+    private val _bundledWatchVersion = MutableStateFlow(0L)
+    val bundledWatchVersion: StateFlow<Long> = _bundledWatchVersion.asStateFlow()
+
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages
 
@@ -67,6 +72,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         refreshWatch()
         WidgetUpdater.updateAll(app)
+        viewModelScope.launch(Dispatchers.IO) {
+            _bundledWatchVersion.value = runCatching { WatchAppInstaller(app).bundledVersion }.getOrDefault(0L)
+        }
     }
 
     private suspend fun renderPreviews(t: Theme) = withContext(Dispatchers.Default) {

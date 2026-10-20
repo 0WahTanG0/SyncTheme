@@ -72,7 +72,8 @@ private fun WearApp(activity: MainActivity) {
 
     LaunchedEffect(Unit) {
         runCatching { ThemeSync.checkPending(context) }
-        installer.refreshActive()
+        // Сообщаем телефону состояние и версию приложения на часах.
+        ThemeSync.sendStatus(context, null, installer.refreshActive())
     }
 
     AppScaffold {

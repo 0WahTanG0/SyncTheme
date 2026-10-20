@@ -13,8 +13,10 @@ android {
         applicationId = "app.synctheme"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+        // Galaxy S25+ и все современные телефоны — arm64; так APK заметно меньше.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     signingConfigs {
@@ -93,6 +95,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.wear.remote.interactions)
 
+    // Установка приложения на часы по «Отладке по Wi‑Fi» (протокол ADB с сопряжением по коду).
+    implementation(libs.libadb)
+    implementation(libs.conscrypt)
+    implementation(libs.bouncycastle.pkix)
+
     // Проверки на JVM (Robolectric): рендер превью, виджетов и сборка циферблата с Android-валидатором.
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
@@ -103,7 +110,7 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 }
 
-// --- Шаблон циферблата и ключ для его переподписи кладём в assets ---
+// --- В assets: шаблон циферблата с ключом для переподписи и приложение для часов ---
 
 val watchfaceAssets = layout.buildDirectory.dir("generated/watchfaceTemplate/assets").get().asFile
 val copyWatchFaceTemplate = tasks.register<Copy>("copyWatchFaceTemplate") {
@@ -116,10 +123,23 @@ val copyWatchFaceTemplate = tasks.register<Copy>("copyWatchFaceTemplate") {
     into(watchfaceAssets)
 }
 
+val copyWatchApp = tasks.register<Copy>("copyWatchApp") {
+    dependsOn(":wear:assembleRelease")
+    from(project(":wear").layout.buildDirectory.file("outputs/apk/release/wear-release.apk")) {
+        rename { "watch_app.apk" }
+    }
+    into(watchfaceAssets)
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addStaticSourceDirectory(watchfaceAssets.absolutePath)
     }
 }
 
-tasks.named("preBuild") { dependsOn(copyWatchFaceTemplate) }
+tasks.named("preBuild") { dependsOn(copyWatchFaceTemplate, copyWatchApp) }
+
+// В JVM-тестах (Robolectric) нативной библиотеки conscrypt-android нет — используется встроенный в Robolectric Conscrypt.
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    exclude(group = "org.conscrypt", module = "conscrypt-android")
+}

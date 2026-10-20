@@ -15,6 +15,8 @@ data class WatchReport(
     val message: String = "",
     val active: Boolean = false,
     val receivedAt: Long = 0L,
+    /** Версия приложения на часах (0 — неизвестна). */
+    val appVersion: Long = 0L,
 ) {
     val text: String
         get() = when (state) {
@@ -49,12 +51,15 @@ object WatchStatusStore {
     }
 
     fun markPending(theme: String) {
-        flow.value = WatchReport(state = "SENT", theme = theme, receivedAt = System.currentTimeMillis())
+        flow.value = flow.value.copy(state = "SENT", theme = theme, message = "", receivedAt = System.currentTimeMillis())
     }
 
     private fun parse(json: String, at: Long): WatchReport = runCatching {
         val o = JSONObject(json)
-        WatchReport(o.optString("state"), o.optString("theme"), o.optString("message"), o.optBoolean("active"), at)
+        WatchReport(
+            o.optString("state"), o.optString("theme"), o.optString("message"), o.optBoolean("active"), at,
+            o.optLong("appVersion"),
+        )
     }.getOrDefault(WatchReport())
 }
 

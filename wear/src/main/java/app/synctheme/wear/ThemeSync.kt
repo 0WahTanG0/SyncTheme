@@ -53,6 +53,7 @@ object ThemeSync {
             .put("message", status.message)
             .put("active", status.isActive)
             .put("ts", status.timestamp)
+            .put("appVersion", context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode)
             .toString().toByteArray()
         runCatching {
             val client = Wearable.getMessageClient(context)

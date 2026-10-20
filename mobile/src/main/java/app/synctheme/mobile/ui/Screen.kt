@@ -47,7 +47,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,7 +67,6 @@ import app.synctheme.core.ClockStyle
 import app.synctheme.core.Presets
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ApplyTargets
-import app.synctheme.mobile.render.Colors
 import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.watch.WatchReport
 import app.synctheme.mobile.widget.AnalogClockWidget
@@ -84,7 +83,7 @@ private sealed interface ColorTarget {
 }
 
 @Composable
-fun SyncThemeScreen(vm: MainViewModel) {
+fun SyncThemeScreen(vm: MainViewModel, onOpenInstaller: () -> Unit = {}) {
     val theme by vm.theme.collectAsStateWithLifecycle()
     val saved by vm.saved.collectAsStateWithLifecycle()
     val phonePreview by vm.phonePreview.collectAsStateWithLifecycle()
@@ -93,6 +92,7 @@ fun SyncThemeScreen(vm: MainViewModel) {
     val report by vm.watchReport.collectAsStateWithLifecycle()
     val targets by vm.targets.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val bundledWatchVersion by vm.bundledWatchVersion.collectAsStateWithLifecycle()
 
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
@@ -103,19 +103,9 @@ fun SyncThemeScreen(vm: MainViewModel) {
     val pickPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     var colorTarget by remember { mutableStateOf<ColorTarget?>(null) }
 
-    val accent = Color(theme.accentColor)
-    val scheme = darkColorScheme(
-        primary = accent,
-        onPrimary = if (Colors.isLight(theme.accentColor)) Color(0xFF111111) else Color.White,
-        secondaryContainer = accent.copy(alpha = 0.25f),
-        background = Color(0xFF0E0E12),
-        surface = Color(0xFF0E0E12),
-        surfaceContainer = Color(0xFF1A1A21),
-    )
-
-    MaterialTheme(colorScheme = scheme) {
+    AppTheme(theme.accentColor) {
         Scaffold(
-            containerColor = scheme.background,
+            containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = { ApplyBar(targets, busy, vm::setTargets, vm::apply) },
         ) { padding ->
@@ -158,7 +148,12 @@ fun SyncThemeScreen(vm: MainViewModel) {
                         onPin = vm::pinWidget,
                     )
                 }
-                item { WatchSection(connection, report, vm::openOnWatch, vm::refreshWatch) }
+                item {
+                    WatchSection(
+                        connection, report, bundledWatchVersion,
+                        onOpen = vm::openOnWatch, onRefresh = vm::refreshWatch, onInstall = onOpenInstaller,
+                    )
+                }
             }
         }
 
@@ -413,14 +408,20 @@ private fun WidgetsSection(theme: Theme, onOpacity: (Float) -> Unit, onPin: (Cla
 }
 
 @Composable
-private fun WatchSection(connection: WatchConnection, report: WatchReport, onOpen: () -> Unit, onRefresh: () -> Unit) {
-    Section("Galaxy Watch") {
+private fun WatchSection(
+    connection: WatchConnection,
+    report: WatchReport,
+    bundledVersion: Long,
+    onOpen: () -> Unit,
+    onRefresh: () -> Unit,
+    onInstall: () -> Unit,
+) {
+    Section("Часы") {
         val info = when {
             !connection.checked -> "Проверяю подключение…"
             connection.error != null -> "Сервисы Wear OS недоступны: ${connection.error}"
             !connection.hasWatch -> "Часы не подключены. Проверьте Bluetooth и приложение Galaxy Wearable."
-            !connection.hasApp -> "Установите SyncTheme на часы (APK для часов, см. инструкцию). " +
-                "Подключены: ${connection.connectedNames.joinToString()}"
+            !connection.hasApp -> "На часах ${connection.connectedNames.joinToString()} ещё нет SyncTheme — установите его отсюда."
             else -> "Циферблат обновится автоматически по кнопке «Применить»."
         }
         Text(info, style = MaterialTheme.typography.bodyMedium)
@@ -428,10 +429,18 @@ private fun WatchSection(connection: WatchConnection, report: WatchReport, onOpe
         if (status.isNotBlank()) {
             Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         }
-        Text(
-            "В первый раз часы попросят разрешение менять циферблат — откройте SyncTheme на часах и нажмите «Разрешить».",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        val updateAvailable = connection.hasApp && report.appVersion in 1 until bundledVersion
+        if (updateAvailable) {
+            Text(
+                "Доступна новая версия приложения для часов.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        if (!connection.hasApp || updateAvailable) {
+            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                Text(if (updateAvailable) "Обновить SyncTheme на часах" else "Установить SyncTheme на часы")
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(onClick = onOpen, enabled = connection.hasApp) { Text("Открыть на часах") }
             OutlinedButton(onClick = onRefresh) {
@@ -439,6 +448,9 @@ private fun WatchSection(connection: WatchConnection, report: WatchReport, onOpe
                 Spacer(Modifier.width(6.dp))
                 Text("Обновить")
             }
+        }
+        if (connection.hasApp) {
+            TextButton(onClick = onInstall) { Text("Подключить другие часы / переустановить") }
         }
     }
 }
