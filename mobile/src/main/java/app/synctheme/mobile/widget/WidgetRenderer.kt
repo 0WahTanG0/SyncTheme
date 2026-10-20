@@ -1,43 +1,92 @@
 package app.synctheme.mobile.widget
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.os.BatteryManager
-import android.provider.AlarmClock
-import android.provider.CalendarContract
+import android.text.format.DateFormat
 import android.view.Gravity
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.graphics.ColorUtils
 import app.synctheme.R
-import app.synctheme.core.FontWeight
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.CalendarData
+import app.synctheme.mobile.data.CalendarEvent
 import app.synctheme.mobile.data.WeatherCodes
 import app.synctheme.mobile.data.WeatherData
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.render.Colors
-import app.synctheme.mobile.ui.MainActivity
-import java.text.SimpleDateFormat
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-/** Собирает RemoteViews виджета по его виду, стилю и настройкам. */
+/**
+ * Собирает RemoteViews виджета. Для рабочего стола — сразу все размеры ([WidgetSize]):
+ * лаунчер сам показывает подходящий, поэтому при растягивании информации становится больше.
+ */
 object WidgetRenderer {
+    private const val WHITE = 0xFFFFFFFF.toInt()
 
-    /** Цвета виджета: свои или из темы. */
-    private class Palette(theme: Theme, config: WidgetConfig) {
-        val text = config.textColor ?: theme.textColor
+    /** Цвета по ролям элементов разметки. */
+    private class Palette(theme: Theme, config: WidgetConfig, family: String, accentBackground: Boolean) {
+        val main = config.textColor ?: theme.textColor
         val accent = config.accentColor ?: theme.accentColor
-        val muted = Colors.withAlpha(text, 0.6f)
-        val faint = Colors.withAlpha(text, 0.3f)
-        val surface = Colors.widgetSurface(theme)
-        /** Текст поверх акцентного цвета. */
-        val onAccent = if (Colors.isLight(accent)) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
+        val sub = Colors.withAlpha(main, 0.72f)
+        val faint = Colors.withAlpha(main, 0.3f)
+        val label = if (family == "neon") ColorUtils.blendARGB(accent, WHITE, 0.35f) else accent
+        val onAccent = if (Colors.isLight(accent)) 0xFF141414.toInt() else WHITE
+        /** Текст на фигуре: если сама фигура почти прозрачна, он стоит прямо на обоях. */
+        val on = if (accentBackground && config.opacity < 0.5f) main else onAccent
+        val onSub = Colors.withAlpha(on, 0.75f)
+        private val surface = Colors.widgetSurface(theme)
+        val bg = when (family) {
+            "blob" -> ColorUtils.blendARGB(surface, accent, 0.3f) or 0xFF000000.toInt()
+            "neon" -> 0xFF0B0B12.toInt()
+            else -> surface
+        }
+        val alpha = (config.opacity.coerceIn(0f, 1f) * 255).roundToInt()
+    }
+
+    /** Данные, общие для всех размеров одного виджета: считаются один раз. */
+    private class Data(val context: Context, val config: WidgetConfig, val weather: WeatherData?) {
+        val alarm: String? by lazy { nextAlarm(context) }
+        val events: List<CalendarEvent> by lazy { CalendarData.upcoming(context, 3) }
+        val month by lazy { CalendarData.month() }
+        val battery: Battery by lazy { Battery.read(context) }
+        val apps: List<Pair<String, Bitmap?>> by lazy {
+            val circle = config.style != "glass"
+            config.apps.ifEmpty { AppCatalog.defaults(context) }.take(8).map { it to AppCatalog.icon(context, it, 120, circle) }
+        }
+    }
+
+    /** Стиль оформления, к которому относится стиль виджета (для цветов). */
+    fun family(kind: WidgetKind, style: String): String = when {
+        kind == WidgetKind.CLOCK && style.startsWith("analog_") -> when (style) {
+            "analog_blob" -> "blob"
+            "analog_neon" -> "neon"
+            "analog_minimal" -> "minimal"
+            else -> "glass"
+        }
+        kind == WidgetKind.APPS -> when (style) {
+            "glass", "neon", "minimal" -> style
+            else -> "blob"
+        }
+        else -> style
+    }
+
+    fun layoutKey(kind: WidgetKind, config: WidgetConfig, size: WidgetSize): String {
+        val style = kind.style(config.style).id
+        val base = "${kind.prefix}_${style}_${size.key}"
+        return if (style.startsWith("analog_") && !config.showSeconds) base + "_ns" else base
     }
 
     fun build(
@@ -47,313 +96,303 @@ object WidgetRenderer {
         theme: Theme,
         weather: WeatherData? = WeatherRepository(context).cached,
     ): RemoteViews {
-        val p = Palette(theme, config)
-        val views = when (kind) {
-            WidgetKind.CLOCK -> clock(context, config, theme, p)
-            WidgetKind.DATE -> date(context, config, p)
-            WidgetKind.CALENDAR -> calendar(context, config, p)
-            WidgetKind.WEATHER -> weather(context, config, p, weather)
-            WidgetKind.BATTERY -> battery(context, config, p)
-        }
-        views.setImageViewResource(R.id.widget_bg, config.shape.drawable)
-        views.setInt(R.id.widget_bg, "setColorFilter", p.surface)
-        views.setInt(R.id.widget_bg, "setImageAlpha", (config.opacity.coerceIn(0f, 1f) * 255).roundToInt())
-        views.setOnClickPendingIntent(R.id.widget_root, clickIntent(context, kind))
-        return views
+        val data = Data(context, config, weather)
+        return RemoteViews(WidgetSize.entries.associate { it.sizeF to sized(context, kind, config, theme, it, data) })
     }
 
-    // ---------------------------------------------------------------- часы
+    /** Один размер — для превью в настройке. */
+    fun buildSize(
+        context: Context,
+        kind: WidgetKind,
+        config: WidgetConfig,
+        theme: Theme,
+        size: WidgetSize,
+        weather: WeatherData? = WeatherRepository(context).cached,
+    ): RemoteViews = sized(context, kind, config, theme, size, Data(context, config, weather))
 
-    private fun clock(context: Context, config: WidgetConfig, theme: Theme, p: Palette): RemoteViews {
-        val style = config.style
-        if (style.startsWith("analog_")) {
-            val dial = style.removePrefix("analog_")
-            return RemoteViews(context.packageName, ClockLayouts.analog(dial, config.showSeconds)).apply {
-                // Цифры на циферблате — цветом текста, деления — акцентом.
-                val dialColor = if (dial == "numbers") p.text else p.accent
-                setColorStateList(R.id.analog, "setDialTintList", ColorStateList.valueOf(dialColor))
-                setColorStateList(R.id.analog, "setHourHandTintList", ColorStateList.valueOf(p.text))
-                setColorStateList(R.id.analog, "setMinuteHandTintList", ColorStateList.valueOf(p.text))
-                if (config.showSeconds) {
-                    setColorStateList(R.id.analog, "setSecondHandTintList", ColorStateList.valueOf(p.accent))
-                }
-            }
+    private fun sized(context: Context, kind: WidgetKind, config: WidgetConfig, theme: Theme, size: WidgetSize, data: Data): RemoteViews {
+        val layout = WidgetLayouts[layoutKey(kind, config, size)]
+            ?: WidgetLayouts["${kind.prefix}_${kind.defaultStyle}_${size.key}"]!!
+        val style = kind.style(config.style).id
+        val p = Palette(theme, config, family(kind, style), layout.accentBackground)
+        val rv = RemoteViews(context.packageName, layout.res)
+        val v = Views(rv, layout)
+        v.paint(p, config.align)
+        when (kind) {
+            WidgetKind.CLOCK -> v.clock(style, data, p)
+            WidgetKind.CALENDAR -> v.calendar(context, family(kind, style), data, p)
+            WidgetKind.WEATHER -> v.weather(data, p)
+            WidgetKind.BATTERY -> v.battery(data.battery)
+            WidgetKind.APPS -> v.apps(context, data)
         }
-        val weight = when (config.fontWeight ?: theme.fontWeight) {
-            FontWeight.THIN -> "thin"
-            FontWeight.LIGHT -> "light"
-            FontWeight.REGULAR -> "regular"
-            FontWeight.BOLD -> "bold"
+        if (kind != WidgetKind.APPS) {
+            AppCatalog.clickIntent(context, kind, config)?.let { rv.setOnClickPendingIntent(R.id.widget_root, it) }
         }
-        val gravity = gravity(config.align)
-        return RemoteViews(context.packageName, ClockLayouts.digital(style, weight)).apply {
-            when (style) {
-                "stacked" -> {
-                    setTextColor(R.id.clock_hours, p.text)
-                    setTextColor(R.id.clock_minutes, p.accent)
-                    setInt(R.id.clock_hours, "setGravity", gravity)
-                    setInt(R.id.clock_minutes, "setGravity", gravity)
-                    dateLine(config, p, gravity)
-                    setInt(R.id.content, "setGravity", gravity)
-                }
-                "side" -> {
-                    setTextColor(R.id.clock_time, p.text)
-                    setInt(R.id.clock_divider, "setColorFilter", p.accent)
-                    setTextColor(R.id.clock_weekday, p.accent)
-                    setTextColor(R.id.clock_date, p.text)
-                }
-                "big" -> {
-                    setTextColor(R.id.clock_time, p.text)
-                    setInt(R.id.clock_time, "setGravity", gravity)
-                }
-                else -> { // classic, seconds
-                    setTextColor(R.id.clock_time, p.text)
-                    setInt(R.id.clock_time, "setGravity", gravity)
-                    dateLine(config, p, gravity)
-                    setInt(R.id.content, "setGravity", gravity)
-                }
-            }
-        }
+        return rv
     }
 
-    private fun RemoteViews.dateLine(config: WidgetConfig, p: Palette, gravity: Int) {
-        setViewVisibility(R.id.clock_date, if (config.showDate) View.VISIBLE else View.GONE)
-        setTextColor(R.id.clock_date, p.accent)
-        setInt(R.id.clock_date, "setGravity", gravity)
-    }
+    /** RemoteViews одной разметки: действия только для элементов, которые в ней есть. */
+    private class Views(val rv: RemoteViews, val layout: WidgetLayout) {
+        fun text(slot: String, value: CharSequence) = each(slot) { rv.setTextViewText(it, value) }
+        fun visible(slot: String, show: Boolean) = each(slot) { rv.setViewVisibility(it, if (show) View.VISIBLE else View.GONE) }
+        fun textColor(slot: String, color: Int) = each(slot) { rv.setTextColor(it, color) }
+        fun tint(slot: String, color: Int) = each(slot) { rv.setInt(it, "setColorFilter", color) }
 
-    // ---------------------------------------------------------------- дата
-
-    private fun date(context: Context, config: WidgetConfig, p: Palette): RemoteViews {
-        val layout = when (config.style) {
-            "line" -> R.layout.widget_date_line
-            "tear" -> R.layout.widget_date_tear
-            "compact" -> R.layout.widget_date_compact
-            else -> R.layout.widget_date_big_day
+        inline fun each(slot: String, action: (Int) -> Unit) {
+            for (id in WidgetSlots[slot]) if (layout.has(id)) action(id)
         }
-        return RemoteViews(context.packageName, layout).apply {
-            when (config.style) {
-                "line" -> {
-                    setTextColor(R.id.date_weekday, p.text)
-                    setTextColor(R.id.date_month, p.accent)
-                    val g = gravity(config.align)
-                    setInt(R.id.content, "setGravity", g)
-                    setInt(R.id.date_weekday, "setGravity", g)
-                    setInt(R.id.date_month, "setGravity", g)
+
+        fun paint(p: Palette, align: WidgetAlign) {
+            val gravity = when (align) {
+                WidgetAlign.START -> Gravity.START or Gravity.CENTER_VERTICAL
+                WidgetAlign.CENTER -> Gravity.CENTER
+                WidgetAlign.END -> Gravity.END or Gravity.CENTER_VERTICAL
+            }
+            for (i in layout.ids.indices) {
+                val id = layout.ids[i]
+                when (layout.roles[2 * i]) {
+                    'm' -> rv.setTextColor(id, p.main)
+                    's' -> rv.setTextColor(id, p.sub)
+                    'f' -> rv.setTextColor(id, p.faint)
+                    'a' -> rv.setTextColor(id, p.label)
+                    'o' -> rv.setTextColor(id, p.on)
+                    'n' -> rv.setTextColor(id, p.onSub)
+                    'M' -> rv.setInt(id, "setColorFilter", p.main)
+                    'S' -> rv.setInt(id, "setColorFilter", p.sub)
+                    'F' -> rv.setInt(id, "setColorFilter", p.faint)
+                    'A' -> rv.setInt(id, "setColorFilter", p.label)
+                    'O' -> rv.setInt(id, "setColorFilter", p.on)
+                    'N' -> rv.setInt(id, "setColorFilter", p.onSub)
+                    'b' -> {
+                        rv.setInt(id, "setColorFilter", p.bg)
+                        rv.setInt(id, "setImageAlpha", p.alpha)
+                    }
+                    'B' -> {
+                        rv.setInt(id, "setColorFilter", p.accent)
+                        rv.setInt(id, "setImageAlpha", p.alpha)
+                    }
+                    'g' -> rv.setInt(id, "setImageAlpha", p.alpha)
+                    'h', 'x' -> rv.setInt(id, "setColorFilter", p.accent)
+                    'P' -> {
+                        rv.setTextColor(id, p.onAccent)
+                        rv.setColorStateList(id, "setBackgroundTintList", ColorStateList.valueOf(p.accent))
+                    }
+                    'p' -> {
+                        rv.setColorStateList(id, "setProgressTintList", ColorStateList.valueOf(p.accent))
+                        rv.setColorStateList(id, "setProgressBackgroundTintList", ColorStateList.valueOf(p.faint))
+                    }
                 }
-                "tear" -> {
-                    setInt(R.id.date_header_bg, "setColorFilter", p.accent)
-                    setTextColor(R.id.date_month, p.onAccent)
-                    setTextColor(R.id.date_day, p.text)
-                    setTextColor(R.id.date_weekday, p.accent)
-                }
-                "compact" -> {
-                    setTextColor(R.id.date_weekday, p.accent)
-                    setTextColor(R.id.date_day, p.text)
-                }
-                else -> {
-                    setTextColor(R.id.date_weekday, p.accent)
-                    setTextColor(R.id.date_day, p.text)
-                    setTextColor(R.id.date_month, p.muted)
-                    val g = gravity(config.align)
-                    setInt(R.id.content, "setGravity", g)
-                    setInt(R.id.date_weekday, "setGravity", g)
-                    setInt(R.id.date_day, "setGravity", g)
-                    setInt(R.id.date_month, "setGravity", g)
-                }
+                // Выравнивание: текст и контейнеры, помеченные в разметке.
+                if (layout.roles[2 * i + 1] != '.') rv.setInt(id, "setGravity", gravity)
             }
         }
-    }
 
-    // ---------------------------------------------------------------- календарь
+        // ------------------------------------------------------------ часы
 
-    private fun calendar(context: Context, config: WidgetConfig, p: Palette): RemoteViews {
-        val layout = when (config.style) {
-            "agenda" -> R.layout.widget_calendar_agenda
-            "month_agenda" -> R.layout.widget_calendar_month_agenda
-            else -> R.layout.widget_calendar_month
-        }
-        return RemoteViews(context.packageName, layout).apply {
-            setTextColor(R.id.cal_title, p.accent)
-            if (config.style != "agenda") monthGrid(p)
-            when (config.style) {
-                "agenda" -> {
-                    val today = LocalDate.now()
-                    val title = today.dayOfWeek.getDisplayName(TextStyle.FULL_STANDALONE, Locale.getDefault())
-                        .replaceFirstChar { it.titlecase() } + ", " + SimpleDateFormat("d MMMM", Locale.getDefault()).format(Date())
-                    setTextViewText(R.id.cal_title, title)
-                    events(context, 5, p)
-                }
-                "month_agenda" -> events(context, 3, p)
+        fun clock(style: String, data: Data, p: Palette) {
+            val alarm = data.alarm
+            visible("row_alarm", alarm != null)
+            if (alarm != null) text("alarm", alarm)
+            if (!style.startsWith("analog_") || !layout.has(R.id.analog)) return
+            val (dial, hands, second) = when (style) {
+                "analog_blob" -> Triple(p.accent, p.onAccent, p.onAccent)
+                "analog_numbers" -> Triple(p.main, p.main, p.accent)
+                else -> Triple(p.accent, p.main, p.accent)
             }
+            rv.setColorStateList(R.id.analog, "setDialTintList", ColorStateList.valueOf(dial))
+            rv.setColorStateList(R.id.analog, "setHourHandTintList", ColorStateList.valueOf(hands))
+            rv.setColorStateList(R.id.analog, "setMinuteHandTintList", ColorStateList.valueOf(hands))
+            if (data.config.showSeconds) rv.setColorStateList(R.id.analog, "setSecondHandTintList", ColorStateList.valueOf(second))
         }
-    }
 
-    private fun RemoteViews.monthGrid(p: Palette) {
-        val grid = CalendarData.month()
-        setTextViewText(R.id.cal_title, grid.title)
-        grid.weekdays.forEachIndexed { i, name ->
-            setTextViewText(WidgetIds.CAL_WEEKDAYS[i], name.take(2))
-            setTextColor(WidgetIds.CAL_WEEKDAYS[i], p.muted)
-        }
-        grid.cells.forEachIndexed { i, cell ->
-            val id = WidgetIds.CAL_DAYS[i]
-            setTextViewText(id, cell.day.toString())
-            setTextColor(id, if (cell.today) p.onAccent else if (cell.inMonth) p.text else p.faint)
-            setViewVisibility(WidgetIds.CAL_DAY_BGS[i], if (cell.today) View.VISIBLE else View.GONE)
-            if (cell.today) setInt(WidgetIds.CAL_DAY_BGS[i], "setColorFilter", p.accent)
-        }
-    }
+        // ------------------------------------------------------------ календарь
 
-    private fun RemoteViews.events(context: Context, rows: Int, p: Palette) {
-        val events = CalendarData.upcoming(context, rows)
-        for (i in 0 until rows) {
-            val e = events.getOrNull(i)
-            setViewVisibility(WidgetIds.EV_ROWS[i], if (e != null) View.VISIBLE else View.GONE)
-            if (e == null) continue
-            setInt(WidgetIds.EV_DOTS[i], "setColorFilter", e.color.takeIf { it != 0 } ?: p.accent)
-            setTextViewText(WidgetIds.EV_TIMES[i], e.time)
-            setTextColor(WidgetIds.EV_TIMES[i], p.muted)
-            setTextViewText(WidgetIds.EV_TITLES[i], e.title)
-            setTextColor(WidgetIds.EV_TITLES[i], p.text)
-        }
-        val empty = when {
-            !CalendarData.hasPermission(context) -> "Разрешите доступ к календарю в SyncTheme"
-            events.isEmpty() -> "Ближайших событий нет"
-            else -> null
-        }
-        setViewVisibility(R.id.ev_empty, if (empty != null) View.VISIBLE else View.GONE)
-        if (empty != null) {
-            setTextViewText(R.id.ev_empty, empty)
-            setTextColor(R.id.ev_empty, p.muted)
-        }
-    }
-
-    // ---------------------------------------------------------------- погода
-
-    private fun weather(context: Context, config: WidgetConfig, p: Palette, data: WeatherData?): RemoteViews {
-        val layout = when (config.style) {
-            "details" -> R.layout.widget_weather_details
-            "hourly" -> R.layout.widget_weather_hourly
-            "daily" -> R.layout.widget_weather_daily
-            "full" -> R.layout.widget_weather_full
-            else -> R.layout.widget_weather_compact
-        }
-        val style = config.style
-        return RemoteViews(context.packageName, layout).apply {
-            fun icon(id: Int, code: Int, isDay: Boolean) {
-                setImageViewResource(id, WeatherCodes.icon(code, isDay))
-                // 0 — цвета иконки без изменений; иначе вся иконка в цвете текста.
-                setInt(id, "setColorFilter", if (config.colorIcons) 0 else p.text)
+        fun calendar(context: Context, family: String, data: Data, p: Palette) {
+            val events = data.events
+            val hint = when {
+                !CalendarData.hasPermission(context) -> "Разрешите доступ к календарю в SyncTheme"
+                events.isEmpty() -> "Событий нет"
+                else -> null
             }
-            val hasCurrentBlock = style == "compact" || style == "details" || style == "full"
-            setTextColor(R.id.wx_temp, p.text)
-            setTextColor(R.id.wx_city, if (hasCurrentBlock) p.muted else p.text)
-            if (hasCurrentBlock) setTextColor(R.id.wx_desc, p.accent)
-            if (data == null) {
-                setTextViewText(R.id.wx_temp, "--°")
-                setTextViewText(R.id.wx_city, "Выберите город в SyncTheme")
-                if (hasCurrentBlock) setTextViewText(R.id.wx_desc, "Нет данных")
-                icon(R.id.wx_icon, 2, true)
-                return@apply
-            }
-            val now = data.now
-            setTextViewText(R.id.wx_temp, deg(now.temp))
-            setTextViewText(R.id.wx_city, data.place)
-            icon(R.id.wx_icon, now.code, now.isDay)
-            if (hasCurrentBlock) setTextViewText(R.id.wx_desc, WeatherCodes.description(now.code))
-            val today = data.days.firstOrNull()
-            if (style == "details") {
-                setTextViewText(R.id.wx_feels, "Ощущается ${deg(now.feels)}")
-                setTextViewText(R.id.wx_wind, "Ветер ${now.wind.roundToInt()} м/с")
-                setTextViewText(R.id.wx_humidity, "Влажн. ${now.humidity}%")
-                for (id in listOf(R.id.wx_feels, R.id.wx_wind, R.id.wx_humidity)) setTextColor(id, p.text)
-                setTextViewText(R.id.wx_updated, "Обновлено " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(data.updatedAt)))
-                setTextColor(R.id.wx_updated, p.muted)
-            }
-            if ((style == "details" || style == "full") && today != null) {
-                setTextViewText(R.id.wx_range, "Днём ${deg(today.max)} · ночью ${deg(today.min)}")
-                setTextColor(R.id.wx_range, p.text)
-            }
-            if (style == "hourly" || style == "full") {
-                for (i in WidgetIds.H_TIMES.indices) {
-                    val h = data.hours.getOrNull(i) ?: continue
-                    setTextViewText(WidgetIds.H_TIMES[i], h.time)
-                    setTextColor(WidgetIds.H_TIMES[i], p.muted)
-                    icon(WidgetIds.H_ICONS[i], h.code, h.isDay)
-                    setTextViewText(WidgetIds.H_TEMPS[i], deg(h.temp))
-                    setTextColor(WidgetIds.H_TEMPS[i], p.text)
+            for (i in 0 until 3) {
+                val e = events.getOrNull(i)
+                visible("row_ev$i", e != null)
+                if (e != null) {
+                    text("ev${i}_title", e.title)
+                    text("ev${i}_time", e.time)
+                    tint("ed_$i", e.color.takeIf { it != 0 } ?: p.accent)
                 }
             }
-            if (style == "daily" || style == "full") {
-                val locale = Locale.getDefault()
-                for (i in WidgetIds.D_DAYS.indices) {
-                    val d = data.days.getOrNull(i) ?: continue
-                    val label = if (i == 0) "Сегодня" else LocalDate.parse(d.date).dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
-                    setTextViewText(WidgetIds.D_DAYS[i], label)
-                    setTextColor(WidgetIds.D_DAYS[i], if (i == 0) p.accent else p.muted)
-                    icon(WidgetIds.D_ICONS[i], d.code, true)
-                    setTextViewText(WidgetIds.D_MAXS[i], deg(d.max))
-                    setTextColor(WidgetIds.D_MAXS[i], p.text)
-                    setTextViewText(WidgetIds.D_MINS[i], deg(d.min))
-                    setTextColor(WidgetIds.D_MINS[i], p.text)
+            // В маленьких размерах строки событий нет — там первое событие или подсказка.
+            if (events.isEmpty()) text("ev0_title", hint.orEmpty())
+            visible("ev_empty", hint != null)
+            if (hint != null) text("ev_empty", hint)
+
+            if (!layout.has(R.id.m_cd0)) return
+            val grid = data.month
+            grid.weekdays.forEachIndexed { i, name -> text("wd$i", name.take(2)) }
+            val todayText = if (family == "neon" || family == "minimal") p.label else p.onAccent
+            grid.cells.forEachIndexed { i, cell ->
+                text("cd$i", cell.day.toString())
+                textColor("cd$i", if (cell.today) todayText else if (cell.inMonth) p.main else p.faint)
+                visible("tb_$i", cell.today)
+                if (cell.today) tint("tb_$i", p.accent)
+            }
+        }
+
+        // ------------------------------------------------------------ погода
+
+        fun weather(data: Data, p: Palette) {
+            val mono = !data.config.colorIcons
+            fun icon(slot: String, code: Int, isDay: Boolean) {
+                each(slot) {
+                    rv.setImageViewResource(it, WeatherCodes.icon(code, isDay))
+                    // 0 — цвета иконки без изменений; иначе вся иконка в цвете текста.
+                    rv.setInt(it, "setColorFilter", if (mono) p.main else 0)
+                }
+                // На акцентной фигуре цветная иконка теряется — она всегда одного цвета с текстом на фигуре.
+                if (slot == "wx_now") each("wxo_now") {
+                    rv.setImageViewResource(it, WeatherCodes.icon(code, isDay))
+                    rv.setInt(it, "setColorFilter", p.on)
                 }
             }
+            val w = data.weather
+            if (w == null) {
+                text("temp", "--°")
+                text("city", "Выберите город")
+                text("desc", "в SyncTheme")
+                text("range", "")
+                icon("wx_now", 2, true)
+                for (i in 0 until 5) {
+                    visible("cell_h$i", false)
+                    visible("cell_d$i", false)
+                }
+                return
+            }
+            text("temp", deg(w.now.temp))
+            text("city", w.place)
+            text("desc", WeatherCodes.description(w.now.code))
+            icon("wx_now", w.now.code, w.now.isDay)
+            w.days.firstOrNull()?.let { text("range", "↑${deg(it.max)}  ↓${deg(it.min)}") }
+            for (i in 0 until 5) {
+                val h = w.hours.getOrNull(i)
+                visible("cell_h$i", h != null)
+                if (h != null) {
+                    text("h${i}_time", h.time)
+                    icon("wx_h$i", h.code, h.isDay)
+                    text("h${i}_temp", deg(h.temp))
+                }
+                val d = w.days.getOrNull(i)
+                visible("cell_d$i", d != null)
+                if (d != null) {
+                    val label = if (i == 0) "Сегодня" else LocalDate.parse(d.date).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                    text("d${i}_day", label)
+                    icon("wx_d$i", d.code, true)
+                    text("d${i}_min", deg(d.min))
+                    text("d${i}_max", deg(d.max))
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ батарея
+
+        fun battery(b: Battery) {
+            text("pct", "${b.level}%")
+            for (slot in listOf("pb_ring", "pb_bar")) each(slot) { rv.setProgressBar(it, 100, b.level, false) }
+            text("state", b.state)
+            visible("i_bolt", b.charging)
+            visible("remain", b.remain != null)
+            b.remain?.let { text("remain", it) }
+            text("temp", b.temperature)
+            text("health", b.health)
+        }
+
+        // ------------------------------------------------------------ приложения
+
+        fun apps(context: Context, data: Data) {
+            val apps = data.apps
+            for (i in 0 until 8) {
+                val app = apps.getOrNull(i)
+                visible("cell_ap$i", app != null)
+                if (app == null) continue
+                val (component, icon) = app
+                each("ap_$i") { id ->
+                    if (icon != null) rv.setImageViewBitmap(id, icon) else rv.setImageViewResource(id, R.drawable.wapp_placeholder)
+                }
+                text("ap${i}_label", AppCatalog.label(context, component) ?: component.substringBefore('/'))
+                AppCatalog.launchIntent(context, component)?.let { intent ->
+                    val pi = PendingIntent.getActivity(
+                        context, component.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                    )
+                    each("cell_ap$i") { rv.setOnClickPendingIntent(it, pi) }
+                }
+            }
+            visible("row_apps1", apps.size > 4)
+            val title = data.config.title.trim()
+            visible("title", title.isNotEmpty())
+            if (title.isNotEmpty()) text("title", title)
         }
     }
 
     private fun deg(t: Double) = "${t.roundToInt()}°"
 
-    // ---------------------------------------------------------------- батарея
-
-    private fun battery(context: Context, config: WidgetConfig, p: Palette): RemoteViews {
-        val bm = context.getSystemService(BatteryManager::class.java)
-        val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).coerceIn(0, 100)
-        val charging = bm.isCharging
-        val layout = when (config.style) {
-            "bar" -> R.layout.widget_battery_bar
-            "big" -> R.layout.widget_battery_big
-            else -> R.layout.widget_battery_ring
+    private fun nextAlarm(context: Context): String? {
+        val info = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock ?: return null
+        val at = Instant.ofEpochMilli(info.triggerTime).atZone(ZoneId.systemDefault()).toLocalDate()
+        val time = DateFormat.getTimeFormat(context).format(Date(info.triggerTime))
+        val today = LocalDate.now()
+        return when (at) {
+            today -> time
+            today.plusDays(1) -> "завтра $time"
+            else -> at.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()) + " " + time
         }
-        return RemoteViews(context.packageName, layout).apply {
-            when (config.style) {
-                "bar" -> progress(R.id.battery_bar, level, p)
-                "big" -> Unit
-                else -> progress(R.id.battery_ring, level, p)
+    }
+
+    /** Состояние батареи телефона. */
+    class Battery(
+        val level: Int,
+        val charging: Boolean,
+        val state: String,
+        val remain: String?,
+        val temperature: String,
+        val health: String,
+    ) {
+        companion object {
+            fun read(context: Context): Battery {
+                val bm = context.getSystemService(BatteryManager::class.java)
+                val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).coerceIn(0, 100)
+                val sticky = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                val status = sticky?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+                val charging = bm.isCharging || status == BatteryManager.BATTERY_STATUS_CHARGING
+                val full = status == BatteryManager.BATTERY_STATUS_FULL || (charging && level >= 100)
+                val state = when {
+                    full -> "Заряжено"
+                    charging -> "Заряжается"
+                    else -> "От батареи"
+                }
+                val left = if (charging) bm.computeChargeTimeRemaining() else -1L
+                val remain = when {
+                    charging && left > 0 -> "Полная через " + duration(left)
+                    !charging && level <= 20 -> "Пора зарядить"
+                    else -> null
+                }
+                val temp = sticky?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE) ?: Int.MIN_VALUE
+                val temperature = if (temp == Int.MIN_VALUE) "" else "${(temp / 10.0).roundToInt()}°C"
+                val health = when (sticky?.getIntExtra(BatteryManager.EXTRA_HEALTH, 0)) {
+                    BatteryManager.BATTERY_HEALTH_GOOD -> "Состояние: норма"
+                    BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Перегрев"
+                    BatteryManager.BATTERY_HEALTH_COLD -> "Слишком холодно"
+                    BatteryManager.BATTERY_HEALTH_DEAD, BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE,
+                    BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Неисправность"
+                    else -> ""
+                }
+                return Battery(level, charging, state, remain, temperature, health)
             }
-            setTextViewText(R.id.battery_percent, "$level%")
-            setTextViewText(R.id.battery_state, if (charging) "⚡ заряжается" else if (config.style == "ring") "" else "телефон")
-            setTextColor(R.id.battery_percent, p.text)
-            setTextColor(R.id.battery_state, p.accent)
+
+            private fun duration(ms: Long): String {
+                val min = (ms / 60_000).toInt().coerceAtLeast(1)
+                return if (min < 60) "$min мин" else "${min / 60} ч ${min % 60} мин"
+            }
         }
-    }
-
-    private fun RemoteViews.progress(id: Int, level: Int, p: Palette) {
-        setProgressBar(id, 100, level, false)
-        setColorStateList(id, "setProgressTintList", ColorStateList.valueOf(p.accent))
-        setColorStateList(id, "setProgressBackgroundTintList", ColorStateList.valueOf(Colors.withAlpha(p.text, 0.25f)))
-    }
-
-    // ---------------------------------------------------------------- общее
-
-    private fun gravity(align: WidgetAlign) = when (align) {
-        WidgetAlign.START -> Gravity.START or Gravity.CENTER_VERTICAL
-        WidgetAlign.CENTER -> Gravity.CENTER
-        WidgetAlign.END -> Gravity.END or Gravity.CENTER_VERTICAL
-    }
-
-    private fun clickIntent(context: Context, kind: WidgetKind): PendingIntent {
-        val intent = when (kind) {
-            WidgetKind.CLOCK -> Intent(AlarmClock.ACTION_SHOW_ALARMS)
-            WidgetKind.DATE, WidgetKind.CALENDAR -> Intent(
-                Intent.ACTION_VIEW,
-                CalendarContract.CONTENT_URI.buildUpon().appendPath("time").appendPath(System.currentTimeMillis().toString()).build(),
-            )
-            WidgetKind.WEATHER -> Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_TAB, MainActivity.TAB_WIDGETS)
-            WidgetKind.BATTERY -> Intent(Intent.ACTION_POWER_USAGE_SUMMARY)
-        }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return PendingIntent.getActivity(
-            context, kind.ordinal, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
     }
 }

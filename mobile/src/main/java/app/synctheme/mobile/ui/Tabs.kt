@@ -108,8 +108,9 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
     item {
         Section("Добавить виджет") {
             Text(
-                "После добавления откроется настройка: стиль, расположение, шрифт, подложка и цвета. " +
-                    "Изменить позже: зажмите виджет → «Настройки» или кнопка ниже.",
+                "После добавления откроется настройка: стиль, подложка, цвета и что открывать по нажатию. " +
+                    "Растяните виджет на рабочем столе — он покажет больше: у погоды появятся город и прогноз, " +
+                    "у календаря — события и месяц. Изменить позже: зажмите виджет → «Настройки» или кнопка ниже.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             WidgetKind.entries.forEach { kind ->
@@ -269,9 +270,9 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
 // ---------------------------------------------------------------- общие блоки
 
 @Composable
-fun ChipRow(content: @Composable () -> Unit) {
+fun ChipRow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        modifier = modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) { content() }
 }

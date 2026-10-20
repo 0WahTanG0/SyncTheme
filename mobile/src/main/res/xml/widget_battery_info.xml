@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Разметка подбирается под размер (RemoteViews по размерам): от 1×1 до 4×4. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:configure="app.synctheme.mobile.widget.WidgetConfigActivity"
     android:description="@string/widget_battery_desc"
-    android:initialLayout="@layout/widget_battery_ring"
+    android:initialLayout="@layout/w_bat_glass_m"
     android:minWidth="110dp"
     android:minHeight="110dp"
-    android:minResizeWidth="60dp"
+    android:minResizeWidth="40dp"
     android:minResizeHeight="40dp"
-    android:previewLayout="@layout/widget_battery_ring"
+    android:previewLayout="@layout/w_bat_glass_m"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="2"
     android:targetCellHeight="2"

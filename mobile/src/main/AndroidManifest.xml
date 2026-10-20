@@ -11,6 +11,38 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
+    <!-- Виджеты открывают приложения: будильник, календарь, батарею, погоду и выбранные в папке. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="content" android:host="com.android.calendar" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.POWER_USAGE_SUMMARY" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.BATTERY_SAVER_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <package android:name="com.sec.android.daemonapp" />
+    </queries>
+
     <application
         android:name=".mobile.SyncThemeApp"
         android:allowBackup="true"
@@ -53,10 +85,6 @@
         <receiver
             android:name=".mobile.update.UpdateReceiver"
             android:exported="false" />
-
-
-
-
 
         <receiver
             android:name=".mobile.widget.ClockWidget"
@@ -116,6 +144,27 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_battery_info" />
+        </receiver>
+
+        <receiver
+            android:name=".mobile.widget.AppsWidget"
+            android:exported="false"
+            android:label="@string/widget_apps">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_apps_info" />
+        </receiver>
+
+        <!-- Следующий будильник показывается на виджете часов. -->
+        <receiver
+            android:name=".mobile.widget.AlarmChangedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.app.action.NEXT_ALARM_CLOCK_CHANGED" />
+            </intent-filter>
         </receiver>
 
         <!-- Настройка виджета: при добавлении, по «Настройки» у виджета и из приложения. -->

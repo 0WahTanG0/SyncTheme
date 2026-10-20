@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Сгенерировано scripts/gen_widget_resources.py — не редактировать вручную. -->
+<!-- Сгенерировано scripts/gen_widgets.py — не редактировать вручную. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="48dp" android:height="48dp"
     android:viewportWidth="48" android:viewportHeight="48">
-    <path android:fillColor="#FFC9D1DC" android:pathData="M9.60,25.55a6.6499999999999995,6.6499999999999995 0 1,0 13.299999999999999,0a6.6499999999999995,6.6499999999999995 0 1,0 -13.299999999999999,0z" />
-    <path android:fillColor="#FFC9D1DC" android:pathData="M15.30,18.90a9.5,9.5 0 1,0 19.0,0a9.5,9.5 0 1,0 -19.0,0z" />
-    <path android:fillColor="#FFC9D1DC" android:pathData="M26.70,24.60a7.6,7.6 0 1,0 15.2,0a7.6,7.6 0 1,0 -15.2,0z" />
+    <path android:fillColor="#FFC9D1DC" android:pathData="M9.60,25.55a6.65,6.65 0 1,0 13.30,0a6.65,6.65 0 1,0 -13.30,0z" />
+    <path android:fillColor="#FFC9D1DC" android:pathData="M15.30,18.90a9.50,9.50 0 1,0 19.00,0a9.50,9.50 0 1,0 -19.00,0z" />
+    <path android:fillColor="#FFC9D1DC" android:pathData="M26.70,24.60a7.60,7.60 0 1,0 15.20,0a7.60,7.60 0 1,0 -15.20,0z" />
     <path android:fillColor="#FFC9D1DC" android:pathData="M16.25,20.8h18.05v11.4h-18.05z" />
     <path android:pathData="M10.00,40.00L38.00,40.00" android:strokeWidth="3" android:strokeColor="#FFC9D1DC" android:strokeLineCap="round" />
     <path android:pathData="M14.00,45.00L34.00,45.00" android:strokeWidth="3" android:strokeColor="#FFC9D1DC" android:strokeLineCap="round" />

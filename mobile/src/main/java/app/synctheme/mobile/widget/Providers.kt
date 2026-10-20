@@ -3,6 +3,7 @@ package app.synctheme.mobile.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -24,29 +25,41 @@ abstract class ThemedWidget(val kind: WidgetKind) : AppWidgetProvider() {
 }
 
 class ClockWidget : ThemedWidget(WidgetKind.CLOCK)
-class DateWidget : ThemedWidget(WidgetKind.DATE)
 class CalendarWidget : ThemedWidget(WidgetKind.CALENDAR)
 class WeatherWidget : ThemedWidget(WidgetKind.WEATHER)
 class BatteryWidget : ThemedWidget(WidgetKind.BATTERY)
+class AppsWidget : ThemedWidget(WidgetKind.APPS)
+
+/** Прежний виджет «Дата»: теперь он часть календаря и скрыт из списка виджетов, но уже добавленные работают. */
+class DateWidget : ThemedWidget(WidgetKind.CALENDAR)
+
+/** Будильник поменялся — обновить часы, где показан следующий будильник. */
+class AlarmChangedReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        WidgetUpdater.update(context, WidgetKind.CLOCK)
+    }
+}
 
 /** Размещённый на экране виджет. */
 data class PlacedWidget(val id: Int, val kind: WidgetKind, val config: WidgetConfig)
 
 object WidgetUpdater {
     private val providers = mapOf(
-        WidgetKind.CLOCK to ClockWidget::class.java,
-        WidgetKind.DATE to DateWidget::class.java,
-        WidgetKind.CALENDAR to CalendarWidget::class.java,
-        WidgetKind.WEATHER to WeatherWidget::class.java,
-        WidgetKind.BATTERY to BatteryWidget::class.java,
+        WidgetKind.CLOCK to listOf(ClockWidget::class.java),
+        WidgetKind.CALENDAR to listOf(CalendarWidget::class.java, DateWidget::class.java),
+        WidgetKind.WEATHER to listOf(WeatherWidget::class.java),
+        WidgetKind.BATTERY to listOf(BatteryWidget::class.java),
+        WidgetKind.APPS to listOf(AppsWidget::class.java),
     )
 
-    fun ids(context: Context, kind: WidgetKind): IntArray =
-        AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, providers.getValue(kind)))
+    fun ids(context: Context, kind: WidgetKind): IntArray {
+        val manager = AppWidgetManager.getInstance(context)
+        return providers.getValue(kind).flatMap { manager.getAppWidgetIds(ComponentName(context, it)).toList() }.toIntArray()
+    }
 
     fun kindOf(context: Context, id: Int): WidgetKind? {
         val cls = AppWidgetManager.getInstance(context).getAppWidgetInfo(id)?.provider?.className ?: return null
-        return providers.entries.firstOrNull { it.value.name == cls }?.key
+        return providers.entries.firstOrNull { e -> e.value.any { it.name == cls } }?.key
     }
 
     fun config(context: Context, id: Int, kind: WidgetKind): WidgetConfig =
@@ -85,6 +98,6 @@ object WidgetUpdater {
             Intent(context, WidgetConfigActivity::class.java).putExtra(WidgetConfigActivity.EXTRA_KIND, kind.name),
             PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        return manager.requestPinAppWidget(ComponentName(context, providers.getValue(kind)), null, configure)
+        return manager.requestPinAppWidget(ComponentName(context, providers.getValue(kind).first()), null, configure)
     }
 }

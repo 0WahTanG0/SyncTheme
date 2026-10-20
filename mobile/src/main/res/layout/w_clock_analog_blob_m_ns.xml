@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widgets.py — не редактировать вручную. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <AnalogClock
+        android:id="@+id/analog"
+        android:layout_margin="8dp"
+        android:dial="@drawable/dial_cookie"
+        android:hand_hour="@drawable/hand_hour_round"
+        android:hand_minute="@drawable/hand_minute_round"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+</FrameLayout>

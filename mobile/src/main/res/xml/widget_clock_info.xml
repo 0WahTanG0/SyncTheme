@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Разметка подбирается под размер (RemoteViews по размерам): от 1×1 до 4×4. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:configure="app.synctheme.mobile.widget.WidgetConfigActivity"
     android:description="@string/widget_clock_desc"
-    android:initialLayout="@layout/widget_clock_classic_light"
+    android:initialLayout="@layout/w_clock_bold_wide"
     android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="60dp"
+    android:minResizeWidth="40dp"
     android:minResizeHeight="40dp"
-    android:previewLayout="@layout/widget_clock_classic_light"
+    android:previewLayout="@layout/w_clock_bold_wide"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="4"
     android:targetCellHeight="2"

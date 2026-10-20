@@ -13,14 +13,12 @@ import app.synctheme.core.Presets
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.watch.WatchFaceBuilder
-import app.synctheme.core.FontWeight
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.widget.WidgetAlign
 import app.synctheme.mobile.widget.WidgetConfig
 import app.synctheme.mobile.widget.WidgetKind
 import app.synctheme.mobile.widget.WidgetRenderer
-import app.synctheme.mobile.widget.WidgetShape
-import app.synctheme.mobile.widget.previewSize
+import app.synctheme.mobile.widget.WidgetSize
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
@@ -29,11 +27,13 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /** Рендерит превью, обои и виджеты в PNG и собирает циферблат так же, как на телефоне. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(qualifiers = "w411dp-h891dp-xhdpi")
 class RenderingTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val out = File(System.getProperty("previewsDir")!!).apply { mkdirs() }
@@ -50,36 +50,49 @@ class RenderingTest {
         }
     }
 
+    /**
+     * Все виды × стили × размеры: apply() вызывает методы через рефлексию и упадёт, если метод
+     * нельзя вызывать из RemoteViews. Для просмотра собирается лист «стили по строкам, размеры по столбцам».
+     */
     @Test
     fun allWidgetStylesRender() {
         val weather = WeatherRepository.parseForecast(
             javaClass.classLoader!!.getResource("forecast.json")!!.readText(), "Москва", System.currentTimeMillis(),
         )
-        val themes = listOf(Presets.all[0], Presets.all[6])
-        for (theme in themes) {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val d = context.resources.displayMetrics.density
+        for (theme in listOf(Presets.all[0], Presets.all[6])) {
             for (kind in WidgetKind.entries) {
-                for (style in kind.styles) {
-                    val variants = buildList {
-                        add("" to WidgetConfig(style = style.id, opacity = 0.45f))
-                        if (theme == themes.first()) {
-                            add("_left" to WidgetConfig(style = style.id, align = WidgetAlign.START, shape = WidgetShape.SOFT, opacity = 0.8f,
-                                showSeconds = false, colorIcons = false, fontWeight = FontWeight.BOLD))
-                        }
-                    }
-                    for ((suffix, config) in variants) {
-                        // apply() вызывает методы через рефлексию — упадёт, если метод нельзя вызывать из RemoteViews.
-                        val views = WidgetRenderer.build(context, kind, config, theme, weather)
-                        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+                // В Robolectric нет установленных приложений — значки заменятся заглушками, подписи — именами пакетов.
+                val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
+                val variants = kind.styles.map { it.title to WidgetConfig(style = it.id, opacity = 0.45f, apps = apps) } +
+                    listOf("Свои настройки" to WidgetConfig(style = kind.defaultStyle, align = WidgetAlign.START, opacity = 0.85f,
+                        showSeconds = false, colorIcons = false, title = "Избранное", apps = apps.take(3)))
+                val gap = (12 * d).toInt()
+                val cellW = WidgetSize.entries.map { (it.previewW * d).toInt() }
+                val rowH = (WidgetSize.entries.maxOf { it.previewH } * d).toInt()
+                val sheet = Bitmap.createBitmap(cellW.sum() + gap * (cellW.size + 1), (rowH + gap) * variants.size + gap, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(sheet)
+                canvas.drawColor(0xFF202024.toInt())
+                variants.forEachIndexed { r, (_, config) ->
+                    var x = gap
+                    WidgetSize.entries.forEachIndexed { c, size ->
+                        val views = WidgetRenderer.buildSize(context, kind, config, theme, size, weather)
+                        // Часы ставят время, только когда прикреплены к окну.
                         val host = FrameLayout(activity)
                         activity.setContentView(host)
                         val view = views.apply(activity, host)
                         host.addView(view)
                         shadowOf(Looper.getMainLooper()).idle()
-                        val (w, h) = previewSize(kind, style.id)
-                        render(view, w.value.toInt(), h.value.toInt())
-                            .save("w_${theme.id}_${kind.name.lowercase()}_${style.id}$suffix.png")
+                        val bmp = render(view, size.previewW, size.previewH, ThemeRenderer.background(context, theme, cellW[c], (size.previewH * d).toInt()))
+                        canvas.drawBitmap(bmp, x.toFloat(), (gap + r * (rowH + gap)).toFloat(), null)
+                        x += cellW[c] + gap
                     }
                 }
+                sheet.save("widgets_${theme.id}_${kind.name.lowercase()}.png")
+                // Все размеры сразу — так виджет уходит в лаунчер.
+                val all = WidgetRenderer.build(context, kind, variants.first().second, theme, weather)
+                assertTrue(all.apply(activity, FrameLayout(activity)) != null)
             }
         }
     }
@@ -94,7 +107,7 @@ class RenderingTest {
         }
     }
 
-    private fun render(view: View, wDp: Int, hDp: Int): Bitmap {
+    private fun render(view: View, wDp: Int, hDp: Int, background: Bitmap): Bitmap {
         val d = context.resources.displayMetrics.density
         val w = (wDp * d).toInt()
         val h = (hDp * d).toInt()
@@ -102,7 +115,7 @@ class RenderingTest {
         view.layout(0, 0, w, h)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        canvas.drawColor(0xFF3A3A44.toInt())
+        canvas.drawBitmap(background, null, android.graphics.Rect(0, 0, w, h), null)
         view.draw(canvas)
         return bmp
     }
