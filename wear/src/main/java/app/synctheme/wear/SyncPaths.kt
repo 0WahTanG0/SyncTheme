@@ -4,6 +4,8 @@ package app.synctheme.wear
 object SyncPaths {
     const val PATH_WATCHFACE = "/synctheme/watchface"
     const val PATH_STATUS = "/synctheme/status"
+    const val PATH_PING = "/synctheme/ping"
+    const val PATH_PONG = "/synctheme/pong"
     const val KEY_APK = "apk"
     const val KEY_TOKEN = "token"
     const val KEY_THEME_NAME = "name"

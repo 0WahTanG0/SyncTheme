@@ -86,7 +86,12 @@ object WidgetRenderer {
     fun layoutKey(kind: WidgetKind, config: WidgetConfig, size: WidgetSize): String {
         val style = kind.style(config.style).id
         val base = "${kind.prefix}_${style}_${size.key}"
-        return if (style.startsWith("analog_") && !config.showSeconds) base + "_ns" else base
+        return when {
+            style.startsWith("analog_") -> if (config.showSeconds) base else base + "_ns"
+            // У цифровых часов своя разметка на каждый шрифт цифр.
+            kind == WidgetKind.CLOCK -> base + "_" + config.copy(style = style).digitFont().name.lowercase()
+            else -> base
+        }
     }
 
     fun build(
@@ -112,7 +117,7 @@ object WidgetRenderer {
 
     private fun sized(context: Context, kind: WidgetKind, config: WidgetConfig, theme: Theme, size: WidgetSize, data: Data): RemoteViews {
         val layout = WidgetLayouts[layoutKey(kind, config, size)]
-            ?: WidgetLayouts["${kind.prefix}_${kind.defaultStyle}_${size.key}"]!!
+            ?: WidgetLayouts[layoutKey(kind, WidgetConfig(style = kind.defaultStyle), size)]!!
         val style = kind.style(config.style).id
         val p = Palette(theme, config, family(kind, style), layout.accentBackground)
         val rv = RemoteViews(context.packageName, layout.res)

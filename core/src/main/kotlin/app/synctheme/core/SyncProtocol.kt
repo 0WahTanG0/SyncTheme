@@ -18,6 +18,10 @@ object SyncProtocol {
     /** Сообщение часы -> телефон с результатом установки. */
     const val PATH_STATUS = "/synctheme/status"
 
+    /** Проверка времени: телефон шлёт ping, часы сразу отвечают pong со своим временем (мс, текстом). */
+    const val PATH_PING = "/synctheme/ping"
+    const val PATH_PONG = "/synctheme/pong"
+
     /** Ссылки, которыми телефон и часы открывают приложение друг друга (RemoteActivityHelper). */
     const val WATCH_OPEN_URI = "synctheme://watch"
     const val PHONE_OPEN_URI = "synctheme://phone"

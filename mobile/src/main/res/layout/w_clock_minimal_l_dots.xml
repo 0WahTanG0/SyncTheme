@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widgets.py — не редактировать вручную. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg_s"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/wbg_r18"
+        android:importantForAccessibility="no"
+        android:tint="#E61B1B24" />
+
+    <LinearLayout
+        android:padding="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <TextClock
+            android:id="@+id/m_time_al"
+            android:layout_weight="1"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:gravity="center"
+            android:format12Hour="h:mm"
+            android:format24Hour="H:mm"
+            android:fontFamily="@font/doto"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="30sp"
+            android:autoSizeMaxTextSize="360sp"
+            android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+        <ImageView
+            android:id="@+id/if_line"
+            android:layout_marginVertical="10dp"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:scaleType="fitXY"
+            android:src="@drawable/wline"
+            android:importantForAccessibility="no" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextClock
+                android:id="@+id/a_date"
+                android:layout_weight="1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:gravity="start"
+                android:format12Hour="EEEE d MMMM"
+                android:format24Hour="EEEE d MMMM"
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:textAllCaps="true"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <LinearLayout
+                android:id="@+id/row_alarm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:id="@+id/is_alarm"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/wic_alarm"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/s_alarm"
+                    android:layout_marginStart="5dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="start"
+                    android:fontFamily="sans-serif-light"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="#FFFFFFFF" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

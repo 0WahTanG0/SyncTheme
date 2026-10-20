@@ -25,10 +25,42 @@ enum class ClockStyle {
     /** Матовый стеклянный диск и бегущие по его краю секунды. */
     GLASS,
     /** Тонкие цифры, деления и одна точка, которая обходит циферблат за час. */
-    MINIMAL;
+    MINIMAL,
+    /** Кольца с цифрами часов и минут вращаются, текущее время — в окошке справа. */
+    DRUM,
+    /** Прошлый, текущий и следующий час и минута столбиками, секунды — шкала между ними. */
+    COLUMNS,
+    /** Часы и минуты — «планеты» на своих орбитах. */
+    PLANETS,
+    /** Точечные цифры и 60 огоньков секунд по кругу. */
+    MATRIX,
+    /** Циферблат за минуту заполняется «жидкостью» с пузырьками. */
+    LIQUID,
+    /** Часы слева сверху, минуты справа снизу, секунды бегут по диагонали. */
+    DIAGONAL;
 
-    /** Классические раскладки: у них настраиваются шрифт и циферблат стрелок. */
+    /** Классические раскладки: у них настраиваются насыщенность шрифта и циферблат стрелок. */
     val classic get() = this == DIGITAL || this == STACKED || this == ANALOG
+
+    /** Есть ли цифры времени (у стрелочных нет — им шрифт цифр не нужен). */
+    val hasDigits get() = this != ANALOG && this != BLOB
+
+    /** Шрифт цифр, с которым стиль задуман; null — системный шрифт с выбранной насыщенностью. */
+    val defaultDigitFont: DigitFont?
+        get() = when (this) {
+            BOLD -> DigitFont.NARROW
+            ORBIT -> DigitFont.SPACE
+            NEON -> DigitFont.TUBE
+            GLASS -> DigitFont.ITALIC
+            MINIMAL -> DigitFont.THIN
+            DRUM -> DigitFont.MONO
+            COLUMNS -> DigitFont.SERIF
+            PLANETS -> DigitFont.WIDE
+            MATRIX -> DigitFont.DOTS
+            LIQUID -> DigitFont.BUBBLE
+            DIAGONAL -> DigitFont.BLOCK
+            DIGITAL, STACKED, ANALOG, BLOB -> null
+        }
 }
 
 /** Насыщенность шрифта часов. */
@@ -67,7 +99,12 @@ data class WatchSettings(
     val showDate: Boolean = true,
     val dim: Float = 0.15f,
     val complications: Boolean = true,
-)
+    /** Шрифт цифр; null — как задумано в стиле ([ClockStyle.defaultDigitFont]). */
+    val digitFont: DigitFont? = null,
+) {
+    /** Итоговый шрифт цифр; null — системный шрифт с насыщенностью [fontWeight]. */
+    fun digits(): DigitFont? = digitFont ?: clockStyle.defaultDigitFont
+}
 
 @Serializable
 data class Theme(
@@ -92,6 +129,8 @@ data class Theme(
     val lockDim: Float? = null,
     /** Отдельные настройки часов; null — часы подстраиваются под телефон. */
     val watch: WatchSettings? = null,
+    /** Шрифт цифр циферблата; null — как задумано в стиле. */
+    val digitFont: DigitFont? = null,
 ) {
     /** Итоговые настройки циферблата: свои или повторяющие телефон. */
     fun watchSettings(): WatchSettings = watch ?: followPhone()
@@ -108,6 +147,7 @@ data class Theme(
         showDate = showDate,
         dim = dim,
         complications = watchComplications,
+        digitFont = digitFont,
     )
 
     fun watchBackground(): Background = watchSettings().background ?: background

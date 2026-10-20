@@ -47,6 +47,11 @@ class MainActivity : ComponentActivity() {
         RemoteActivityHelper(this).startRemoteActivity(intent, null)
     }
 
+    /** Настройки даты и времени часов: там включается синхронизация с телефоном. */
+    fun openDateSettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_DATE_SETTINGS)) }
+    }
+
     fun openAppSettings() {
         startActivity(
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
@@ -128,6 +133,11 @@ private fun WearApp(activity: MainActivity) {
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("Установить ещё раз") }
+                }
+                item {
+                    OutlinedButton(onClick = { activity.openDateSettings() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Настройки времени")
+                    }
                 }
             }
         }

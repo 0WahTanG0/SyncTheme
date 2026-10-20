@@ -60,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import app.synctheme.core.DigitFont
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.CalendarData
 import app.synctheme.mobile.data.ThemeRepository
@@ -72,6 +73,7 @@ import app.synctheme.mobile.ui.AppTheme
 import app.synctheme.mobile.ui.ChipRow
 import app.synctheme.mobile.ui.ColorPickerDialog
 import app.synctheme.mobile.ui.ColorSwatch
+import app.synctheme.mobile.ui.DigitFontPicker
 import app.synctheme.mobile.ui.LabeledSlider
 import app.synctheme.mobile.ui.LocalLook
 import app.synctheme.mobile.ui.Section
@@ -171,6 +173,7 @@ fun WidgetConfigScreen(
     val style = kind.style(config.style).id
     val analog = style.startsWith("analog_")
     val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("bold", "glass", "minimal")
+    val digital = kind == WidgetKind.CLOCK && !analog
 
     AppBackdrop {
         Column(Modifier.statusBarsPadding().navigationBarsPadding()) {
@@ -215,6 +218,16 @@ fun WidgetConfigScreen(
                         }
                         if (analog) {
                             SwitchRow("Секундная стрелка", config.showSeconds) { config = config.copy(showSeconds = it) }
+                        }
+                    }
+                }
+                if (digital) {
+                    item {
+                        Section("Шрифт цифр") {
+                            DigitFontPicker(
+                                selected = config.font?.let { f -> DigitFont.entries.firstOrNull { it.name == f } },
+                                styleDefault = defaultDigitFont(style),
+                            ) { font -> config = config.copy(font = font?.name) }
                         }
                     }
                 }

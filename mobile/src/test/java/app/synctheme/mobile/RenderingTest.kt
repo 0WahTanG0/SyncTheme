@@ -9,6 +9,7 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
 import app.synctheme.core.ClockStyle
+import app.synctheme.core.DigitFont
 import app.synctheme.core.Presets
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.ThemeRenderer
@@ -95,6 +96,57 @@ class RenderingTest {
                 assertTrue(all.apply(activity, FrameLayout(activity)) != null)
             }
         }
+    }
+
+    /** Шрифты цифр в каждом стиле цифровых часов (размер 2×2 и 4×2): строки — шрифты, столбцы — стили. */
+    @Test
+    fun widgetClockFonts() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val d = context.resources.displayMetrics.density
+        val theme = Presets.all[0]
+        val styles = WidgetKind.CLOCK.styles.filter { !it.id.startsWith("analog_") }
+        for (size in listOf(WidgetSize.M, WidgetSize.WIDE)) {
+            val cw = (size.previewW * d).toInt()
+            val ch = (size.previewH * d).toInt()
+            val gap = (10 * d).toInt()
+            val sheet = Bitmap.createBitmap(styles.size * (cw + gap) + gap, DigitFont.entries.size * (ch + gap) + gap, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(sheet)
+            canvas.drawColor(0xFF202024.toInt())
+            val wallpaper = ThemeRenderer.background(context, theme, cw, ch)
+            DigitFont.entries.forEachIndexed { r, font ->
+                styles.forEachIndexed { c, style ->
+                    val config = WidgetConfig(style = style.id, opacity = 0.45f, font = font.name)
+                    val host = FrameLayout(activity)
+                    activity.setContentView(host)
+                    val view = WidgetRenderer.buildSize(context, WidgetKind.CLOCK, config, theme, size).apply(activity, host)
+                    host.addView(view)
+                    shadowOf(Looper.getMainLooper()).idle()
+                    canvas.drawBitmap(render(view, size.previewW, size.previewH, wallpaper), (gap + c * (cw + gap)).toFloat(), (gap + r * (ch + gap)).toFloat(), null)
+                }
+            }
+            sheet.save("clock_fonts_${size.key}.png")
+        }
+    }
+
+    /** Каждый шрифт цифр в нескольких стилях циферблата: строки — стили, столбцы — шрифты. */
+    @Test
+    fun watchFonts() {
+        val size = 220
+        val gap = 14
+        val styles = listOf(ClockStyle.DIGITAL, ClockStyle.BOLD, ClockStyle.COLUMNS, ClockStyle.DIAGONAL, ClockStyle.DRUM)
+        val fonts = DigitFont.entries
+        val sheet = Bitmap.createBitmap(fonts.size * (size + gap) + gap, styles.size * (size + gap) + gap, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(sheet)
+        canvas.drawColor(0xFF202024.toInt())
+        styles.forEachIndexed { r, style ->
+            fonts.forEachIndexed { c, font ->
+                val theme = Presets.all[0].copy(clockStyle = style, digitFont = font)
+                val bg = ThemeRenderer.watchBackground(context, theme)
+                val preview = ThemeRenderer.watchPreview(context, theme.watchSettings(), bg, size)
+                canvas.drawBitmap(preview, (gap + c * (size + gap)).toFloat(), (gap + r * (size + gap)).toFloat(), null)
+            }
+        }
+        sheet.save("watch_fonts.png")
     }
 
     /** Все стили циферблата на двух темах — лист для просмотра. */

@@ -1,5 +1,6 @@
 package app.synctheme.mobile.render
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -17,6 +18,7 @@ import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.DialStyle
+import app.synctheme.core.DigitFont
 import app.synctheme.core.FontWeight
 import app.synctheme.core.Theme
 import app.synctheme.core.WatchSettings
@@ -200,8 +202,8 @@ object ThemeRenderer {
         canvas.drawBitmap(watchBg, null, RectF(0f, 0f, WATCH, WATCH), Paint(Paint.FILTER_BITMAP_FLAG))
         val fonts = Fonts(context)
         when (theme.clockStyle) {
-            ClockStyle.DIGITAL -> drawDigital(canvas, theme)
-            ClockStyle.STACKED -> drawStacked(canvas, theme)
+            ClockStyle.DIGITAL -> drawDigital(canvas, theme, fonts)
+            ClockStyle.STACKED -> drawStacked(canvas, theme, fonts)
             ClockStyle.ANALOG -> drawAnalog(canvas, theme)
             ClockStyle.BOLD -> drawBold(canvas, theme, fonts)
             ClockStyle.ORBIT -> drawOrbit(canvas, theme, fonts)
@@ -209,18 +211,35 @@ object ThemeRenderer {
             ClockStyle.BLOB -> drawBlob(canvas, theme, fonts)
             ClockStyle.GLASS -> drawGlass(canvas, theme, fonts)
             ClockStyle.MINIMAL -> drawMinimal(canvas, theme, fonts)
+            ClockStyle.DRUM -> drawDrum(canvas, theme, fonts)
+            ClockStyle.COLUMNS -> drawColumns(canvas, theme, fonts)
+            ClockStyle.PLANETS -> drawPlanets(canvas, theme, fonts)
+            ClockStyle.MATRIX -> drawMatrix(canvas, theme, fonts)
+            ClockStyle.LIQUID -> drawLiquid(canvas, theme, fonts)
+            ClockStyle.DIAGONAL -> drawDiagonal(canvas, theme, fonts)
         }
         return bmp
     }
 
     /** Те же шрифты, что лежат в шаблоне циферблата. */
-    private class Fonts(context: Context) {
+    private class Fonts(private val context: Context) {
         private val res = context.resources
-        val bold: Typeface = res.getFont(R.font.oswald_700)
-        val neon: Typeface = res.getFont(R.font.unbounded_700)
         val round: Typeface = res.getFont(R.font.nunito_900)
-        val glass: Typeface = res.getFont(R.font.manrope_800)
         val label: Typeface = res.getFont(R.font.onest_600)
+        private val digits = HashMap<DigitFont, Typeface>()
+
+        @SuppressLint("DiscouragedApi")
+        fun of(font: DigitFont): Typeface = digits.getOrPut(font) {
+            val id = font.res?.let { res.getIdentifier(it, "font", context.packageName) } ?: 0
+            if (id != 0) res.getFont(id) else Typeface.create("sans-serif-thin", Typeface.NORMAL)
+        }
+    }
+
+    /** Цифры шрифтом font, вписанные в maxW × maxH, с центром цифр в (cx, cy) — как WatchFaceXml.digits. */
+    private fun Canvas.digits(text: String, cx: Float, cy: Float, maxW: Int, maxH: Int, font: DigitFont, color: Int, f: Fonts) {
+        val size = WatchFaceXml.fit(font, text.replace(Regex("[0-9]"), "0"), maxW, maxH)
+        val paint = textPaint(color, size, f.of(font))
+        drawText(text, cx, cy + (font.top + font.bottom) / 2 * size, paint)
     }
 
     // Превью «живых» стилей: время 10:08:32, как в PREVIEW_TIME циферблата.
@@ -252,8 +271,9 @@ object ThemeRenderer {
 
     private fun drawBold(canvas: Canvas, w: WatchSettings, f: Fonts) {
         if (w.showSeconds) secondsRing(canvas, w)
-        canvas.textCentered("10", 225f, 128f, textPaint(w.textColor, 200f, f.bold))
-        canvas.textCentered("08", 225f, 322f, textPaint(w.accentColor, 200f, f.bold))
+        val font = w.digits() ?: DigitFont.NARROW
+        canvas.digits("10", 225f, 136f, 300, 170, font, w.textColor, f)
+        canvas.digits("08", 225f, 318f, 300, 170, font, w.accentColor, f)
         if (w.showDate) canvas.textCentered(dateString("EEE d"), 378f, 225f, textPaint(w.accentColor, 24f, f.label))
         if (w.complications) complication(canvas, w, 63f, 225f, 39f, true, "80%")
     }
@@ -271,7 +291,7 @@ object ThemeRenderer {
             dot(canvas, 212f, PREVIEW_SECOND, w.textColor, 12f)
         }
         if (w.showDate) canvas.textCentered(dateString("EEE d MMM"), 225f, 138f, textPaint(w.accentColor, 26f, f.label))
-        canvas.textCentered("10:08", 225f, 222f, textPaint(w.textColor, 96f, f.glass))
+        canvas.digits("10:08", 225f, 222f, 280, 76, w.digits() ?: DigitFont.SPACE, w.textColor, f)
         if (w.complications) {
             complication(canvas, w, 185f, 323f, 33f, true, "80%")
             complication(canvas, w, 265f, 323f, 33f, false, "6241")
@@ -294,9 +314,10 @@ object ThemeRenderer {
             dot(canvas, 210f, PREVIEW_SECOND, Color.WHITE, 11f)
         }
         val halo = Colors.withAlpha(w.accentColor, 0x66 / 255f)
-        canvas.textCentered("10:08", 222f, 225f, textPaint(halo, 80f, f.neon))
-        canvas.textCentered("10:08", 228f, 231f, textPaint(halo, 80f, f.neon))
-        canvas.textCentered("10:08", 225f, 228f, textPaint(w.textColor, 80f, f.neon))
+        val font = w.digits() ?: DigitFont.TUBE
+        canvas.digits("10:08", 222f, 225f, 300, 84, font, halo, f)
+        canvas.digits("10:08", 228f, 231f, 300, 84, font, halo, f)
+        canvas.digits("10:08", 225f, 228f, 300, 84, font, w.textColor, f)
         if (w.showDate) canvas.textCentered(dateString("EEE d MMM"), 225f, 136f, textPaint(w.accentColor, 24f, f.label))
         if (w.complications) {
             complication(canvas, w, 184f, 334f, 34f, true, "80%")
@@ -332,7 +353,7 @@ object ThemeRenderer {
             dot(canvas, 172f, PREVIEW_SECOND, w.accentColor, 13f)
         }
         if (w.showDate) canvas.textCentered(dateString("EEE, d MMM"), 225f, 140f, textPaint(Colors.withAlpha(w.textColor, 0.8f), 25f, f.label))
-        canvas.textCentered("10:08", 225f, 222f, textPaint(w.textColor, 98f, f.glass))
+        canvas.digits("10:08", 225f, 222f, 280, 84, w.digits() ?: DigitFont.ITALIC, w.textColor, f)
         if (w.complications) {
             complication(canvas, w, 186f, 322f, 34f, true, "80%")
             complication(canvas, w, 264f, 322f, 34f, false, "6241")
@@ -355,7 +376,7 @@ object ThemeRenderer {
         }
         dot(canvas, 196f, PREVIEW_MINUTE, w.accentColor, 16f)
         if (w.showSeconds) dot(canvas, 180f, PREVIEW_SECOND, Colors.withAlpha(w.textColor, 0.6f), 7f)
-        canvas.textCentered("10:08", 225f, 220f, textPaint(w.textColor, 116f, typeface(FontWeight.THIN)))
+        canvas.digits("10:08", 225f, 220f, 320, 90, w.digits() ?: DigitFont.THIN, w.textColor, f)
         if (w.showDate) canvas.textCentered(dateString("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 22f, f.label))
         if (w.complications) {
             complication(canvas, w, 187f, 361f, 31f, true, "80%")
@@ -418,21 +439,29 @@ object ThemeRenderer {
         canvas.textCentered(label, cx, cy, textPaint(theme.textColor, r * 0.46f, Typeface.create(Typeface.DEFAULT, 600, false)))
     }
 
-    private fun drawDigital(canvas: Canvas, theme: WatchSettings) {
+    private fun drawDigital(canvas: Canvas, theme: WatchSettings, f: Fonts) {
         if (theme.showSeconds) secondsRing(canvas, theme)
         if (theme.showDate) canvas.textCentered(dateString("EEE d MMM"), 225f, 114f, textPaint(theme.accentColor, 30f))
-        canvas.textCentered("10:08", 225f, 215f, textPaint(theme.textColor, 132f, typeface(theme.fontWeight)))
+        val font = theme.digits()
+        if (font != null) canvas.digits("10:08", 225f, 215f, 380, 110, font, theme.textColor, f)
+        else canvas.textCentered("10:08", 225f, 215f, textPaint(theme.textColor, 132f, typeface(theme.fontWeight)))
         if (theme.complications) {
             complication(canvas, theme, 165f, 348f, 48f, true, "80%")
             complication(canvas, theme, 285f, 348f, 48f, false, "6241")
         }
     }
 
-    private fun drawStacked(canvas: Canvas, theme: WatchSettings) {
+    private fun drawStacked(canvas: Canvas, theme: WatchSettings, f: Fonts) {
         if (theme.showSeconds) secondsRing(canvas, theme)
-        val tf = typeface(theme.fontWeight)
-        canvas.textCentered("10", 225f, 143f, textPaint(theme.textColor, 168f, tf))
-        canvas.textCentered("08", 225f, 297f, textPaint(theme.accentColor, 168f, tf))
+        val font = theme.digits()
+        if (font != null) {
+            canvas.digits("10", 225f, 143f, 240, 130, font, theme.textColor, f)
+            canvas.digits("08", 225f, 297f, 240, 130, font, theme.accentColor, f)
+        } else {
+            val tf = typeface(theme.fontWeight)
+            canvas.textCentered("10", 225f, 143f, textPaint(theme.textColor, 168f, tf))
+            canvas.textCentered("08", 225f, 297f, textPaint(theme.accentColor, 168f, tf))
+        }
         if (theme.showDate) canvas.textCentered(dateString("EEE d"), 225f, 400f, textPaint(theme.textColor, 26f))
         if (theme.complications) {
             complication(canvas, theme, 63f, 222f, 45f, true, "80%")
@@ -514,6 +543,148 @@ object ThemeRenderer {
         canvas.drawCircle(c, c, 14f, p)
         p.color = Color.BLACK
         canvas.drawCircle(c, c, 5f, p)
+    }
+
+    private fun pointOn(r: Float, angle: Float): Pair<Float, Float> {
+        val a = Math.toRadians(angle.toDouble())
+        return WATCH / 2 + r * sin(a).toFloat() to WATCH / 2 - r * cos(a).toFloat()
+    }
+
+    private fun drawDrum(canvas: Canvas, w: WatchSettings, f: Fonts) {
+        val font = w.digits() ?: DigitFont.MONO
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = Colors.withAlpha(w.accentColor, 0.2f)
+        canvas.drawRoundRect(RectF(296f, 191f, 446f, 259f), 34f, 34f, p)
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 3f
+        p.color = w.accentColor
+        canvas.drawRoundRect(RectF(296f, 191f, 446f, 259f), 34f, 34f, p)
+        val minuteTurn = 90f - PREVIEW_MINUTE
+        val hourTurn = 90f - PREVIEW_HOUR
+        p.strokeWidth = 2f
+        p.strokeCap = Paint.Cap.ROUND
+        p.color = Colors.withAlpha(w.textColor, 0x55 / 255f)
+        for (m in 0 until 60) {
+            if (m % 5 == 0) continue
+            val (x1, y1) = pointOn(219f, m * 6f + minuteTurn)
+            val (x2, y2) = pointOn(212f, m * 6f + minuteTurn)
+            canvas.drawLine(x1, y1, x2, y2, p)
+        }
+        fun label(text: String, angle: Float, r: Float, maxW: Int, maxH: Int, color: Int) {
+            val (x, y) = pointOn(r, angle)
+            canvas.save()
+            canvas.rotate(angle - 90f, x, y)
+            canvas.digits(text, x, y, maxW, maxH, font, color, f)
+            canvas.restore()
+        }
+        for (m in 0 until 60 step 5) label("%02d".format(m), m * 6f + minuteTurn, 190f, 34, 20, w.textColor)
+        for (h in 0 until 12) label("${if (h == 0) 12 else h}", h * 30f + hourTurn, 124f, 54, 32, if (h % 3 == 0) w.accentColor else w.textColor)
+        if (w.showSeconds) {
+            ringArc(canvas, 62f, 360f, Colors.withAlpha(w.textColor, 0x26 / 255f), 4f)
+            ringArc(canvas, 62f, PREVIEW_SECOND, w.accentColor, 4f)
+            dot(canvas, 62f, PREVIEW_SECOND, w.textColor, 10f)
+        }
+        if (w.showDate) {
+            canvas.textCentered(dateString("EEE"), 225f, 211f, textPaint(w.accentColor, 22f, f.label))
+            canvas.textCentered(dateString("d"), 225f, 240f, textPaint(w.textColor, 30f, f.label))
+        }
+    }
+
+    private fun drawColumns(canvas: Canvas, w: WatchSettings, f: Fonts) {
+        val font = w.digits() ?: DigitFont.SERIF
+        val faded = Colors.withAlpha(w.textColor, 0x59 / 255f)
+        canvas.digits("10", 140f, 225f, 150, 116, font, w.textColor, f)
+        canvas.digits("08", 310f, 225f, 150, 116, font, w.accentColor, f)
+        canvas.digits("09", 140f, 92f, 90, 46, font, faded, f)
+        canvas.digits("11", 140f, 358f, 90, 46, font, faded, f)
+        canvas.digits("07", 310f, 92f, 90, 46, font, faded, f)
+        canvas.digits("09", 310f, 358f, 90, 46, font, faded, f)
+        if (w.showSeconds) {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(w.textColor, 0x26 / 255f) }
+            canvas.drawRoundRect(RectF(221f, 150f, 229f, 300f), 4f, 4f, p)
+            p.color = w.accentColor
+            canvas.drawRoundRect(RectF(221f, 150f, 229f, 150f + 8 + 32 * 2.4f), 4f, 4f, p)
+        }
+        if (w.showDate) canvas.textCentered(dateString("EEE d MMM"), 225f, 409f, textPaint(w.accentColor, 22f, f.label))
+    }
+
+    private fun drawPlanets(canvas: Canvas, w: WatchSettings, f: Fonts) {
+        val font = w.digits() ?: DigitFont.WIDE
+        val c = WATCH / 2
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2f; color = Colors.withAlpha(w.textColor, 0.2f) }
+        canvas.drawCircle(c, c, 105f, p)
+        canvas.drawCircle(c, c, 178f, p)
+        p.style = Paint.Style.FILL
+        p.color = w.accentColor
+        canvas.drawCircle(c, c, 9f, p)
+        fun planet(r: Float, radius: Float, angle: Float, fill: Int, textColor: Int, text: String) {
+            val (x, y) = pointOn(r - radius, angle)
+            val (sx, sy) = pointOn(12f, angle)
+            val ray = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 2f; color = Colors.withAlpha(Color.WHITE, 0.25f); strokeCap = Paint.Cap.ROUND }
+            canvas.drawLine(sx, sy, x, y, ray)
+            val (px, py) = pointOn(r, angle)
+            canvas.drawCircle(px, py, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fill })
+            canvas.digits(text, px, py, (radius * 2 * 0.72f).toInt(), (radius * 2 * 0.42f).toInt(), font, textColor, f)
+        }
+        planet(105f, 44f, PREVIEW_HOUR, w.accentColor, WatchFaceXml.onAccent(w.accentColor), "10")
+        planet(178f, 36f, PREVIEW_MINUTE, w.textColor, WatchFaceXml.onAccent(w.textColor), "08")
+        if (w.showSeconds) {
+            ringArc(canvas, 214f, PREVIEW_SECOND - 30, PREVIEW_SECOND, Colors.withAlpha(w.accentColor, 0.4f), 4f)
+            dot(canvas, 214f, PREVIEW_SECOND, w.accentColor, 12f)
+        }
+        if (w.showDate) canvas.textCentered(dateString("EEE d"), 225f, 268f, textPaint(Colors.withAlpha(w.textColor, 0.8f), 22f, f.label))
+    }
+
+    private fun drawMatrix(canvas: Canvas, w: WatchSettings, f: Fonts) {
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        for (i in 0 until 60) {
+            val (x, y) = pointOn(207f, i * 6f)
+            p.color = when {
+                !w.showSeconds -> Colors.withAlpha(w.textColor, 0.4f)
+                i <= 32 -> w.accentColor
+                else -> Colors.withAlpha(w.accentColor, 60 / 255f)
+            }
+            canvas.drawCircle(x, y, if (i % 5 == 0) 5f else 3f, p)
+        }
+        canvas.digits("10:08", 225f, 212f, 330, 112, w.digits() ?: DigitFont.DOTS, w.textColor, f)
+        if (w.showDate) canvas.textCentered(dateString("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 24f, f.label))
+        if (w.complications) {
+            complication(canvas, w, 187f, 365f, 31f, true, "80%")
+            complication(canvas, w, 263f, 365f, 31f, false, "6241")
+        }
+    }
+
+    private fun drawLiquid(canvas: Canvas, w: WatchSettings, f: Fonts) {
+        val level = 33 * 7.5f
+        val fluid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(w.accentColor, 0x8C / 255f) }
+        canvas.drawRect(0f, WATCH - level, WATCH, WATCH, fluid)
+        canvas.drawOval(RectF(-90f, 430f - level, 480f, 470f - level), fluid)
+        val bubble = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Color.WHITE, 0.4f) }
+        for ((k, bx) in listOf(0 to 120, 1 to 210, 2 to 300, 3 to 165)) {
+            val r = 6f + k * 2
+            val y = (440f - ((32 * 7 + k * 17) % 60) * 6f).coerceIn(456f - level, 440f)
+            canvas.drawCircle(bx + r, y + r, r, bubble)
+        }
+        val font = w.digits() ?: DigitFont.BUBBLE
+        canvas.digits("10:08", 228f, 213f, 330, 110, font, 0x40000000, f)
+        canvas.digits("10:08", 225f, 210f, 330, 110, font, w.textColor, f)
+        if (w.showDate) canvas.textCentered(dateString("EEE d MMM"), 225f, 128f, textPaint(w.textColor, 26f, f.label))
+        if (w.complications) complication(canvas, w, 225f, 335f, 39f, true, "80%")
+    }
+
+    private fun drawDiagonal(canvas: Canvas, w: WatchSettings, f: Fonts) {
+        if (w.showSeconds) {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 2f; strokeCap = Paint.Cap.ROUND; color = Colors.withAlpha(w.textColor, 0.2f) }
+            canvas.drawLine(108f, 342f, 342f, 108f, p)
+            p.color = w.accentColor
+            val t = 32 * 234f / 59
+            canvas.drawCircle(108f + t, 342f - t, 8f, p)
+        }
+        val font = w.digits() ?: DigitFont.BLOCK
+        canvas.digits("10", 165f, 165f, 210, 140, font, w.textColor, f)
+        canvas.digits("08", 288f, 292f, 210, 140, font, w.accentColor, f)
+        if (w.showDate) canvas.textCentered(dateString("EEE d"), 355f, 135f, textPaint(w.accentColor, 22f, f.label))
+        if (w.complications) complication(canvas, w, 100f, 300f, 38f, true, "80%")
     }
 
     // ---------- Превью телефона: обои + виджеты ----------

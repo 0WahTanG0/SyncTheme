@@ -23,6 +23,8 @@ import app.synctheme.mobile.update.UpdateInfo
 import app.synctheme.mobile.update.Updater
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.render.WallpaperApplier
+import app.synctheme.mobile.watch.TimeCheck
+import app.synctheme.mobile.watch.TimeCheckResult
 import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.watch.WatchFaceBuilder
 import app.synctheme.mobile.watch.WatchStatusStore
@@ -301,6 +303,22 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshWatch() = viewModelScope.launch { _connection.value = sync.connection() }
+
+    private val _timeCheck = MutableStateFlow<TimeCheckResult?>(null)
+    val timeCheck: StateFlow<TimeCheckResult?> = _timeCheck.asStateFlow()
+    private val _timeChecking = MutableStateFlow(false)
+    val timeChecking: StateFlow<Boolean> = _timeChecking.asStateFlow()
+
+    /** Сверяет время часов с телефоном и телефона — с интернетом. */
+    fun checkTime() {
+        if (_timeChecking.value) return
+        viewModelScope.launch {
+            _timeChecking.value = true
+            if (!_connection.value.checked) _connection.value = sync.connection()
+            _timeCheck.value = TimeCheck.run(app, _connection.value.appNodeIds.firstOrNull())
+            _timeChecking.value = false
+        }
+    }
 
     fun openOnWatch() = viewModelScope.launch {
         runCatching { sync.openOnWatch(_connection.value.appNodeIds.firstOrNull()) }

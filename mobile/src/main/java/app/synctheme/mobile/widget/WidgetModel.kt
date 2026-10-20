@@ -2,6 +2,7 @@ package app.synctheme.mobile.widget
 
 import android.content.Context
 import android.util.SizeF
+import app.synctheme.core.DigitFont
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -18,6 +19,7 @@ enum class WidgetKind(val title: String, val description: String, val prefix: St
     CLOCK(
         "Часы", "Цифры или стрелки; на большом виджете — дата и будильник", "clock",
         FAMILY_STYLES + listOf(
+            WidgetStyle("diag", "Диагональ"),
             WidgetStyle("analog_blob", "Стрелки: облако"),
             WidgetStyle("analog_neon", "Стрелки: неон"),
             WidgetStyle("analog_numbers", "Стрелки: цифры"),
@@ -45,6 +47,16 @@ enum class WidgetKind(val title: String, val description: String, val prefix: St
 }
 
 data class WidgetStyle(val id: String, val title: String)
+
+/** Шрифт цифр, с которым стиль цифровых часов выглядит задуманно. */
+fun defaultDigitFont(style: String): DigitFont = when (style) {
+    "blob" -> DigitFont.BUBBLE
+    "glass" -> DigitFont.SERIF
+    "neon" -> DigitFont.TUBE
+    "minimal" -> DigitFont.THIN
+    "diag" -> DigitFont.BLOCK
+    else -> DigitFont.NARROW
+}
 
 /**
  * Размер виджета. Лаунчер сам выбирает подходящую разметку: самую большую, которая помещается
@@ -83,7 +95,11 @@ data class WidgetConfig(
     val title: String = "",
     /** Что открывать по нажатию: пакет приложения или null — стандартное для вида виджета. */
     val openApp: String? = null,
-)
+    /** Шрифт цифр часов ([DigitFont]); null — как задумано в стиле. */
+    val font: String? = null,
+) {
+    fun digitFont(): DigitFont = font?.let { f -> DigitFont.entries.firstOrNull { it.name == f } } ?: defaultDigitFont(style)
+}
 
 /** Хранит настройки каждого виджета по его appWidgetId. */
 object WidgetConfigStore {

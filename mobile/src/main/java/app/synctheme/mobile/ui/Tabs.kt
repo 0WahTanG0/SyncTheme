@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -50,8 +51,11 @@ import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.DialStyle
+import app.synctheme.core.DigitFont
 import app.synctheme.core.Presets
 import app.synctheme.core.Theme
+import app.synctheme.mobile.watch.TimeCheck
+import app.synctheme.mobile.watch.TimeCheckResult
 import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.watch.WatchReport
 import app.synctheme.mobile.widget.WidgetKind
@@ -97,6 +101,7 @@ fun LazyListScope.themeTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
             note = if (theme.watch == null) "Так будет выглядеть циферблат Galaxy Watch." else null,
             style = theme.clockStyle, dial = theme.dialStyle, font = theme.fontWeight,
             seconds = theme.showSeconds, date = theme.showDate, complications = theme.watchComplications,
+            digitFont = theme.digitFont, onDigitFont = { font -> a.vm.update { it.copy(digitFont = font) } },
             onChange = { s, d, f, sec, dt, c ->
                 a.vm.update { it.copy(clockStyle = s, dialStyle = d, fontWeight = f, showSeconds = sec, showDate = dt, watchComplications = c) }
             },
@@ -214,6 +219,12 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
         WatchSection(connection, report, bundled, a.vm::openOnWatch, a.vm::refreshWatch, a.openInstaller)
     }
     item {
+        val result by a.vm.timeCheck.collectAsStateWithLifecycle()
+        val checking by a.vm.timeChecking.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { if (result == null) a.vm.checkTime() }
+        TimeSection(result, checking, a.vm::checkTime)
+    }
+    item {
         Section("Циферблат") {
             SwitchRow("Настроить часы отдельно", theme.watch != null) { a.vm.setWatchSeparate(it) }
             Text(
@@ -262,6 +273,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
             title = "Часы на циферблате", note = null,
             style = w.clockStyle, dial = w.dialStyle, font = w.fontWeight,
             seconds = w.showSeconds, date = w.showDate, complications = w.complications,
+            digitFont = w.digitFont, onDigitFont = { font -> a.vm.updateWatch { it.copy(digitFont = font) } },
             onChange = { s, d, f, sec, dt, c ->
                 a.vm.updateWatch { it.copy(clockStyle = s, dialStyle = d, fontWeight = f, showSeconds = sec, showDate = dt, complications = c) }
             },
@@ -395,12 +407,20 @@ private fun ColorsSection(
 
 /** Стили циферблата: сначала «живые», потом классические. */
 private val CLOCK_STYLES = listOf(
+    ClockStyle.DRUM to "Барабан", ClockStyle.COLUMNS to "Колонки", ClockStyle.PLANETS to "Планеты",
+    ClockStyle.MATRIX to "Матрица", ClockStyle.LIQUID to "Заливка", ClockStyle.DIAGONAL to "Диагональ",
     ClockStyle.BOLD to "Крупно", ClockStyle.ORBIT to "Орбита", ClockStyle.NEON to "Неон", ClockStyle.BLOB to "Облако",
     ClockStyle.GLASS to "Стекло", ClockStyle.MINIMAL to "Минимал",
     ClockStyle.DIGITAL to "Классика", ClockStyle.STACKED to "Вертикально", ClockStyle.ANALOG to "Стрелки",
 )
 
 private val CLOCK_STYLE_NOTES = mapOf(
+    ClockStyle.DRUM to "Кольца с цифрами часов и минут вращаются, текущее время проходит через окошко справа.",
+    ClockStyle.COLUMNS to "Час и минута столбиками — с прошлым и следующим значением; секунды растут шкалой между ними.",
+    ClockStyle.PLANETS to "Часы и минуты — шары на своих орбитах, секунды — спутник с хвостом.",
+    ClockStyle.MATRIX to "Точечные цифры и 60 огоньков секунд: прошедшие загораются.",
+    ClockStyle.LIQUID to "За минуту циферблат наполняется «жидкостью» с волной и пузырьками.",
+    ClockStyle.DIAGONAL to "Часы слева сверху, минуты справа снизу, секунда бежит по диагонали.",
     ClockStyle.BOLD to "Огромные узкие цифры: часы над минутами, секунды бегут по краю.",
     ClockStyle.ORBIT to "Три кольца заполняются вместе со временем: часы, минуты и секунды с бегущими точками.",
     ClockStyle.NEON to "Светящееся кольцо, секунды — «комета» с хвостом, время с цветным ореолом.",
@@ -423,6 +443,8 @@ private fun ClockStyleSection(
     seconds: Boolean,
     date: Boolean,
     complications: Boolean,
+    digitFont: DigitFont?,
+    onDigitFont: (DigitFont?) -> Unit,
     onChange: (ClockStyle, DialStyle, ClockFont, Boolean, Boolean, Boolean) -> Unit,
 ) {
     Section(title) {
@@ -444,7 +466,11 @@ private fun ClockStyleSection(
                     }
             }
         }
-        if (style.classic) {
+        if (style.hasDigits) {
+            Text("Шрифт цифр", style = MaterialTheme.typography.titleSmall)
+            DigitFontPicker(digitFont, style.defaultDigitFont ?: DigitFont.THIN, onDigitFont)
+        }
+        if (style.classic && (digitFont == null || style == ClockStyle.ANALOG)) {
             ChipRow {
                 listOf(ClockFont.THIN to "Тонкий", ClockFont.LIGHT to "Лёгкий", ClockFont.REGULAR to "Обычный", ClockFont.BOLD to "Жирный")
                     .forEach { (f, label) ->
@@ -455,6 +481,59 @@ private fun ClockStyleSection(
         SwitchRow("Секунды", seconds) { onChange(style, dial, font, it, date, complications) }
         SwitchRow("Дата", date) { onChange(style, dial, font, seconds, it, complications) }
         SwitchRow("Мини-виджеты на часах (батарея, шаги)", complications) { onChange(style, dial, font, seconds, date, it) }
+    }
+}
+
+/** Сверка времени: часы с телефоном, телефон — с интернетом, и что делать, если расходится. */
+@Composable
+private fun TimeSection(result: TimeCheckResult?, checking: Boolean, onCheck: () -> Unit) {
+    Section("Точное время") {
+        val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        when {
+            checking -> Text("Сверяю время часов с телефоном и интернетом…", style = MaterialTheme.typography.bodyMedium)
+            result == null -> Text("Сверим время часов с телефоном и с точным временем из интернета.", style = MaterialTheme.typography.bodyMedium)
+            else -> {
+                val watch = result.watchMs
+                val watchLine = when {
+                    result.watchSilent -> "Часы не ответили: на них старая версия SyncTheme или они не на связи."
+                    watch == null -> "Часы не подключены."
+                    kotlin.math.abs(watch) < TimeCheck.NOTICEABLE_MS -> "Часы: совпадают с телефоном (±${TimeCheck.seconds(result.watchErrorMs)})."
+                    watch > 0 -> "Часы спешат на ${TimeCheck.seconds(watch)} относительно телефона."
+                    else -> "Часы отстают на ${TimeCheck.seconds(watch)} от телефона."
+                }
+                val phone = result.phoneMs
+                val phoneLine = when {
+                    phone == null -> "Точное время из интернета узнать не удалось."
+                    kotlin.math.abs(phone) < TimeCheck.NOTICEABLE_MS -> "Телефон: время точное."
+                    phone > 0 -> "Телефон спешит на ${TimeCheck.seconds(phone)}."
+                    else -> "Телефон отстаёт на ${TimeCheck.seconds(phone)}."
+                }
+                Text(watchLine, style = MaterialTheme.typography.bodyMedium)
+                Text(phoneLine, style = MaterialTheme.typography.bodyMedium)
+                if (watch != null && kotlin.math.abs(watch) >= TimeCheck.NOTICEABLE_MS) {
+                    Text(
+                        "Циферблат показывает время часов, а его ставит система. На часах: «Настройки» → «Общие» → " +
+                            "«Дата и время» → включите «Автоматически» (в SyncTheme на часах есть кнопка «Настройки времени»). " +
+                            "Затем переподключите часы: выключите и включите Bluetooth на телефоне.",
+                        style = MaterialTheme.typography.bodySmall, color = muted,
+                    )
+                }
+                if (phone != null && kotlin.math.abs(phone) >= TimeCheck.NOTICEABLE_MS) {
+                    Text(
+                        "Часы берут время с телефона. На телефоне: «Настройки» → «Общее управление» → «Дата и время» → " +
+                            "включите «Автоматические дата и время».",
+                        style = MaterialTheme.typography.bodySmall, color = muted,
+                    )
+                }
+                if (result.watchSilent) {
+                    Text(
+                        "Проверка времени появилась в SyncTheme для часов 1.3 — обновите приложение на часах кнопкой выше.",
+                        style = MaterialTheme.typography.bodySmall, color = muted,
+                    )
+                }
+            }
+        }
+        OutlinedButton(onClick = onCheck, enabled = !checking) { Text("Проверить время") }
     }
 }
 

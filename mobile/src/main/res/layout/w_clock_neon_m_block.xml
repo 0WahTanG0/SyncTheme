@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widgets.py — не редактировать вручную. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg_s"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:src="@drawable/wsh_circle"
+        android:importantForAccessibility="no"
+        android:tint="#E61B1B24" />
+
+    <ImageView
+        android:id="@+id/fx_g"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:src="@drawable/wfx_ring"
+        android:importantForAccessibility="no"
+        android:tint="#FF8B6CF6" />
+
+    <LinearLayout
+        android:padding="26dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <TextClock
+            android:id="@+id/m_time"
+            android:layout_weight="1"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:gravity="center"
+            android:format12Hour="h:mm"
+            android:format24Hour="H:mm"
+            android:fontFamily="@font/bungee"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="10sp"
+            android:autoSizeMaxTextSize="120sp"
+            android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:shadowColor="#80FFFFFF"
+            android:shadowRadius="14"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:textColor="#FFFFFFFF" />
+
+        <TextClock
+            android:id="@+id/a_date"
+            android:layout_marginBottom="4dp"
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:gravity="center"
+            android:format12Hour="EEE, d MMM"
+            android:format24Hour="EEE, d MMM"
+            android:fontFamily="@font/onest_500"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="8sp"
+            android:autoSizeMaxTextSize="14sp"
+            android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false"
+            android:textAllCaps="true"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+    </LinearLayout>
+</FrameLayout>

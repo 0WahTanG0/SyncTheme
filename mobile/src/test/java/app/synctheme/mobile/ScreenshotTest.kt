@@ -85,6 +85,14 @@ class ScreenshotTest {
         ThemeRepository.get(app).setDraft(t.copy(watch = t.followPhone().copy(clockStyle = ClockStyle.ANALOG, dialStyle = DialStyle.NUMBERS)))
     }
 
+    /** Вкладка «Часы» целиком (высокий экран): стиль, шрифт цифр и проверка времени. */
+    @Test
+    @Config(qualifiers = "w412dp-h2400dp-560dpi")
+    fun watchTabLong() = screen("screen_watch_long", Tab.WATCH, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
+        val t = Presets.all[0]
+        ThemeRepository.get(app).setDraft(t.copy(watch = t.followPhone().copy(clockStyle = ClockStyle.DRUM)))
+    }
+
     @Test
     fun widgetConfigScreen() {
         AppearanceStore.set(ApplicationProvider.getApplicationContext(), Appearance(AppStyle.GLASS, AppMode.DARK))

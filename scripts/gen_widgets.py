@@ -31,6 +31,24 @@ HEADER = "<!-- Сгенерировано scripts/gen_widgets.py — не ред
 NS = 'xmlns:android="http://schemas.android.com/apk/res/android"'
 
 FAMILIES = ["bold", "blob", "glass", "neon", "minimal"]
+# «Диагональ» — только у часов.
+CLOCK_FAMILIES = FAMILIES + ["diag"]
+
+
+def load_digit_fonts():
+    """Шрифты цифр и их метрики — из core/DigitFont.kt (его пишет scripts/gen_fonts.py)."""
+    path = os.path.join(os.path.dirname(__file__), "..", "core", "src", "main", "kotlin", "app", "synctheme", "core", "DigitFont.kt")
+    out = OrderedDict()
+    pattern = r'^\s+(\w+)\((?:"(\w+)"|null), "[^"]+", ([-\d.]+)f, ([-\d.]+)f, ([-\d.]+)f, ([-\d.]+)f, ([-\d.]+)f, ([-\d.]+)f\)'
+    for m in re.finditer(pattern, open(path, encoding="utf-8").read(), re.M):
+        key, res = m.group(1).lower(), m.group(2)
+        asc, desc, top, bottom, digit, colon = (float(m.group(i)) for i in range(3, 9))
+        out[key] = dict(family=f"@font/{res}" if res else "sans-serif-thin", ascent=asc, descent=desc, top=top,
+                        bottom=bottom, digit=digit)
+    return out
+
+
+DIGIT_FONTS = load_digit_fonts()
 SIZES = ["s", "strip", "m", "wide", "l"]
 
 FONTS = {
@@ -39,6 +57,7 @@ FONTS = {
     "glass": dict(main="@font/manrope_800", sub="@font/manrope_600", label="@font/manrope_700", body="@font/manrope_600"),
     "neon": dict(main="@font/unbounded_700", sub="@font/onest_500", label="@font/unbounded_500", body="@font/onest_500"),
     "minimal": dict(main="sans-serif-thin", sub="sans-serif-light", label="monospace", body="sans-serif-light"),
+    "diag": dict(main="@font/oswald_700", sub="@font/onest_500", label="@font/onest_600", body="@font/onest_500"),
 }
 
 
@@ -179,6 +198,11 @@ def text(id_, *, clock=None, font=None, size=None, auto=None, w="match", h="wrap
 
 LAYOUTS = OrderedDict()  # имя -> список id в порядке появления
 
+# Старые сгенерированные разметки удаляем: набор стилей и шрифтов мог измениться.
+for old in os.listdir(os.path.join(RES, "layout")):
+    if old.startswith("w_") and old.endswith(".xml"):
+        os.remove(os.path.join(RES, "layout", old))
+
 
 def layout(name, *layers):
     root = frame(*layers, id="widget_root")
@@ -233,16 +257,25 @@ MONTH_YEAR = ("LLLL yyyy", "LLLL yyyy")
 DAY_MONTH = ("d MMMM", "d MMMM")
 
 
-def stacked_digits(F, band, auto):
-    """Часы и минуты друг под другом. У Oswald над и под цифрами пустые поля в треть кегля:
-    текст в рамке делаем выше самой рамки (отрицательные отступы), поля уходят за её края,
-    а цифры занимают почти всю высоту. band — примерная высота одной рамки, dp."""
-    top, bottom = round(band * 0.3), round(band * 0.2)
+def stacked_digits(F, band, auto, width, gravity=("center", "center")):
+    """Часы и минуты друг под другом. У шрифтов над и под цифрами пустые поля (у Oswald — треть
+    кегля): текст в рамке делаем выше самой рамки (отрицательные отступы), поля уходят за её края,
+    а цифры занимают почти всю высоту. band и width — примерные высота и ширина рамки, dp;
+    отступы считаются по метрикам шрифта цифр, чтобы цифры не обрезались и не наезжали."""
+    m = F["digits"]
+    digit_h = m["top"] - m["bottom"]
+    em = min(0.9 * band / digit_h, 0.95 * width / (2 * m["digit"]))  # кегль, при котором цифры влезают
+    visible = digit_h * em
+    pad = (band - visible) / 2
+    top = max(0, round((m["ascent"] - m["top"]) * em - pad))
+    line = (m["ascent"] + m["descent"]) * em
+    bottom = max(0, round(line - band - top))
 
-    def part(id_, fmt):
-        return frame(text(id_, clock=fmt, font=F["main"], auto=auto, h="match", mt=f"-{top}dp", mb=f"-{bottom}dp"),
+    def part(id_, fmt, g):
+        return frame(text(id_, clock=fmt, font=F["time"], auto=auto, h="match", g=g, mt=f"-{top}dp", mb=f"-{bottom}dp"),
                      h="0dp", weight=1, clipChildren="false")
-    return [part("m_hours_al", HOURS), part("a_minutes_al", MINS)]
+    return [part("m_hours_al" if gravity[0] == "center" else "m_hours", HOURS, gravity[0]),
+            part("a_minutes_al" if gravity[1] == "center" else "a_minutes", MINS, gravity[1])]
 
 
 def alarm_row(f, role="s", size=12, **kw):
@@ -256,33 +289,55 @@ def alarm_row(f, role="s", size=12, **kw):
 # ---------------------------------------------------------------- часы: цифровые
 
 
-def clock_digital(f, size):
-    F = FONTS[f]
-    name = f"w_clock_{f}_{size}"
+def clock_digital(f, size, digit_key):
+    F = dict(FONTS[f])
+    F["digits"] = DIGIT_FONTS[digit_key]
+    F["time"] = F["digits"]["family"]
+    name = f"w_clock_{f}_{size}_{digit_key}"
     sh = f == "neon"
+    if f == "diag":
+        # Часы — в левом верхнем углу, минуты — в правом нижнем; дата и будильник — в свободных углах.
+        corner_top = text("a_weekday", clock=WEEKDAY, font=F["label"], size=11 if size != "l" else 14, caps=True, spacing=0.08,
+                          w="wrap", lg="top|end", m="12dp" if size != "s" else "6dp")
+        corner_bottom = col(text("s_date", clock=DAY_MONTH, font=F["sub"], size=12 if size != "l" else 16, w="wrap", g="start"),
+                            alarm_row(f) if size in ("wide", "l") else None,
+                            w="wrap", h="wrap", lg="bottom|start", m="14dp", g="start")
+        if size == "strip":
+            body = row(text("m_hours", clock=HOURS, font=F["time"], auto=(16, 200), w="0dp", h="match", weight=1, g="top|start"),
+                       col(text("a_weekday", clock=WEEKDAY, font=F["label"], size=11, caps=True, spacing=0.08),
+                           text("s_date", clock=DAY_MONTH, font=F["sub"], size=13), w="wrap", h="match"),
+                       text("a_minutes", clock=MINS, font=F["time"], auto=(16, 200), w="0dp", h="match", weight=1, g="bottom|end"),
+                       h="match", padH="14dp", padV="4dp")
+            return layout(name, *bg(f), body)
+        band, width = {"s": (42, 84), "m": (64, 146), "wide": (64, 300), "l": (125, 294)}[size]
+        digits = col(*stacked_digits(F, band, (16, 500), width * 0.62, gravity=("start", "end")),
+                     pad="8dp" if size == "s" else "14dp", clipChildren="false")
+        layers = [digits] if size == "s" else [digits, corner_top, corner_bottom]
+        return layout(name, *bg(f), *layers)
+
     if f == "bold":
         if size == "s":
-            body = col(*stacked_digits(F, 42, (16, 300)), id="box_al", pad="8dp", clipChildren="false")
+            body = col(*stacked_digits(F, 42, (16, 300), 84), id="box_al", pad="8dp", clipChildren="false")
         elif size == "strip":
-            body = row(text("m_time", clock=("hh mm", "HH mm"), font=F["main"], auto=(18, 200), w="0dp", h="match", weight=1.4, g="center_vertical|start"),
+            body = row(text("m_time", clock=("hh mm", "HH mm"), font=F["time"], auto=(18, 200), w="0dp", h="match", weight=1.4, g="center_vertical|start"),
                        col(text("a_weekday", clock=WEEKDAY, font=F["label"], size=12, caps=True, g="start", spacing=0.08),
                            text("m_date", clock=DAY_MONTH, font=F["sub"], auto=(12, 26), h="0dp", weight=1, g="start|center_vertical"),
                            w="0dp", weight=1, g="center_vertical", ms="10dp"),
                        h="match", padH="16dp", padV="8dp")
         elif size == "m":
-            body = col(*stacked_digits(F, 64, (20, 300)),
+            body = col(*stacked_digits(F, 64, (20, 300), 146),
                        text("s_date_al", clock=DATE_SHORT, font=F["label"], size=12, caps=True, spacing=0.08, mt="4dp"),
                        id="box_al", pad="12dp", clipChildren="false")
         elif size == "wide":
             body = col(
-                row(text("m_time", clock=("hh mm", "HH mm"), font=F["main"], auto=(28, 400), w="0dp", h="match", weight=1, g="center_vertical|start"),
+                row(text("m_time", clock=("hh mm", "HH mm"), font=F["time"], auto=(28, 400), w="0dp", h="match", weight=1, g="center_vertical|start"),
                     text("a_ampm", clock=AMPM_OR_DAY, font=F["main"], auto=(12, 40), w="56dp", h="match", g="top|start", caps=True, padT="6dp"),
                     h="0dp", weight=1),
                 row(text("s_date", clock=DATE_LONG, font=F["label"], size=13, caps=True, spacing=0.06, w="0dp", weight=1, g="start"),
                     alarm_row(f)),
                 padH="16dp", padV="12dp")
         else:
-            body = col(*stacked_digits(F, 125, (30, 500)),
+            body = col(*stacked_digits(F, 125, (30, 500), 294),
                        text("m_date_al", clock=DATE_LONG, font=F["sub"], size=18, caps=True, spacing=0.04, mt="6dp"),
                        alarm_row(f, mt="4dp"),
                        id="box_al", padH="18dp", padV="14dp", clipChildren="false")
@@ -290,19 +345,19 @@ def clock_digital(f, size):
 
     if f == "blob":
         if size in ("s", "m"):
-            inner = [text("o_time", clock=TIME, font=F["main"], auto=(14, 200), h="0dp", weight=1)]
+            inner = [text("o_time", clock=TIME, font=F["time"], auto=(14, 200), h="0dp", weight=1)]
             if size == "m":
                 inner.append(text("n_date", clock=DATE_SHORT, font=F["sub"], auto=(9, 16), h="wrap", mb="2dp"))
             return layout(name, *bg(f, "cookie"), col(*inner, pad="18dp" if size == "m" else "12dp"))
         if size == "strip":
-            body = row(text("m_time", clock=TIME, font=F["main"], auto=(18, 160), w="0dp", h="match", weight=1, g="center_vertical|start"),
+            body = row(text("m_time", clock=TIME, font=F["time"], auto=(18, 160), w="0dp", h="match", weight=1, g="center_vertical|start"),
                        text("bo_date", clock=DATE_SHORT, font=F["sub"], size=14, w="wrap", h="wrap", padH="14dp", padV="8dp",
                             background="@drawable/wsh_pill", backgroundTint="#FF8B6CF6"),
                        h="match", padH="16dp", padV="8dp")
             return layout(name, *bg(f), body)
         if size == "wide":
             body = row(frame(img("sh_a", "wsh_cookie"),
-                             text("o_time", clock=TIME, font=F["main"], auto=(14, 120), pad="16dp"),
+                             text("o_time", clock=TIME, font=F["time"], auto=(14, 120), pad="16dp"),
                              w="0dp", weight=1),
                        col(text("a_weekday", clock=WEEKDAY, font=F["label"], size=14, g="start"),
                            text("m_date", clock=DAY_MONTH, font=F["main"], auto=(14, 34), h="wrap", g="start"),
@@ -311,7 +366,7 @@ def clock_digital(f, size):
                        h="match", pad="12dp")
             return layout(name, *bg(f), body)
         body = col(frame(img("sh_a", "wsh_cookie"),
-                         text("o_time", clock=TIME, font=F["main"], auto=(20, 200), pad="30dp", h="match"),
+                         text("o_time", clock=TIME, font=F["time"], auto=(20, 200), pad="30dp", h="match"),
                          w="180dp", h="180dp"),
                    spacer(),
                    text("m_date", clock=DATE_LONG, font=F["main"], size=17, mt="8dp"),
@@ -324,11 +379,11 @@ def clock_digital(f, size):
                    text("s_weekday", clock=WEEKDAY, font=F["label"], size=12, caps=True, spacing=0.06, w="wrap", g="start", ms="6dp"),
                    id="box_al", w="match")
         if size == "s":
-            body = col(text("m_time_al", clock=TIME, font=F["main"], auto=(14, 160), h="0dp", weight=1),
+            body = col(text("m_time_al", clock=TIME, font=F["time"], auto=(14, 160), h="0dp", weight=1),
                        text("s_date_al", clock=DATE_SHORT, font=F["sub"], auto=(8, 13), h="wrap"),
                        pad="10dp")
         elif size == "strip":
-            body = row(text("m_time", clock=TIME, font=F["main"], auto=(16, 160), w="0dp", h="match", weight=1, g="center_vertical|start"),
+            body = row(text("m_time", clock=TIME, font=F["time"], auto=(16, 160), w="0dp", h="match", weight=1, g="center_vertical|start"),
                        vline("if_vline", mv="10dp", mh="12dp"),
                        col(text("a_weekday", clock=WEEKDAY, font=F["label"], size=12, caps=True, g="start", spacing=0.06),
                            text("m_date", clock=DAY_MONTH, font=F["sub"], size=16, g="start"),
@@ -336,12 +391,12 @@ def clock_digital(f, size):
                        h="match", padH="16dp", padV="6dp")
         elif size == "m":
             body = col(head,
-                       text("m_time_al", clock=TIME, font=F["main"], auto=(20, 200), h="0dp", weight=1),
+                       text("m_time_al", clock=TIME, font=F["time"], auto=(20, 200), h="0dp", weight=1),
                        text("s_date_al", clock=DAY_MONTH, font=F["sub"], size=14),
                        pad="14dp")
         elif size == "wide":
             body = row(col(head,
-                           text("m_time_al", clock=TIME, font=F["main"], auto=(24, 260), h="0dp", weight=1),
+                           text("m_time_al", clock=TIME, font=F["time"], auto=(24, 260), h="0dp", weight=1),
                            w="0dp", weight=1.4),
                        vline("if_vline", mv="6dp", mh="14dp"),
                        col(text("m_date", clock=DAY_MONTH, font=F["main"], auto=(14, 30), h="wrap", g="start"),
@@ -351,7 +406,7 @@ def clock_digital(f, size):
                        h="match", pad="16dp")
         else:
             body = col(head,
-                       text("m_time_al", clock=TIME, font=F["main"], auto=(30, 320), h="0dp", weight=1),
+                       text("m_time_al", clock=TIME, font=F["time"], auto=(30, 320), h="0dp", weight=1),
                        text("m_date_al", clock=DATE_LONG, font=F["sub"], size=17),
                        hline("if_line", mv="10dp"),
                        alarm_row(f, size=14, lg="start"),
@@ -360,25 +415,25 @@ def clock_digital(f, size):
 
     if f == "neon":
         if size in ("s", "m"):
-            inner = [text("m_time", clock=TIME, font=F["main"], auto=(10, 120), h="0dp", weight=1, shadow=True)]
+            inner = [text("m_time", clock=TIME, font=F["time"], auto=(10, 120), h="0dp", weight=1, shadow=True)]
             if size == "m":
                 inner.append(text("a_date", clock=DATE_SHORT, font=F["sub"], auto=(8, 14), caps=True, mb="4dp"))
             return layout(name, *bg(f, "ring"), col(*inner, pad="26dp" if size == "m" else "16dp"))
         if size == "strip":
-            body = row(text("m_time", clock=TIME, font=F["main"], auto=(16, 120), w="0dp", h="match", weight=1, g="center_vertical|start", shadow=True),
+            body = row(text("m_time", clock=TIME, font=F["time"], auto=(16, 120), w="0dp", h="match", weight=1, g="center_vertical|start", shadow=True),
                        text("a_date", clock=DATE_SHORT, font=F["label"], size=12, caps=True, spacing=0.06, w="wrap", g="end|center_vertical"),
                        h="match", padH="18dp", padV="8dp")
         elif size == "wide":
             body = col(row(text("a_weekday", clock=WEEKDAY, font=F["label"], size=12, caps=True, spacing=0.1, w="0dp", weight=1, g="start"),
                            alarm_row(f, role="a", size=11)),
-                       text("m_time", clock=TIME, font=F["main"], auto=(24, 260), h="0dp", weight=1, g="center_vertical|start", shadow=True),
+                       text("m_time", clock=TIME, font=F["time"], auto=(24, 260), h="0dp", weight=1, g="center_vertical|start", shadow=True),
                        text("s_date", clock=DAY_MONTH, font=F["sub"], size=15, g="start", caps=True, spacing=0.06),
                        padH="20dp", padV="16dp")
         else:
             body = col(text("a_weekday", clock=WEEKDAY, font=F["label"], size=13, caps=True, spacing=0.12),
                        spacer(),
                        frame(img("fx_g2", "wfx_ring"),
-                             text("m_time", clock=TIME, font=F["main"], auto=(14, 160), pad="30dp", shadow=True, h="match"),
+                             text("m_time", clock=TIME, font=F["time"], auto=(14, 160), pad="30dp", shadow=True, h="match"),
                              w="170dp", h="170dp", mv="6dp"),
                        spacer(),
                        text("s_date", clock=DAY_MONTH, font=F["sub"], size=15, caps=True, spacing=0.06),
@@ -388,21 +443,21 @@ def clock_digital(f, size):
 
     # minimal
     if size == "s":
-        body = col(text("m_time_al", clock=TIME, font=F["main"], auto=(14, 160), h="0dp", weight=1),
+        body = col(text("m_time_al", clock=TIME, font=F["time"], auto=(14, 160), h="0dp", weight=1),
                    text("a_date_al", clock=("EEE d", "EEE d"), font=F["label"], auto=(8, 12), caps=True),
                    pad="8dp")
     elif size == "strip":
-        body = row(text("m_time", clock=TIME, font=F["main"], auto=(16, 160), w="0dp", h="match", weight=1, g="center_vertical|start"),
+        body = row(text("m_time", clock=TIME, font=F["time"], auto=(16, 160), w="0dp", h="match", weight=1, g="center_vertical|start"),
                    vline("if_vline", mv="12dp", mh="12dp"),
                    text("a_date", clock=("EEE d MMM", "EEE d MMM"), font=F["label"], size=12, caps=True, w="wrap", g="center_vertical|start"),
                    h="match", padH="12dp")
     elif size == "m":
-        body = col(text("m_time_al", clock=TIME, font=F["main"], auto=(20, 200), h="0dp", weight=1),
+        body = col(text("m_time_al", clock=TIME, font=F["time"], auto=(20, 200), h="0dp", weight=1),
                    hline("if_line", mv="6dp"),
                    text("a_date_al", clock=("EEE d MMM", "EEE d MMM"), font=F["label"], size=12, caps=True),
                    pad="12dp")
     elif size == "wide":
-        body = row(text("m_time", clock=TIME, font=F["main"], auto=(24, 300), w="0dp", h="match", weight=1.5, g="center_vertical|start"),
+        body = row(text("m_time", clock=TIME, font=F["time"], auto=(24, 300), w="0dp", h="match", weight=1.5, g="center_vertical|start"),
                    vline("if_vline", mv="10dp", mh="14dp"),
                    col(text("a_weekday", clock=WEEKDAY, font=F["label"], size=12, caps=True, g="start"),
                        text("m_date", clock=DAY_MONTH, font=F["sub"], size=18, g="start", mt="2dp"),
@@ -410,7 +465,7 @@ def clock_digital(f, size):
                        w="0dp", weight=1, g="center_vertical|start"),
                    h="match", padH="14dp", padV="10dp")
     else:
-        body = col(text("m_time_al", clock=TIME, font=F["main"], auto=(30, 360), h="0dp", weight=1),
+        body = col(text("m_time_al", clock=TIME, font=F["time"], auto=(30, 360), h="0dp", weight=1),
                    hline("if_line", mv="10dp"),
                    row(text("a_date", clock=("EEEE d MMMM", "EEEE d MMMM"), font=F["label"], size=12, caps=True, w="0dp", weight=1, g="start"),
                        alarm_row(f, role="s")),
@@ -835,9 +890,12 @@ def apps(style, size):
 
 # ---------------------------------------------------------------- генерация разметки
 
+for f in CLOCK_FAMILIES:
+    for s in SIZES:
+        for dk in DIGIT_FONTS:
+            clock_digital(f, s, dk)
 for f in FAMILIES:
     for s in SIZES:
-        clock_digital(f, s)
         calendar(f, s)
         weather(f, s)
         battery(f, s)
@@ -1206,14 +1264,18 @@ kt = ["package app.synctheme.mobile.widget", "", "import app.synctheme.R", "",
       "    }",
       ]
 for kind in ["clock", "cal", "wx", "bat", "apps"]:
-    kt += ["", f"    private fun {kind}(key: String): WidgetLayout? = when (key) {{"]
-    for name, idl in LAYOUTS.items():
-        if not name.startswith(f"w_{kind}_"):
+    groups = [kind] if kind != "clock" else [f"clock_{f}" for f in CLOCK_FAMILIES] + ["clock_analog"]
+    if kind == "clock":
+        kt += ["", "    private fun clock(key: String): WidgetLayout? = " + " ?: ".join(f"{g}(key)" for g in groups)]
+    for group in groups:
+      kt += ["", f"    private fun {group}(key: String): WidgetLayout? = when (key) {{"]
+      for name, idl in LAYOUTS.items():
+        if not name.startswith(f"w_{group}_"):
             continue
         codes = "".join(role_of(i) + ("L" if i.startswith("box") and i.endswith("_al") else "l" if i.endswith("_al") else ".") for i in idl)
         accent_bg = "true" if "bg_a" in idl else "false"
         kt.append(f'        "{name[2:]}" -> WidgetLayout(R.layout.{name}, {accent_bg}, "{codes}", intArrayOf({", ".join("R.id." + i for i in idl)}))')
-    kt += ["        else -> null", "    }"]
+      kt += ["        else -> null", "    }"]
 kt += ["}", "", "/** Слот данных → все элементы, которые его показывают (в разных стилях — в разных ролях). */", "object WidgetSlots {",
        "    private val map: Map<String, IntArray> = mapOf("]
 for slot, values in slots.items():
