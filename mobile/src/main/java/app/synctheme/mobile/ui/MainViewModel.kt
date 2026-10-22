@@ -18,6 +18,12 @@ import app.synctheme.core.Theme
 import app.synctheme.core.WatchSettings
 import app.synctheme.core.WallClock
 import app.synctheme.mobile.data.ApplyTargets
+import app.synctheme.mobile.data.DeviceSet
+import app.synctheme.mobile.data.DeviceSettings
+import app.synctheme.mobile.tablet.TabletClient
+import app.synctheme.mobile.tablet.TabletReceiver
+import app.synctheme.mobile.tablet.TabletStore
+import app.synctheme.mobile.tablet.TabletSyncService
 import app.synctheme.mobile.data.NotAnImageException
 import app.synctheme.mobile.data.SharedImage
 import app.synctheme.mobile.data.ThemeApplier
@@ -87,6 +93,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _targets = MutableStateFlow(ApplyTargets.load(app))
     val targets: StateFlow<ApplyTargets> = _targets.asStateFlow()
 
+    /** Подключённые устройства: телефон всегда, часы и планшет — по желанию. */
+    private val _devices = MutableStateFlow(DeviceSet(DeviceSettings.watch(app), TabletStore.tablet(app) != null))
+    val devices: StateFlow<DeviceSet> = _devices.asStateFlow()
+
+    /** Это планшет и он принимает тему с телефона. */
+    private val _receiving = MutableStateFlow(TabletStore.receiving(app))
+    val receiving: StateFlow<Boolean> = _receiving.asStateFlow()
+    val receiver = TabletReceiver.state
+
     /** Текст текущей операции или null, если ничего не выполняется. */
     private val _busy = MutableStateFlow<String?>(null)
     val busy: StateFlow<String?> = _busy.asStateFlow()
@@ -149,7 +164,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 .debounce(300)
                 .collectLatest { (_, _, t) -> renderStylePreviews(t) }
         }
-        refreshWatch()
+        if (_devices.value.watch) refreshWatch()
+        TabletSyncService.ensure(app)
         // Виджеты перерисовываются в фоне: на старте приложения это не должно тормозить экран.
         viewModelScope.launch(Dispatchers.Default) {
             WidgetUpdater.updateAll(app)
@@ -355,7 +371,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Применяет тему ко всем выбранным местам; ошибка в одном шаге не мешает остальным. */
     fun apply() = viewModelScope.launch {
-        val targets = _targets.value
+        val targets = _targets.value.on(_devices.value)
         val report = try {
             ThemeApplier(app).apply(theme.value, targets) { _busy.value = it }
         } catch (e: Exception) {
@@ -447,6 +463,42 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshWatch() = viewModelScope.launch { _connection.value = sync.connection() }
+
+    // ---------------------------------------------------------------- часы и планшет
+
+    /** Часы подключены — появляются вкладка «Часы», статус и циферблат в «Применить». */
+    fun setWatchEnabled(on: Boolean) {
+        DeviceSettings.setWatch(app, on)
+        _devices.value = _devices.value.copy(watch = on)
+        if (on) refreshWatch()
+    }
+
+    /** Телефон: связать планшет по коду с его экрана. */
+    fun pairTablet(host: String, port: Int, code: String, service: String?, onDone: () -> Unit = {}) = viewModelScope.launch {
+        _busy.value = "Связываюсь с планшетом…"
+        try {
+            val peer = TabletClient.pair(app, host, port, code, service)
+            _devices.value = _devices.value.copy(tablet = true)
+            _messages.tryEmit("Планшет «${peer.name}» подключён — тема уйдёт на него по «Применить»")
+            onDone()
+        } catch (e: Exception) {
+            _messages.tryEmit("Не удалось связать: ${e.message ?: e.javaClass.simpleName}")
+        } finally {
+            _busy.value = null
+        }
+    }
+
+    fun unpairTablet() {
+        TabletStore.setTablet(app, null)
+        _devices.value = _devices.value.copy(tablet = false)
+    }
+
+    /** Планшет: принимать тему с телефона (в фоне, с тихим уведомлением). */
+    fun setReceiving(on: Boolean) {
+        TabletStore.setReceiving(app, on)
+        _receiving.value = on
+        TabletSyncService.ensure(app)
+    }
 
     private val _timeCheck = MutableStateFlow<TimeCheckResult?>(null)
     val timeCheck: StateFlow<TimeCheckResult?> = _timeCheck.asStateFlow()

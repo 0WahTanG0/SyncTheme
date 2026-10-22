@@ -1,5 +1,6 @@
 package app.synctheme.mobile.update
 
+import app.synctheme.mobile.util.Compat
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -90,11 +91,11 @@ class Updater(private val context: Context) {
     /** Проверяет, что это SyncTheme, подписанный тем же ключом, и что версия не старее. */
     fun verify(apk: File) {
         val pm = context.packageManager
-        val flags = PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong())
-        val archive = pm.getPackageArchiveInfo(apk.path, flags)
+        val flags = PackageManager.GET_SIGNING_CERTIFICATES
+        val archive = Compat.archiveInfo(pm, apk.path, flags)
             ?: throw IOException("Файл повреждён или это не APK")
         if (archive.packageName != context.packageName) throw IOException("Это APK другого приложения (${archive.packageName})")
-        val installed = pm.getPackageInfo(context.packageName, flags)
+        val installed = Compat.packageInfo(pm, context.packageName, flags)
         if (signers(archive) != signers(installed)) {
             throw IOException("APK подписан другим ключом — его нельзя поставить как обновление")
         }
@@ -116,8 +117,11 @@ class Updater(private val context: Context) {
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
             setSize(apk.length())
-            // После первого обновления SyncTheme становится «установщиком» самого себя — дальше без лишних вопросов.
-            setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            // После первого обновления SyncTheme становится «установщиком» самого себя — дальше без лишних вопросов
+            // (Android 12+; раньше система каждый раз спрашивает подтверждение).
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            }
         }
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->

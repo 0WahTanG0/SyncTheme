@@ -51,13 +51,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.synctheme.mobile.data.ApplyTargets
+import app.synctheme.mobile.data.DeviceSet
 
 /** Нижнее меню: четыре раздела под большим пальцем. */
 @Composable
-fun BottomNav(tab: Tab, onTab: (Tab) -> Unit) {
+fun BottomNav(tab: Tab, tabs: List<Tab> = Tab.entries, onTab: (Tab) -> Unit) {
     val look = LocalLook.current
     NavigationBar(containerColor = look.bar, tonalElevation = 0.dp) {
-        Tab.entries.forEach { t ->
+        tabs.forEach { t ->
             NavigationBarItem(
                 selected = tab == t,
                 onClick = { onTab(t) },
@@ -92,6 +93,7 @@ fun ApplyStrip(
     targets: ApplyTargets,
     busy: String?,
     dirty: Boolean,
+    devices: DeviceSet,
     onTargets: (ApplyTargets) -> Unit,
     onApply: () -> Unit,
 ) {
@@ -104,12 +106,13 @@ fun ApplyStrip(
             return@Column
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TargetsButton(targets, onTargets)
+            TargetsButton(targets, devices, onTargets)
+            val any = targets.on(devices).any
             AccentButton(
-                if (!targets.any) "Выберите, куда" else if (dirty) "Применить" else "Применено",
+                if (!any) "Выберите, куда" else if (dirty) "Применить" else "Применено",
                 onApply,
                 Modifier.weight(1f),
-                enabled = targets.any,
+                enabled = any,
                 quiet = !dirty,
                 height = 48.dp,
             )
@@ -117,16 +120,17 @@ fun ApplyStrip(
     }
 }
 
-/** Куда применять: значки выбранных мест, по нажатию — меню с галочками. */
+/** Куда применять: значки выбранных мест (часы и планшет — если подключены), по нажатию — меню с галочками. */
 @Composable
-private fun TargetsButton(targets: ApplyTargets, onTargets: (ApplyTargets) -> Unit) {
+private fun TargetsButton(targets: ApplyTargets, devices: DeviceSet, onTargets: (ApplyTargets) -> Unit) {
     val look = LocalLook.current
     var open by remember { mutableStateOf(false) }
-    val items = listOf(
+    val items = listOfNotNull(
         Triple(NavIcons.Home, "Обои рабочего стола", targets.homeWallpaper) to { on: Boolean -> targets.copy(homeWallpaper = on) },
         Triple(NavIcons.Lock, "Экран блокировки", targets.lockWallpaper) to { on: Boolean -> targets.copy(lockWallpaper = on) },
         Triple(NavIcons.Widgets, "Виджеты", targets.widgets) to { on: Boolean -> targets.copy(widgets = on) },
-        Triple(NavIcons.Watch, "Циферблат часов", targets.watch) to { on: Boolean -> targets.copy(watch = on) },
+        if (devices.watch) Triple(NavIcons.Watch, "Циферблат часов", targets.watch) to { on: Boolean -> targets.copy(watch = on) } else null,
+        if (devices.tablet) Triple(NavIcons.Tablet, "Планшет", targets.tablet) to { on: Boolean -> targets.copy(tablet = on) } else null,
     )
     val shape = RoundedCornerShape(24.dp)
     Box {

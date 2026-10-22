@@ -12,11 +12,11 @@ android {
     defaultConfig {
         // Тот же applicationId и ключ подписи, что у приложения на часах.
         applicationId = "app.synctheme"
-        // Android 13+: SyncTheme рассчитан на One UI 8, а нужные ему API появились в Android 13.
-        minSdk = 33
+        // Android 9+: работает на любом телефоне и планшете; новые API — через util/Compat.kt.
+        minSdk = 28
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.13.0"
+        versionCode = 19
+        versionName = "1.14.0"
         // Откуда приложение берёт обновления: релизы GitHub owner/repo (-PupdateRepo=... при сборке).
         resValue("string", "update_repo", providers.gradleProperty("updateRepo").getOrElse(""))
         // Galaxy S25+ и все современные телефоны — arm64; так APK заметно меньше.

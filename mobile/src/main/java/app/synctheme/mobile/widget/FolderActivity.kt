@@ -126,6 +126,7 @@ class FolderActivity : ComponentActivity() {
 
     /** Размытие рабочего стола за папкой, если телефон его поддерживает (может выключаться экономией). */
     private fun blurBehind(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
         val wm = getSystemService(WindowManager::class.java)
         if (!wm.isCrossWindowBlurEnabled) return false
         window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)

@@ -134,6 +134,16 @@ fun LockDepthContent(theme: Theme, vm: MainViewModel) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val photo = theme.lockScreenBackground().type == BackgroundType.PHOTO
     val phone = remember { PhoneInfo.detect() }
+    // Часы экрана блокировки рисует система; за объект их ставят «Адаптивные часы» One UI 8 у Samsung.
+    if (!phone.samsung) {
+        Text(
+            "На этом телефоне часы экрана блокировки рисует система — поставить их за объект фото она не умеет. " +
+                "Эффект глубины на экране блокировки есть у Samsung с One UI 8. Обои блокировки SyncTheme ставит и здесь, " +
+                "а часы за объектом работают на рабочем столе («Часы на обоях») и на циферблате.",
+            style = MaterialTheme.typography.bodySmall, color = muted,
+        )
+        return
+    }
     SwitchRow("Эффект глубины", theme.lockDepth && photo, enabled = photo) { vm.setLockDepth(it) }
     if (!photo) {
         Text(

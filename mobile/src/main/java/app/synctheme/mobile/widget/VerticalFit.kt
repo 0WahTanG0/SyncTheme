@@ -8,6 +8,7 @@ import android.util.SizeF
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
+import app.synctheme.mobile.util.Compat
 import app.synctheme.R
 import app.synctheme.core.DigitFont
 import kotlin.math.floor
@@ -102,6 +103,8 @@ internal object VerticalFit {
 
         fun main(id: Int, s: Float, em: Em, top: Float, bottom: Float = 0f) {
             rv.setTextViewTextSize(id, TypedValue.COMPLEX_UNIT_DIP, s)
+            // Отступы и размеры элементов виджет меняет с Android 12; раньше — как в разметке.
+            if (!Compat.modernWidgets) return
             rv.setViewLayoutMargin(id, RemoteViews.MARGIN_TOP, top - em.above * s, TypedValue.COMPLEX_UNIT_DIP)
             rv.setViewLayoutMargin(id, RemoteViews.MARGIN_BOTTOM, bottom - em.below * s, TypedValue.COMPLEX_UNIT_DIP)
         }
@@ -171,11 +174,11 @@ internal object VerticalFit {
             WidgetKind.APPS -> {
                 // Значок не шире своей колонки: в высоком виджете их две в ряд.
                 val side = min(spec.appIcon, (if (tall) w / 2 else w) - 6f)
-                APP_ICONS.forEach { id ->
+                if (Compat.modernWidgets) APP_ICONS.forEach { id ->
                     rv.setViewLayoutWidth(id, side, TypedValue.COMPLEX_UNIT_DIP)
                     rv.setViewLayoutHeight(id, side, TypedValue.COMPLEX_UNIT_DIP)
                 }
-                if (layout.has(R.id.fx_ap0)) APP_RINGS.forEach { id ->
+                if (Compat.modernWidgets && layout.has(R.id.fx_ap0)) APP_RINGS.forEach { id ->
                     rv.setViewLayoutWidth(id, side + 8, TypedValue.COMPLEX_UNIT_DIP)
                     rv.setViewLayoutHeight(id, side + 8, TypedValue.COMPLEX_UNIT_DIP)
                 }

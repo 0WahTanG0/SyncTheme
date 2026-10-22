@@ -7,12 +7,13 @@ import app.synctheme.mobile.render.WallpaperApplier
 import app.synctheme.mobile.watch.WatchFaceBuilder
 import app.synctheme.mobile.watch.WatchStatusStore
 import app.synctheme.mobile.watch.WatchSync
+import app.synctheme.mobile.tablet.TabletClient
 import app.synctheme.mobile.widget.WidgetUpdater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Ставит тему на устройства: обои, виджеты, циферблат. Ошибка в одном шаге не мешает остальным.
+ * Ставит тему на устройства: обои, виджеты, циферблат часов и планшет. Ошибка в одном шаге не мешает остальным.
  * Для эффекта глубины сначала находит главный объект на фото, если его ещё не искали.
  */
 class ThemeApplier(private val context: Context) {
@@ -51,6 +52,9 @@ class ThemeApplier(private val context: Context) {
                 WatchStatusStore.markPending(t.name)
                 sent = true
             }
+        }
+        if (targets.tablet) {
+            step("планшет", "Отправляю на планшет…") { TabletClient.push(context, t) }
         }
         return Report(done, errors, sent)
     }

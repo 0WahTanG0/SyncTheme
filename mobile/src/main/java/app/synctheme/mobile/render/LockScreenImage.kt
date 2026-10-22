@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
-import android.view.WindowManager
+import app.synctheme.mobile.util.Compat
 import androidx.core.content.FileProvider
 import app.synctheme.core.Theme
 import java.io.File
@@ -12,9 +12,7 @@ import java.io.File
 /** Обои экрана блокировки файлом — для системного «Установить как». */
 object LockScreenImage {
     fun export(context: Context, theme: Theme): Uri {
-        val bounds = context.getSystemService(WindowManager::class.java).maximumWindowMetrics.bounds
-        val w = minOf(bounds.width(), bounds.height())
-        val h = maxOf(bounds.width(), bounds.height())
+        val (w, h) = Compat.screen(context)
         val bitmap = ThemeRenderer.lockBackground(context, theme, w, h)
         val file = File(context.cacheDir, "shared").apply { mkdirs() }.resolve("lock.jpg")
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it) }

@@ -10,6 +10,12 @@
     <!-- Погода по местоположению и события в виджете календаря (по желанию пользователя). -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- Планшет принимает тему с телефона по Wi‑Fi: служба в фоне, запуск после перезагрузки. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Виджеты открывают приложения: будильник, календарь, батарею, погоду и выбранные в папке. -->
     <queries>
@@ -212,6 +218,21 @@
             android:noHistory="true"
             android:taskAffinity=".folder"
             android:theme="@style/Theme.SyncTheme.Folder" />
+
+        <!-- Планшет: ждёт тему с телефона (пока включён приём). -->
+        <service
+            android:name=".mobile.tablet.TabletSyncService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <receiver
+            android:name=".mobile.tablet.TabletBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Своя линия папки: прозрачное окно поверх рабочего стола, рисуется пальцем. -->
         <activity

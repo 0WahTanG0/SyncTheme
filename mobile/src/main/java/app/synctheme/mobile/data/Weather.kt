@@ -84,7 +84,8 @@ class WeatherRepository(private val context: Context) {
     @SuppressLint("MissingPermission")
     suspend fun locate(): WeatherPlace? = withContext(Dispatchers.IO) {
         val lm = context.getSystemService(LocationManager::class.java)
-        val fresh = withTimeoutOrNull(10_000) {
+        // Свежая точка (Android 11+), иначе — последняя известная.
+        val fresh = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) null else withTimeoutOrNull(10_000) {
             suspendCancellableCoroutine<Location?> { cont ->
                 val signal = CancellationSignal()
                 cont.invokeOnCancellation { signal.cancel() }

@@ -1,5 +1,6 @@
 package app.synctheme.mobile.install
 
+import app.synctheme.mobile.util.Compat
 import android.content.Context
 import android.content.pm.PackageManager
 import io.github.muntashirakon.adb.PairingConnectionCtx
@@ -35,7 +36,7 @@ class WatchAppInstaller(private val context: Context, private val log: (String) 
     val bundledVersion: Long by lazy {
         val file = File(context.cacheDir, "watch_app_probe.apk")
         context.assets.open(ASSET).use { input -> file.outputStream().use { input.copyTo(it) } }
-        val info = context.packageManager.getPackageArchiveInfo(file.path, PackageManager.PackageInfoFlags.of(0))
+        val info = Compat.archiveInfo(context.packageManager, file.path, 0)
         file.delete()
         info?.longVersionCode ?: 0L
     }

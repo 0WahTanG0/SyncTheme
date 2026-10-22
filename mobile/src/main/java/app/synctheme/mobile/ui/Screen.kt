@@ -39,6 +39,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,6 +66,9 @@ import app.synctheme.mobile.widget.WidgetConfigActivity
 
 /** Разделы нижнего меню. */
 enum class Tab(val title: String) { WALLPAPER("Обои"), WIDGETS("Виджеты"), WATCH("Часы"), MORE("Ещё") }
+
+/** Показывать ли часы в превью и миниатюрах (часы подключены). */
+val LocalShowWatch = androidx.compose.runtime.staticCompositionLocalOf { true }
 
 /** Чей фон редактируется. */
 enum class BgTarget { HOME, LOCK, WATCH }
@@ -99,6 +103,9 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     val connection by vm.connection.collectAsStateWithLifecycle()
     val targets by vm.targets.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val devices by vm.devices.collectAsStateWithLifecycle()
+    // Без часов вкладка «Часы» не нужна.
+    val tabs = Tab.entries.filter { it != Tab.WATCH || devices.watch }
     val context = LocalContext.current
 
     val snackbar = remember { SnackbarHostState() }
@@ -106,6 +113,7 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
 
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     LaunchedEffect(Unit) { vm.tabRequests.collect { tab = it } }
+    LaunchedEffect(tabs) { if (tab !in tabs) tab = Tab.WALLPAPER }
     /** На вкладке «Обои»: редактируется рабочий стол или экран блокировки. */
     var lock by rememberSaveable { mutableStateOf(initialLock) }
     var photoTarget by remember { mutableStateOf(BgTarget.HOME) }
@@ -152,8 +160,8 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
                 snackbarHost = { SnackbarHost(snackbar) },
                 bottomBar = {
                     Column {
-                        if (tab != Tab.MORE) ApplyStrip(targets, busy, theme != applied, vm::setTargets, vm::apply)
-                        BottomNav(tab) { tab = it }
+                        if (tab != Tab.MORE) ApplyStrip(targets, busy, theme != applied, devices, vm::setTargets, vm::apply)
+                        BottomNav(tab, tabs) { tab = it }
                     }
                 },
             ) { padding ->
@@ -163,17 +171,17 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
                 ) {
                     // Шапка и превью закреплены; превью сжимается при прокрутке, но изменения видны сразу.
                     Column(Modifier.padding(horizontal = 16.dp)) {
-                        Header(connection, onOpenInstaller)
+                        Header(connection, devices.watch, onOpenInstaller)
                         if (tab != Tab.MORE) {
                             val height = with(density) { header.height.toDp() }
                             when (tab) {
                                 Tab.WATCH -> PreviewRow(null, watchPreview, height)
-                                Tab.WALLPAPER -> PreviewRow(if (lock) lockPreview else phonePreview, watchPreview, height)
-                                else -> PreviewRow(phonePreview, watchPreview, height)
+                                Tab.WALLPAPER -> PreviewRow(if (lock) lockPreview else phonePreview, watchPreview, height, showWatch = devices.watch)
+                                else -> PreviewRow(phonePreview, watchPreview, height, showWatch = devices.watch)
                             }
                         }
                     }
-                    LazyColumn(
+                    CompositionLocalProvider(LocalShowWatch provides devices.watch) { LazyColumn(
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
                     ) {
@@ -183,7 +191,7 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
                             Tab.WATCH -> watchTab(theme, actions) { colorTarget = it }
                             Tab.MORE -> moreTab(theme, actions) { UpdateSection(vm) }
                         }
-                    }
+                    } }
                 }
             }
         }
@@ -255,12 +263,14 @@ class ScreenActions(
 }
 
 @Composable
-private fun Header(connection: WatchConnection, onOpenInstaller: () -> Unit) {
+private fun Header(connection: WatchConnection, watch: Boolean, onOpenInstaller: () -> Unit) {
     val look = LocalLook.current
     Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         AppMark(look, 36.dp)
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) { AppTitle(look) }
+        // Статус часов — только если часы подключены в «Устройствах».
+        if (!watch) return@Row
         val (dot, text) = when {
             !connection.checked -> Color.Gray to "Ищу часы…"
             connection.hasApp -> Color(0xFF39D86A) to "Часы на связи"
@@ -272,7 +282,7 @@ private fun Header(connection: WatchConnection, onOpenInstaller: () -> Unit) {
 }
 
 @Composable
-private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, height: Dp, showPhone: Boolean = true) {
+private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, height: Dp, showPhone: Boolean = true, showWatch: Boolean = true) {
     val look = LocalLook.current
     val outer = when (look.style) {
         AppStyle.GLASS -> RoundedCornerShape(28.dp)
@@ -321,6 +331,7 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, height: Dp, sho
                     }
                 }
             }
+            if (!showWatch) return@Row
             // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
             val bezel = when (look.style) {
                 AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.16f) else Color.White

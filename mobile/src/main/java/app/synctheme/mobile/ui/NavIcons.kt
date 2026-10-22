@@ -79,4 +79,14 @@ object NavIcons {
         }
         stroke { moveTo(8.5f, 10.5f); lineTo(8.5f, 7.5f); arcTo(3.5f, 3.5f, 0f, false, true, 15.5f, 7.5f); lineTo(15.5f, 10.5f) }
     }
+
+    /** Планшет: широкий экран в рамке и кнопка. */
+    val Tablet = icon("Tablet") {
+        stroke {
+            moveTo(4.5f, 4f); lineTo(19.5f, 4f); quadTo(21.5f, 4f, 21.5f, 6f); lineTo(21.5f, 18f)
+            quadTo(21.5f, 20f, 19.5f, 20f); lineTo(4.5f, 20f); quadTo(2.5f, 20f, 2.5f, 18f); lineTo(2.5f, 6f)
+            quadTo(2.5f, 4f, 4.5f, 4f); close()
+        }
+        fill { moveTo(12f, 16.3f); arcTo(1f, 1f, 0f, true, true, 12f, 18.3f); arcTo(1f, 1f, 0f, true, true, 12f, 16.3f); close() }
+    }
 }

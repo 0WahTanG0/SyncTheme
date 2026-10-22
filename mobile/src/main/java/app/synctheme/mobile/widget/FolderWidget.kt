@@ -19,6 +19,7 @@ import androidx.core.graphics.ColorUtils
 import app.synctheme.R
 import app.synctheme.core.Theme
 import app.synctheme.mobile.render.Colors
+import app.synctheme.mobile.util.Compat
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -38,8 +39,11 @@ object FolderWidget {
                 val iconDp = (min(dp.width, dp.height - titleDp) * 0.74f).coerceIn(28f, 72f)
                 val px = (iconDp * context.resources.displayMetrics.density).roundToInt()
                 rv.setImageViewBitmap(R.id.folder_icon, glyph(context, config, theme, px))
-                rv.setViewLayoutWidth(R.id.folder_icon, iconDp, TypedValue.COMPLEX_UNIT_DIP)
-                rv.setViewLayoutHeight(R.id.folder_icon, iconDp, TypedValue.COMPLEX_UNIT_DIP)
+                // До Android 12 размер значка задаёт разметка (56 dp).
+                if (Compat.modernWidgets) {
+                    rv.setViewLayoutWidth(R.id.folder_icon, iconDp, TypedValue.COMPLEX_UNIT_DIP)
+                    rv.setViewLayoutHeight(R.id.folder_icon, iconDp, TypedValue.COMPLEX_UNIT_DIP)
+                }
                 rv.setViewVisibility(R.id.folder_title, if (title.isEmpty()) View.GONE else View.VISIBLE)
                 if (title.isNotEmpty()) {
                     rv.setTextViewText(R.id.folder_title, title)
@@ -134,6 +138,7 @@ object FolderWidget {
 
     /** Одноцветный значок приложения (тот же, что у «тематических значков» Android 13+). */
     private fun silhouette(context: Context, canvas: Canvas, component: String, cx: Float, cy: Float, half: Float, color: Int): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return false
         val icon = runCatching { context.packageManager.getActivityIcon(ComponentName.unflattenFromString(component)!!) }.getOrNull()
         val mono = (icon as? AdaptiveIconDrawable)?.monochrome?.mutate() ?: return false
         // Слои адаптивного значка шире видимой части в полтора раза.

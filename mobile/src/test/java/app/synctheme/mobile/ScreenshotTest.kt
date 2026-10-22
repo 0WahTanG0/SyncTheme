@@ -7,7 +7,10 @@ import org.robolectric.Shadows.shadowOf
 import androidx.test.core.app.ApplicationProvider
 import app.synctheme.R
 import app.synctheme.core.Presets
+import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.tablet.TabletReceiver
+import app.synctheme.mobile.tablet.TabletStore
 import app.synctheme.mobile.install.InstallerViewModel
 import app.synctheme.mobile.install.WatchInstallerScreen
 import app.synctheme.mobile.ui.MainViewModel
@@ -33,6 +36,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowBuild
 
 /** Скриншот главного экрана (Roborazzi). */
 @RunWith(RobolectricTestRunner::class)
@@ -50,6 +54,8 @@ class ScreenshotTest {
         val app = ApplicationProvider.getApplicationContext<Application>()
         AppearanceStore.set(app, appearance)
         ThemeRepository.get(app).setDraft(Presets.all[0])
+        // По умолчанию — только телефон; вкладка «Часы» есть, когда часы включены.
+        DeviceSettings.setWatch(app, tab == Tab.WATCH)
         prepare(app)
         val vm = MainViewModel(app)
         if (tab == Tab.WATCH) vm.wantStylePreviews()
@@ -117,6 +123,7 @@ class ScreenshotTest {
     @Test
     @Config(qualifiers = "w412dp-h2000dp-560dpi")
     fun lockDepth() = screen("screen_lock_depth", Tab.WALLPAPER, Appearance(AppStyle.GLASS, AppMode.DARK), lock = true, expand = true) { app ->
+        ShadowBuild.setManufacturer("samsung")
         val t = Presets.all[1]
         // Фото нет — рисуется градиент, но раздел ведёт себя как с фото.
         ThemeRepository.get(app).setDraft(t.copy(background = t.background.copy(type = BackgroundType.PHOTO, photoFile = "none.jpg"), lockDepth = true))
@@ -126,6 +133,24 @@ class ScreenshotTest {
     @Test
     @Config(qualifiers = "w412dp-h2200dp-560dpi")
     fun moreFeatures() = screen("screen_more_features", Tab.MORE, Appearance(AppStyle.GLASS, AppMode.LIGHT))
+
+    /** «Ещё» с включёнными часами. */
+    @Test
+    @Config(qualifiers = "w412dp-h2400dp-560dpi")
+    fun moreWithWatch() = screen("screen_more_watch", Tab.MORE, Appearance(AppStyle.EXPRESSIVE, AppMode.DARK)) { app ->
+        DeviceSettings.setWatch(app, true)
+    }
+
+    /** Планшет: приём темы с телефона и код связывания. */
+    @Test
+    @Config(qualifiers = "w800dp-h1280dp-xhdpi")
+    fun tabletReceiver() {
+        screen("screen_tablet", Tab.MORE, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
+            TabletStore.setReceiving(app, true)
+            TabletReceiver.openPairing()
+        }
+        TabletReceiver.closePairing()
+    }
 
     @Test
     fun widgetConfigScreen() {

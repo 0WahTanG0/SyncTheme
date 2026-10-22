@@ -163,8 +163,8 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
         }
         item {
             Text(
-                "Часы и дату на экране блокировки рисует One UI: их стиль меняется, если зажать экран блокировки → «Изменить». " +
-                    "Виджеты SyncTheme тоже можно поставить туда.",
+                "Часы и дату на экране блокировки рисует сам телефон: их стиль меняется в настройках экрана блокировки " +
+                    "(на Samsung — зажать экран блокировки → «Изменить»).",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
             )
@@ -461,17 +461,8 @@ fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable (
     item { AppearanceSection(theme.accentColor) }
     item { updates() }
     item {
-        Section("Часы") {
-            Text(
-                "Установить SyncTheme на новые часы, переустановить или обновить его.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedButton(onClick = a.openInstaller) { Text("Установка на часы") }
-        }
-    }
-    item {
         val connection by a.vm.connection.collectAsStateWithLifecycle()
-        MyDevicesSection(connection.appNodeName ?: connection.connectedNames.firstOrNull())
+        DevicesSection(a.vm, connection.appNodeName ?: connection.connectedNames.firstOrNull(), a.openInstaller)
     }
     item {
         val context = LocalContext.current

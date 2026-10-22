@@ -3,6 +3,7 @@ package app.synctheme.mobile.data
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.IntentCompat
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -29,7 +30,7 @@ object SharedImage {
         intent?.action == Intent.ACTION_SEND && (stream(intent) != null || url(intent) != null)
 
     /** Сама картинка (content://…). */
-    fun stream(intent: Intent): Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+    fun stream(intent: Intent): Uri? = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
 
     /** Первая ссылка в тексте («Посмотрите этот пин: https://pin.it/…»). */
     fun url(intent: Intent): String? = intent.getStringExtra(Intent.EXTRA_TEXT)?.let(::firstUrl)

@@ -24,6 +24,7 @@ import app.synctheme.mobile.data.WeatherCodes
 import app.synctheme.mobile.data.WeatherData
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.render.Colors
+import app.synctheme.mobile.util.Compat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -112,6 +113,11 @@ object WidgetRenderer {
         widgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID,
     ): RemoteViews {
         val data = Data(context, config, weather, widgetId)
+        if (!Compat.modernWidgets) {
+            // До Android 12 лаунчер не выбирает разметку по размеру: одна — под текущий размер виджета.
+            val s = sizes.firstOrNull() ?: defaultPreviewSize(kind).sizeF
+            return sized(context, kind, config, theme, WidgetSize.classify(s.width, s.height), data, s)
+        }
         if (sizes.isNotEmpty()) {
             val byClass = HashMap<WidgetSize, RemoteViews>()
             return RemoteViews(
@@ -236,17 +242,18 @@ object WidgetRenderer {
                     }
                     'g' -> rv.setInt(id, "setImageAlpha", p.alpha)
                     'h', 'x' -> rv.setInt(id, "setColorFilter", p.accent)
+                    // Цвета через ColorStateList виджеты понимают с Android 12; раньше — цвета по умолчанию.
                     'P' -> {
                         rv.setTextColor(id, p.onAccent)
-                        rv.setColorStateList(id, "setBackgroundTintList", ColorStateList.valueOf(p.accent))
+                        if (Compat.modernWidgets) rv.setColorStateList(id, "setBackgroundTintList", ColorStateList.valueOf(p.accent))
                     }
-                    'p' -> {
+                    'p' -> if (Compat.modernWidgets) {
                         rv.setColorStateList(id, "setProgressTintList", ColorStateList.valueOf(p.accent))
                         rv.setColorStateList(id, "setProgressBackgroundTintList", ColorStateList.valueOf(p.faint))
                     }
                 }
-                // Выравнивание: текст и контейнеры, помеченные в разметке.
-                if (layout.roles[2 * i + 1] != '.') rv.setInt(id, "setGravity", gravity)
+                // Выравнивание: текст и контейнеры, помеченные в разметке (менять его виджетам можно с Android 12).
+                if (layout.roles[2 * i + 1] != '.' && Compat.modernWidgets) rv.setInt(id, "setGravity", gravity)
             }
         }
 
@@ -256,7 +263,7 @@ object WidgetRenderer {
             val alarm = data.alarm
             visible("row_alarm", alarm != null)
             if (alarm != null) text("alarm", alarm)
-            if (!style.startsWith("analog_") || !layout.has(R.id.analog)) return
+            if (!style.startsWith("analog_") || !layout.has(R.id.analog) || !Compat.modernWidgets) return
             val (dial, hands, second) = when (style) {
                 "analog_blob" -> Triple(p.accent, p.onAccent, p.onAccent)
                 "analog_numbers" -> Triple(p.main, p.main, p.accent)
@@ -383,7 +390,9 @@ object WidgetRenderer {
             for (slot in listOf("pb_ring", "pb_bar")) each(slot) { rv.setProgressBar(it, 100, b.level, false) }
             // Цвет по состоянию: заряжается — зелёный, мало заряда — янтарный и красный, иначе — акцент темы.
             b.color?.let { c ->
-                for (slot in listOf("pb_ring", "pb_bar")) each(slot) { rv.setColorStateList(it, "setProgressTintList", ColorStateList.valueOf(c)) }
+                if (Compat.modernWidgets) {
+                    for (slot in listOf("pb_ring", "pb_bar")) each(slot) { rv.setColorStateList(it, "setProgressTintList", ColorStateList.valueOf(c)) }
+                }
                 tint("i_bolt", c)
             }
             text("device", Battery.deviceName(context))
@@ -468,9 +477,7 @@ object WidgetRenderer {
 
         companion object {
             /** Имя телефона, как оно задано в настройках («Galaxy S25+»), иначе модель. */
-            fun deviceName(context: Context): String =
-                runCatching { Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME) }.getOrNull()
-                    ?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL ?: "Телефон"
+            fun deviceName(context: Context): String = app.synctheme.mobile.data.DeviceSettings.name(context)
 
             fun read(context: Context): Battery {
                 val bm = context.getSystemService(BatteryManager::class.java)

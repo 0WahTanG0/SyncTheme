@@ -8,6 +8,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.SizeF
+import androidx.core.os.BundleCompat
+import app.synctheme.mobile.util.Compat
 import app.synctheme.mobile.data.ThemeRepository
 
 /** Базовый виджет: у каждого экземпляра свои настройки ([WidgetConfigStore]). */
@@ -92,9 +94,16 @@ object WidgetUpdater {
 
     /** Точные размеры виджета от лаунчера (Android 12+), dp. */
     private fun sizes(manager: AppWidgetManager, id: Int): List<SizeF> = runCatching {
-        manager.getAppWidgetOptions(id)
-            .getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
-            .orEmpty().filter { it.width > 0 && it.height > 0 }
+        val options = manager.getAppWidgetOptions(id)
+        if (Compat.modernWidgets) {
+            BundleCompat.getParcelableArrayList(options, AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
+                .orEmpty().filter { it.width > 0 && it.height > 0 }
+        } else {
+            // До Android 12 лаунчер сообщает только границы: в портрете — ширина min, высота max.
+            val w = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+            val h = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+            if (w > 0 && h > 0) listOf(SizeF(w.toFloat(), h.toFloat())) else emptyList()
+        }
     }.getOrDefault(emptyList())
 
     /** Одинаковая прозрачность для всех размещённых виджетов. */

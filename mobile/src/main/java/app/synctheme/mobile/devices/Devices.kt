@@ -5,26 +5,9 @@ import android.os.Build
 import java.util.Locale
 
 /**
- * Устройства, на которых работает всё, что умеет SyncTheme:
- * телефоны Samsung Galaxy с One UI 8+ (там есть «Адаптивные часы» для глубины на экране
- * блокировки) и часы на Wear OS 6+ (там есть Watch Face Push — установка своего циферблата).
+ * Часы, для которых есть пошаговая инструкция установки: Wear OS 6+ (там есть Watch Face Push —
+ * установка своего циферблата). Телефон подходит любой с Android 9 и новее.
  */
-enum class Phone(val title: String, val models: String) {
-    S26("Galaxy S26 / S26+ / S26 Ultra", "SM-S94"),
-    S25("Galaxy S25 / S25+ / S25 Ultra / S25 Edge / S25 FE", "SM-S93|SM-S731"),
-    S24("Galaxy S24 / S24+ / S24 Ultra / S24 FE", "SM-S92|SM-S721"),
-    S23("Galaxy S23 / S23+ / S23 Ultra / S23 FE", "SM-S91|SM-S711"),
-    FOLD7("Galaxy Z Fold7 / Z Flip7 / Z Flip7 FE", "SM-F966|SM-F766|SM-F761"),
-    FOLD6("Galaxy Z Fold6 / Z Flip6", "SM-F956|SM-F741"),
-    FOLD5("Galaxy Z Fold5 / Z Flip5", "SM-F946|SM-F731"),
-    A5X("Galaxy A56 / A55 / A36 / A35 / A26", "SM-A566|SM-A556|SM-A366|SM-A356|SM-A266");
-
-    companion object {
-        /** Модель телефона по коду (SM-S936B → S25). */
-        fun of(model: String): Phone? = entries.firstOrNull { p -> p.models.split('|').any { model.uppercase(Locale.ROOT).startsWith(it) } }
-    }
-}
-
 /** Марка часов: от неё зависят пункты меню в инструкции. */
 enum class WatchBrand { SAMSUNG, PIXEL }
 
@@ -48,15 +31,12 @@ enum class Watch(val title: String, val brand: WatchBrand, val names: List<Strin
     }
 }
 
-/** Что известно о телефоне, на котором запущено приложение. */
-data class PhoneInfo(val samsung: Boolean, val model: String, val phone: Phone?, val oneUi: Double?) {
-    /** Телефон из списка поддерживаемых, с One UI 8 или новее (или версия неизвестна). */
-    val supported get() = samsung && (oneUi == null || oneUi >= 8.0)
-
+/** Что известно о телефоне: Samsung ли он и какая One UI (от неё зависит глубина на экране блокировки). */
+data class PhoneInfo(val samsung: Boolean, val model: String, val oneUi: Double?) {
     companion object {
         fun detect(): PhoneInfo {
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
-            return PhoneInfo(samsung, Build.MODEL.orEmpty(), Phone.of(Build.MODEL.orEmpty()), if (samsung) oneUiVersion() else null)
+            return PhoneInfo(samsung, Build.MODEL.orEmpty(), if (samsung) oneUiVersion() else null)
         }
 
         /** Версия One UI из ro.build.version.oneui (80000 → 8.0, 80500 → 8.5). */
@@ -70,14 +50,9 @@ data class PhoneInfo(val samsung: Boolean, val model: String, val phone: Phone?,
     }
 }
 
-/** Выбор пользователя: его телефон и часы (по умолчанию — то, что удалось определить). */
+/** Выбор пользователя: его часы (по умолчанию — те, что на связи). */
 object MyDevices {
     private fun prefs(context: Context) = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-
-    fun phone(context: Context): Phone? =
-        prefs(context).getString("my_phone", null)?.let { runCatching { Phone.valueOf(it) }.getOrNull() } ?: PhoneInfo.detect().phone
-
-    fun setPhone(context: Context, phone: Phone) = prefs(context).edit().putString("my_phone", phone.name).apply()
 
     fun watch(context: Context, connectedName: String? = null): Watch? =
         prefs(context).getString("my_watch", null)?.let { runCatching { Watch.valueOf(it) }.getOrNull() }
@@ -88,14 +63,6 @@ object MyDevices {
 
 /** Шаги инструкции под выбранные устройства. */
 object InstallGuide {
-    /** Как поставить и обновлять SyncTheme на телефоне Samsung. */
-    fun phone(): List<String> = listOf(
-        "Проверьте One UI: «Настройки» → «Сведения о телефоне» → «Сведения о ПО» → «Версия One UI» — нужна 8.0 или новее. Если ниже — «Настройки» → «Обновление ПО».",
-        "Скачайте SyncTheme-phone.apk из релизов на GitHub и откройте его. Если установка заблокирована — временно выключите «Настройки» → «Безопасность и конфиденциальность» → «Автоблокировщик».",
-        "Разрешите установку из этого источника и установите приложение. Дальше обновления приходят прямо в SyncTheme: «Ещё» → «Обновления».",
-        "Для эффекта глубины на экране блокировки зажмите экран блокировки → «Изменить» → часы → «Шрифт и цвет» → «Адаптивные часы».",
-    )
-
     /** Как поставить SyncTheme на часы — пункты меню зависят от марки. */
     fun watch(watch: Watch): List<String> = when (watch.brand) {
         WatchBrand.SAMSUNG -> listOf(
