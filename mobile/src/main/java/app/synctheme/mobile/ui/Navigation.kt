@@ -19,6 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
@@ -31,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +44,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -78,8 +84,8 @@ val Tab.icon: ImageVector
     }
 
 /**
- * Строка «Применить»: куда применять (значки-переключатели) и сама кнопка. dirty — есть изменения,
- * которые ещё не применены; тогда кнопка яркая.
+ * Строка «Применить»: кнопка и рядом — куда применять (значки выбранных мест; по нажатию —
+ * меню с галочками). dirty — есть изменения, которые ещё не применены; тогда кнопка яркая.
  */
 @Composable
 fun ApplyStrip(
@@ -97,14 +103,10 @@ fun ApplyStrip(
             LinearProgressIndicator(Modifier.fillMaxWidth())
             return@Column
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TargetToggle(NavIcons.Home, "Экран", targets.homeWallpaper) { onTargets(targets.copy(homeWallpaper = it)) }
-            TargetToggle(NavIcons.Lock, "Блок.", targets.lockWallpaper) { onTargets(targets.copy(lockWallpaper = it)) }
-            TargetToggle(NavIcons.Widgets, "Виджеты", targets.widgets) { onTargets(targets.copy(widgets = it)) }
-            TargetToggle(NavIcons.Watch, "Часы", targets.watch) { onTargets(targets.copy(watch = it)) }
-            Spacer(Modifier.width(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TargetsButton(targets, onTargets)
             AccentButton(
-                if (dirty) "Применить" else "Применено",
+                if (!targets.any) "Выберите, куда" else if (dirty) "Применить" else "Применено",
                 onApply,
                 Modifier.weight(1f),
                 enabled = targets.any,
@@ -115,24 +117,41 @@ fun ApplyStrip(
     }
 }
 
+/** Куда применять: значки выбранных мест, по нажатию — меню с галочками. */
 @Composable
-private fun TargetToggle(icon: ImageVector, label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun TargetsButton(targets: ApplyTargets, onTargets: (ApplyTargets) -> Unit) {
     val look = LocalLook.current
-    val shape = RoundedCornerShape(12.dp)
-    Column(
-        Modifier.width(52.dp).clip(shape)
-            .background(if (checked) mix(look.control, look.primary, 0.28f) else look.control)
-            .border(1.dp, if (checked) look.primary.copy(alpha = 0.6f) else look.cardBorder, shape)
-            .clickable { onChange(!checked) }
-            .padding(vertical = 5.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(icon, contentDescription = label, tint = if (checked) look.text else look.muted.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
-        Text(
-            label, fontSize = 10.sp, maxLines = 1, textAlign = TextAlign.Center,
-            color = if (checked) look.text else look.muted.copy(alpha = 0.6f),
-            fontWeight = if (checked) FontWeight.Bold else FontWeight.Normal,
-        )
+    var open by remember { mutableStateOf(false) }
+    val items = listOf(
+        Triple(NavIcons.Home, "Обои рабочего стола", targets.homeWallpaper) to { on: Boolean -> targets.copy(homeWallpaper = on) },
+        Triple(NavIcons.Lock, "Экран блокировки", targets.lockWallpaper) to { on: Boolean -> targets.copy(lockWallpaper = on) },
+        Triple(NavIcons.Widgets, "Виджеты", targets.widgets) to { on: Boolean -> targets.copy(widgets = on) },
+        Triple(NavIcons.Watch, "Циферблат часов", targets.watch) to { on: Boolean -> targets.copy(watch = on) },
+    )
+    val shape = RoundedCornerShape(24.dp)
+    Box {
+        Row(
+            Modifier.height(48.dp).clip(shape).background(look.control).border(1.dp, look.cardBorder, shape)
+                .clickable { open = true }.padding(horizontal = 12.dp)
+                .semantics { contentDescription = "Куда применять" },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items.forEach { (item, _) ->
+                Icon(item.first, null, tint = if (item.third) look.text else look.muted.copy(alpha = 0.3f), modifier = Modifier.size(18.dp))
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Text("Куда применять", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            items.forEach { (item, change) ->
+                DropdownMenuItem(
+                    text = { Text(item.second) },
+                    leadingIcon = { Icon(item.first, null, modifier = Modifier.size(20.dp)) },
+                    trailingIcon = { Checkbox(checked = item.third, onCheckedChange = null) },
+                    onClick = { onTargets(change(!item.third)) },
+                )
+            }
+        }
     }
 }
 

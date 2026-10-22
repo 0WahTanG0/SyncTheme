@@ -42,6 +42,8 @@ class DateWidget : ThemedWidget(WidgetKind.CALENDAR)
 /** Будильник поменялся — обновить часы, где показан следующий будильник. */
 class AlarmChangedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // Приёмник открыт для системы — реагируем только на её сообщение о будильнике.
+        if (intent.action != android.app.AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED) return
         WidgetUpdater.update(context, WidgetKind.CLOCK)
     }
 }

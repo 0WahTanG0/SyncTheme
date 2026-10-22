@@ -17,6 +17,7 @@ import android.provider.CalendarContract
 import android.provider.MediaStore
 import android.provider.Settings
 import android.provider.Telephony
+import android.util.LruCache
 import app.synctheme.mobile.ui.MainActivity
 
 /** Приложение, которое можно запустить с рабочего стола. component — «пакет/активити». */
@@ -71,13 +72,24 @@ object AppCatalog {
         }
     }
 
-    /** Значок приложения в форме стиля: круг или «сквиркл». */
-    fun icon(context: Context, component: String, px: Int, circle: Boolean): Bitmap? = runCatching {
-        val pm = context.packageManager
-        val cn = ComponentName.unflattenFromString(component) ?: return null
-        val drawable = pm.getActivityIcon(cn)
-        render(drawable, px, circle)
-    }.getOrNull()
+    /** Уже нарисованные значки: «пакет/активити|размер|форма». */
+    private val icons = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
+
+    /**
+     * Значок приложения в форме стиля: круг или «сквиркл». Запоминается — превью виджета
+     * перерисовывается на каждое движение ползунка, а папка открывается много раз.
+     */
+    fun icon(context: Context, component: String, px: Int, circle: Boolean): Bitmap? {
+        val key = "$component|$px|$circle"
+        icons.get(key)?.let { return it }
+        return runCatching {
+            val pm = context.packageManager
+            val cn = ComponentName.unflattenFromString(component) ?: return null
+            render(pm.getActivityIcon(cn), px, circle)
+        }.getOrNull()?.also { icons.put(key, it) }
+    }
 
     private fun render(drawable: Drawable, px: Int, circle: Boolean): Bitmap {
         val bitmap = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)

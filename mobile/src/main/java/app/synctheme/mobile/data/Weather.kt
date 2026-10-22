@@ -11,7 +11,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
-import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -90,7 +89,8 @@ class WeatherRepository(private val context: Context) {
                 val signal = CancellationSignal()
                 cont.invokeOnCancellation { signal.cancel() }
                 runCatching {
-                    lm.getCurrentLocation(LocationManager.NETWORK_PROVIDER, signal, Executors.newSingleThreadExecutor()) {
+                    // Ответ сразу продолжает корутину — отдельный поток (и его утечка) не нужен.
+                    lm.getCurrentLocation(LocationManager.NETWORK_PROVIDER, signal, Runnable::run) {
                         cont.resume(it)
                     }
                 }.onFailure { cont.resume(null) }

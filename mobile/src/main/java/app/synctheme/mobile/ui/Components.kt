@@ -177,7 +177,8 @@ fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: M
                 images?.let { Image(it.first, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize()) }
             }
             Box(
-                Modifier.align(Alignment.BottomEnd).size(48.dp).clip(CircleShape).background(Color(0xFF0A0A0A))
+                // Пока циферблат рисуется — круг в цветах темы, а не чёрный.
+                Modifier.align(Alignment.BottomEnd).size(48.dp).clip(CircleShape).background(brush)
                     .border(2.dp, if (selected) look.primary else Color(0xFF2A2A2E), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {

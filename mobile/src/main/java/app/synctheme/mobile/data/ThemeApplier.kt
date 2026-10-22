@@ -8,6 +8,8 @@ import app.synctheme.mobile.watch.WatchFaceBuilder
 import app.synctheme.mobile.watch.WatchStatusStore
 import app.synctheme.mobile.watch.WatchSync
 import app.synctheme.mobile.widget.WidgetUpdater
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Ставит тему на устройства: обои, виджеты, циферблат. Ошибка в одном шаге не мешает остальным.
@@ -39,7 +41,7 @@ class ThemeApplier(private val context: Context) {
         if (targets.homeWallpaper || targets.lockWallpaper) {
             step("обои", "Ставлю обои…") { WallpaperApplier.apply(context, t, targets.homeWallpaper, targets.lockWallpaper) }
         }
-        if (targets.widgets) step("виджеты", "Обновляю виджеты…") { WidgetUpdater.updateAll(context) }
+        if (targets.widgets) step("виджеты", "Обновляю виджеты…") { withContext(Dispatchers.Default) { WidgetUpdater.updateAll(context) } }
         var sent = false
         if (targets.watch) {
             step("часы", "Собираю циферблат для часов…") {

@@ -623,7 +623,8 @@ private fun WatchCard(
     Section("Часы") {
         val info = when {
             !connection.checked -> "Проверяю подключение…"
-            connection.error != null -> "Сервисы Wear OS недоступны: ${connection.error}"
+            connection.error != null -> "Не удаётся связаться с часами: на телефоне не работают сервисы Wear OS. " +
+                "Установите или обновите приложение часов (Galaxy Wearable, Pixel Watch или Wear OS) и сервисы Google Play."
             !connection.hasWatch -> "Часы не подключены. Проверьте Bluetooth и приложение часов (Galaxy Wearable, Pixel Watch или Wear OS)."
             !connection.hasApp -> "На часах ${connection.connectedNames.joinToString()} ещё нет SyncTheme."
             else -> "${connection.appNodeName}: циферблат обновится по кнопке «Применить»."
@@ -645,9 +646,10 @@ private fun WatchCard(
             }
             if (details && time != null) TimeAdvice(time, muted)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilledTonalButton(onClick = onOpen, enabled = connection.hasApp) { Text("Открыть на часах") }
-            OutlinedButton(onClick = onCheckTime, enabled = connection.hasApp && !checking) { Text("Время") }
+        // Кнопки переносятся целиком, а не по словам, если в строку не помещаются.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+            FilledTonalButton(onClick = onOpen, enabled = connection.hasApp) { Text("Открыть на часах", maxLines = 1) }
+            OutlinedButton(onClick = onCheckTime, enabled = connection.hasApp && !checking) { Text("Проверить время", maxLines = 1) }
             IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, contentDescription = "Обновить") }
         }
     }

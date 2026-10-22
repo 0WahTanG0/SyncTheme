@@ -12,10 +12,11 @@ android {
     defaultConfig {
         // Тот же applicationId и ключ подписи, что у приложения на часах.
         applicationId = "app.synctheme"
-        minSdk = 31
+        // Android 13+: SyncTheme рассчитан на One UI 8, а нужные ему API появились в Android 13.
+        minSdk = 33
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.12.1"
+        versionCode = 18
+        versionName = "1.13.0"
         // Откуда приложение берёт обновления: релизы GitHub owner/repo (-PupdateRepo=... при сборке).
         resValue("string", "update_repo", providers.gradleProperty("updateRepo").getOrElse(""))
         // Galaxy S25+ и все современные телефоны — arm64; так APK заметно меньше.
@@ -35,8 +36,11 @@ android {
     buildTypes {
         debug { signingConfig = signingConfigs.getByName("app") }
         release {
-            // Валидатор циферблатов использует рефлексию (xerces и др.), поэтому без R8.
-            isMinifyEnabled = false
+            // R8 только выбрасывает неиспользуемый код Compose, AndroidX, Kotlin и самого приложения;
+            // библиотеки с рефлексией (валидатор циферблатов, ADB, криптография) остаются целиком —
+            // см. proguard-rules.pro.
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("app")
         }
     }

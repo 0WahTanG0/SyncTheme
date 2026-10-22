@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Разметка виджетов генерируется (scripts/gen_widgets.py) и работает в RemoteViews лаунчера:
+  там нет AppCompat (только android:tint), кегли автоподбора задаются в sp и dp намеренно,
+  а вложенные веса и пустые контейнеры — способ раскладки без своих View.
+-->
+<lint>
+    <issue id="UseAppTint"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <issue id="UselessLeaf"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <issue id="UselessParent"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <issue id="SpUsage"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <issue id="SmallSp"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <issue id="NestedWeights"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <issue id="DisableBaselineAlignment"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <issue id="TooManyViews"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <issue id="HardcodedText"><ignore path="src/main/res/layout/w_*.xml" /></issue>
+    <!-- ADB по Wi‑Fi: часы подписывают соединение своим сертификатом, проверка — по сопряжению кодом. -->
+    <issue id="TrustAllX509TrustManager" severity="ignore" />
+</lint>

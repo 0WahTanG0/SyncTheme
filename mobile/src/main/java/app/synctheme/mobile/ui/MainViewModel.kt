@@ -150,9 +150,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 .collectLatest { (_, _, t) -> renderStylePreviews(t) }
         }
         refreshWatch()
-        WidgetUpdater.updateAll(app)
-        WidgetScheduler.ensure(app)
-        refreshPlaced()
+        // Виджеты перерисовываются в фоне: на старте приложения это не должно тормозить экран.
+        viewModelScope.launch(Dispatchers.Default) {
+            WidgetUpdater.updateAll(app)
+            WidgetScheduler.ensure(app)
+            _placed.value = WidgetUpdater.placed(app)
+        }
         refreshAutoWeather()
         viewModelScope.launch(Dispatchers.IO) {
             _bundledWatchVersion.value = runCatching { WatchAppInstaller(app).bundledVersion }.getOrDefault(0L)
@@ -330,7 +333,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val weather = WeatherRepository(app)
         val place = weather.place ?: return@launch
         if (place.auto && app.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            weather.locate()?.let { weather.place = it }
+            runCatching { weather.locate() }.getOrNull()?.let { weather.place = it }
         }
         runCatching { weather.refresh() }.onSuccess { WidgetUpdater.update(app, WidgetKind.WEATHER) }
     }
@@ -353,7 +356,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Применяет тему ко всем выбранным местам; ошибка в одном шаге не мешает остальным. */
     fun apply() = viewModelScope.launch {
         val targets = _targets.value
-        val report = ThemeApplier(app).apply(theme.value, targets) { _busy.value = it }
+        val report = try {
+            ThemeApplier(app).apply(theme.value, targets) { _busy.value = it }
+        } catch (e: Exception) {
+            // Шаги сами ловят свои ошибки; сюда попадает только непредвиденное — экран не должен зависнуть.
+            ThemeApplier.Report(emptyList(), listOf(e.message ?: e.javaClass.simpleName), false)
+        } finally {
+            _busy.value = null
+        }
         val notes = mutableListOf<String>()
         if (targets.watch) {
             _connection.value = sync.connection()
@@ -361,7 +371,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 notes += "часы не на связи — циферблат установится, когда они подключатся"
             }
         }
-        _busy.value = null
         val msg = buildString {
             if (report.done.isNotEmpty()) append("Готово: ${report.done.joinToString()}")
             if (notes.isNotEmpty()) append(" (${notes.joinToString("; ")})")
@@ -449,9 +458,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (_timeChecking.value) return
         viewModelScope.launch {
             _timeChecking.value = true
-            if (!_connection.value.checked) _connection.value = sync.connection()
-            _timeCheck.value = TimeCheck.run(app, _connection.value.appNodeIds.firstOrNull())
-            _timeChecking.value = false
+            try {
+                if (!_connection.value.checked) _connection.value = sync.connection()
+                _timeCheck.value = TimeCheck.run(app, _connection.value.appNodeIds.firstOrNull())
+            } catch (e: Exception) {
+                _messages.tryEmit("Не удалось сверить время: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                _timeChecking.value = false
+            }
         }
     }
 
@@ -461,12 +475,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             .onFailure { _messages.tryEmit("Не удалось открыть на часах: ${it.message}") }
     }
 
-    /** Добавляет виджет на рабочий стол; после добавления откроется его настройка. */
+    /**
+     * Добавляет виджет на рабочий стол; после добавления откроется его настройка. Виджеты рисуются
+     * в цветах применённой темы — черновик при этом не применяется (обои и часы не меняются).
+     */
     fun pinWidget(kind: WidgetKind) {
-        repo.setApplied(theme.value)
-        WidgetUpdater.updateAll(app)
         if (!WidgetUpdater.requestPin(app, kind)) {
             _messages.tryEmit("Добавьте вручную: долгое нажатие на рабочий стол → Виджеты → SyncTheme")
+        } else if (theme.value != applied.value) {
+            _messages.tryEmit("Виджет возьмёт цвета применённой темы — нажмите «Применить», чтобы обновить их")
         }
     }
 }

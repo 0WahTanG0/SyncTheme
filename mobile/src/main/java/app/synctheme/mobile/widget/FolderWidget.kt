@@ -11,7 +11,6 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.AdaptiveIconDrawable
-import android.os.Build
 import android.util.SizeF
 import android.util.TypedValue
 import android.view.View
@@ -135,7 +134,6 @@ object FolderWidget {
 
     /** Одноцветный значок приложения (тот же, что у «тематических значков» Android 13+). */
     private fun silhouette(context: Context, canvas: Canvas, component: String, cx: Float, cy: Float, half: Float, color: Int): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
         val icon = runCatching { context.packageManager.getActivityIcon(ComponentName.unflattenFromString(component)!!) }.getOrNull()
         val mono = (icon as? AdaptiveIconDrawable)?.monochrome?.mutate() ?: return false
         // Слои адаптивного значка шире видимой части в полтора раза.

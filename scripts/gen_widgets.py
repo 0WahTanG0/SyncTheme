@@ -1595,7 +1595,6 @@ def vector200(name, paths):
     vector(name, "\n".join(paths), size=200, dp=200)
 
 
-vector200("dial_ticks", dial_ticks())
 vector200("dial_minimal", dial_ticks(only_main=True))
 # «Облако»: циферблат-печенье с точками на часах (точки вырезаны — сквозь них видно обои).
 cookie_dial = [f'    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="{wavy(9, 0.07, r=98, cx=100, cy=100)} ' +

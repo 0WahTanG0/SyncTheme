@@ -30,6 +30,8 @@ class FaceFonts(private val context: Context) {
     val label: Typeface = res.getFont(R.font.onest_600)
     private val digits = HashMap<DigitFont, Typeface>()
 
+    /** Превью рисуются из нескольких потоков сразу — кэш шрифтов общий. */
+    @Synchronized
     @SuppressLint("DiscouragedApi")
     fun of(font: DigitFont): Typeface = digits.getOrPut(font) {
         val id = font.res?.let { res.getIdentifier(it, "font", context.packageName) } ?: 0
