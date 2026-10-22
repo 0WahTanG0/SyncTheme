@@ -13,6 +13,7 @@ import app.synctheme.core.Theme
 import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.install.AdbDiscovery
+import app.synctheme.mobile.install.AdbLink
 import app.synctheme.mobile.install.AdbService
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -63,9 +64,9 @@ object TabletClient {
             }
         }.toByteArray()
         // Адрес из списка мог устареть (старая запись в сети) — тогда постоянные порты того же планшета.
-        val socket = connect(host, port, 5_000)
-            ?: TabletProtocol.PORTS.firstNotNullOfOrNull { if (it == port) null else connect(host, it, 1_500) }
-            ?: throw TabletUnreachable(UNREACHABLE)
+        val socket = connect(context, host, port, 5_000)
+            ?: TabletProtocol.PORTS.firstNotNullOfOrNull { if (it == port) null else connect(context, host, it, 1_500) }
+            ?: throw TabletUnreachable(unreachable(context, "$host:$port"))
         val reply = exchange(socket, TabletProtocol.PAIR, payload, TabletProtocol.PAIR_OK)
         val input = DataInputStream(ByteArrayInputStream(TabletProtocol.open(key, reply)))
         val secret = ByteArray(32).also(input::readFully)
@@ -134,7 +135,7 @@ object TabletClient {
     private suspend fun locate(context: Context, peer: Peer): Socket {
         val tried = HashSet<Pair<String, Int>>()
         fun attempt(host: String?, port: Int, timeout: Int): Socket? =
-            if (host == null || port <= 0 || !tried.add(host to port)) null else connect(host, port, timeout)
+            if (host == null || port <= 0 || !tried.add(host to port)) null else connect(context, host, port, timeout)
 
         attempt(peer.host, peer.port, 2_500)?.let { return it }
         // Поиск может и не запуститься (нет mDNS) — тогда поток просто закончится без находки.
@@ -143,15 +144,20 @@ object TabletClient {
         }?.firstOrNull { it.matches(peer) }
         if (found != null) attempt(found.host, found.port, 5_000)?.let { return it }
         for (port in TabletProtocol.PORTS) attempt(peer.host, port, 1_500)?.let { return it }
-        throw TabletUnreachable(UNREACHABLE)
+        throw TabletUnreachable(unreachable(context, peer.host ?: found?.host.orEmpty()))
     }
 
     /** Планшет в списке найденных: по имени службы без « (2)», которое Android добавляет при совпадении имён. */
     private fun AdbService.matches(peer: Peer): Boolean =
         baseName(name) == baseName(peer.service ?: "SyncTheme · ${peer.name}")
 
-    private fun connect(host: String, port: Int, timeout: Int): Socket? {
+    /**
+     * Соединение с планшетом — напрямую через Wi‑Fi, в которой он находится: с включённым VPN обычное
+     * соединение уходит в VPN и до планшета в домашней сети не доходит (так же подключаемся и к часам).
+     */
+    private fun connect(context: Context, host: String, port: Int, timeout: Int): Socket? {
         val socket = Socket()
+        AdbLink.wifiFor(context, host)?.let { wifi -> runCatching { wifi.bindSocket(socket) } }
         return try {
             socket.connect(InetSocketAddress(host, port), timeout)
             socket
@@ -172,7 +178,10 @@ object TabletClient {
         reply
     }
 
-    private const val UNREACHABLE = "Планшет не отвечает — он в той же сети Wi‑Fi и на нём включено «Принимать тему с телефона»?"
+    private fun unreachable(context: Context, address: String): String = buildString {
+        append("Планшет не отвечает ($address) — он в той же сети Wi‑Fi и на нём включено «Принимать тему с телефона»?")
+        if (AdbLink.vpnActive(context)) append(" На телефоне включён VPN: если не помогает, выключите его на минуту или разрешите в нём локальную сеть.")
+    }
 }
 
 /**

@@ -60,6 +60,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.devices.PhoneInfo
 import app.synctheme.mobile.devices.Watch
+import app.synctheme.mobile.install.AdbLink
 import app.synctheme.mobile.install.AdbService
 import app.synctheme.mobile.tablet.TabletClient
 import app.synctheme.mobile.tablet.TabletPush
@@ -397,6 +398,12 @@ private fun ReceiverBlock(vm: MainViewModel) {
         Text(code.chunked(3).joinToString(" "), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = LocalLook.current.primary)
         state.address?.let { Text("Если телефон не найдёт планшет — адрес: $it", style = MaterialTheme.typography.bodySmall, color = muted) }
         Text("Код действует 10 минут.", style = MaterialTheme.typography.bodySmall, color = muted)
+        if (remember { AdbLink.vpnActive(context) }) {
+            Text(
+                "На планшете включён VPN. Если телефон не может подключиться, выключите VPN или разрешите в нём локальную сеть.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+            )
+        }
         if (state.phone != null) TextButton(onClick = TabletReceiver::closePairing) { Text("Отмена") }
     }
     if (!unrestricted) {
