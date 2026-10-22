@@ -23,7 +23,9 @@ import java.util.zip.ZipOutputStream
 object WatchFaceApk {
     const val ENTRY_WATCHFACE_XML = "res/raw/watchface.xml"
     const val ENTRY_BACKGROUND = "res/drawable-nodpi-v4/wf_bg.jpg"
-    const val ENTRY_PREVIEW = "res/drawable-nodpi-v4/preview.png"
+    /** Превью в JPEG: в PNG фото-превью весит втрое больше, а по Bluetooth каждый килобайт — время. */
+    const val ENTRY_PREVIEW = "res/drawable-nodpi-v4/preview.jpg"
+    private const val FONT_DIR = "res/font/"
     /** Слой глубины; в шаблоне — прозрачная заглушка. */
     const val ENTRY_FOREGROUND = "res/drawable-nodpi-v4/wf_fg.png"
 
@@ -47,7 +49,7 @@ object WatchFaceApk {
     /**
      * @param template байты шаблонного APK (модуль :watchface).
      * @param background JPEG 450x450.
-     * @param preview PNG-превью для списка циферблатов на часах (или null — оставить из шаблона).
+     * @param preview JPEG-превью для списка циферблатов на часах (или null — оставить из шаблона).
      * @param workDir каталог для временных файлов.
      * @param foreground PNG 450x450 с вырезанным объектом для эффекта глубины (или null — заглушка).
      */
@@ -73,14 +75,21 @@ object WatchFaceApk {
                 if (foreground != null) put(ENTRY_FOREGROUND, foreground)
             }
             val found = mutableSetOf<String>()
+            // Шрифты, на которые циферблат не ссылается, заменяются самым маленьким шрифтом шаблона:
+            // ресурсы остаются на месте (resources.arsc не меняется), а APK для часов — в разы легче.
+            val used = Regex("""family="([A-Za-z0-9_]+)"""").findAll(watchFaceXml).map { it.groupValues[1] }.toSet()
             ZipFile(templateFile).use { zip ->
+                val stub = zip.entries().asSequence().filter { it.name.startsWith(FONT_DIR) }.minByOrNull { it.size }
+                    ?.let { e -> zip.getInputStream(e).use { it.readBytes() } }
                 ZipOutputStream(unsignedFile.outputStream().buffered()).use { out ->
                     for (entry in zip.entries()) {
                         val name = entry.name
                         // Старую подпись выбрасываем — APK подписывается заново.
                         if (!isAllowed(name) || name.startsWith("META-INF/")) continue
+                        val unusedFont = stub != null && name.startsWith(FONT_DIR) &&
+                            name.removePrefix(FONT_DIR).substringBeforeLast('.') !in used
                         val data = replacements[name]?.also { found += name }
-                            ?: zip.getInputStream(entry).use { it.readBytes() }
+                            ?: if (unusedFont) stub!! else zip.getInputStream(entry).use { it.readBytes() }
                         out.putNextEntry(newEntry(name, data, entry.method))
                         out.write(data)
                         out.closeEntry()

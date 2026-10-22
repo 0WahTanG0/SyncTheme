@@ -36,10 +36,11 @@ fun main(args: Array<String>) {
     val res = File(args.single())
     val theme = Presets.default
     File(res, "raw").apply { mkdirs() }.resolve("watchface.xml").writeText(WatchFaceXml.generate(theme))
-    val drawable = File(res, "drawable-nodpi").apply { mkdirs() }
+    // Каталог — заново: иначе от прошлых сборок остаются файлы (например, preview.png рядом с preview.jpg).
+    val drawable = File(res, "drawable-nodpi").apply { deleteRecursively(); mkdirs() }
     val bg = DefaultAssets.background(theme, WatchFaceXml.SIZE)
     DefaultAssets.writeJpeg(bg, drawable.resolve("wf_bg.jpg"))
-    ImageIO.write(DefaultAssets.preview(theme, bg), "png", drawable.resolve("preview.png"))
+    DefaultAssets.writeJpeg(DefaultAssets.opaque(DefaultAssets.preview(theme, bg)), drawable.resolve("preview.jpg"), 0.85f)
     // Заглушка слоя глубины: телефон подменяет её вырезанным с фото объектом.
     ImageIO.write(BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), "png", drawable.resolve("${WatchFaceXml.FG_RESOURCE}.png"))
     ImageIO.write(DefaultAssets.hand(18, 150), "png", drawable.resolve("${WatchFaceXml.HAND_HOUR}.png"))
@@ -145,6 +146,17 @@ object DefaultAssets {
         g.fill(RoundRectangle2D.Float(0f, 0f, w.toFloat(), h.toFloat(), w.toFloat(), w.toFloat()))
         g.dispose()
         return img
+    }
+
+    /** Картинка без прозрачности (на чёрном) — для JPEG. */
+    fun opaque(img: BufferedImage): BufferedImage {
+        val out = BufferedImage(img.width, img.height, BufferedImage.TYPE_INT_RGB)
+        val g = out.createGraphics()
+        g.color = Color.BLACK
+        g.fillRect(0, 0, img.width, img.height)
+        g.drawImage(img, 0, 0, null)
+        g.dispose()
+        return out
     }
 
     fun writeJpeg(img: BufferedImage, file: File, quality: Float = 0.92f) {

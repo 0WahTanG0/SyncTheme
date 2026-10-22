@@ -83,7 +83,8 @@ class WatchFaceValidationTest {
     private fun build(theme: Theme): File {
         val bg = DefaultAssets.background(theme, WatchFaceXml.SIZE)
         val bgFile = File.createTempFile("wf_bg", ".jpg").also { DefaultAssets.writeJpeg(bg, it) }
-        val preview = ByteArrayOutputStream().also { ImageIO.write(DefaultAssets.preview(theme, bg), "png", it) }
+        val previewFile = File.createTempFile("wf_preview", ".jpg").also { DefaultAssets.writeJpeg(DefaultAssets.opaque(DefaultAssets.preview(theme, bg)), it, 0.85f) }
+        val preview = ByteArrayOutputStream().also { it.write(previewFile.readBytes()) }
         val depth = theme.watchSettings().depth
         val bytes = WatchFaceApk.build(
             template, WatchFaceXml.generate(theme), bgFile.readBytes(), preview.toByteArray(),

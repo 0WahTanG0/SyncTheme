@@ -175,6 +175,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 .debounce(300)
                 .collectLatest { (_, _, t) -> renderStylePreviews(t) }
         }
+        // Пока тему настраивают, циферблат собирается заранее: «Применить» сразу отправит его на часы.
+        @OptIn(FlowPreview::class)
+        viewModelScope.launch {
+            combine(theme, _devices, _targets, masks) { t, d, tg, _ -> t.takeIf { d.watch && tg.watch } }
+                .filterNotNull()
+                .debounce(1_200)
+                .collectLatest { WatchFaceBuilder(app).prebuild(it) }
+        }
         if (_devices.value.watch) refreshWatch()
         TabletSyncService.ensure(app)
         // Виджеты перерисовываются в фоне: на старте приложения это не должно тормозить экран.
