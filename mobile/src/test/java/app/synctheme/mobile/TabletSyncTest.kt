@@ -11,6 +11,7 @@ import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.data.DeviceSet
 import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.install.AdbService
 import app.synctheme.mobile.tablet.TabletClient
 import app.synctheme.mobile.tablet.TabletReceiver
 import app.synctheme.mobile.tablet.TabletProtocol
@@ -101,7 +102,8 @@ class TabletSyncTest {
 
         TabletReceiver.stop(app)
         TabletReceiver.start(app)
-        assertEquals(port, TabletReceiver.port)
+        // Порт — снова из постоянных (если прежний ещё не освободился — соседний); телефон перебирает их сам.
+        assertTrue(TabletReceiver.port in TabletProtocol.PORTS)
         assertTrue(TabletClient.push(app, theme).contains("После перезапуска"))
         assertEquals(true, TabletStore.push(app).value?.ok)
 
@@ -138,6 +140,23 @@ class TabletSyncTest {
         }
         assertEquals("Тема «${theme.name}» на планшете", TabletStore.push(app).value?.text)
         assertTrue(TabletReceiver.state.value.last.orEmpty().contains(theme.name))
+    }
+
+    /** Старые записи того же планшета в сети («… (2)», «… (4)») сводятся в одну — живую, на постоянном порту. */
+    @Test
+    fun oneEntryPerTablet() {
+        val list = listOf(
+            AdbService("SyncTheme · Tab S9 FE+ Ислам", "192.168.1.20", 40123),
+            AdbService("SyncTheme · Tab S9 FE+ Ислам (4)", "192.168.1.20", 47231),
+            AdbService("SyncTheme · Tab S9 FE+ Ислам (3)", "192.168.1.20", 38817),
+            AdbService("SyncTheme · Tab S9 FE+ Ислам (2)", "192.168.1.20", 41002),
+            AdbService("SyncTheme · Galaxy S24", "192.168.1.31", 47231),
+        )
+        val one = TabletClient.distinctDevices(list)
+        assertEquals(2, one.size)
+        val tab = one.single { it.name == "SyncTheme · Tab S9 FE+ Ислам" }
+        assertEquals("живая запись — на постоянном порту", 47231, tab.port)
+        assertEquals("SyncTheme · Tab S9 FE+ Ислам", TabletClient.baseName("SyncTheme · Tab S9 FE+ Ислам (12)"))
     }
 
     /** По умолчанию — только телефон: часы и планшет выключены, «Применить» их не трогает. */

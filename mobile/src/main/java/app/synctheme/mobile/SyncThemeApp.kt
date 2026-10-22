@@ -3,11 +3,13 @@ package app.synctheme.mobile
 import android.app.Application
 import androidx.work.WorkManager
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.util.CrashLog
 import app.synctheme.mobile.widget.WidgetScheduler
 
 open class SyncThemeApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        CrashLog.install(this)
         ThemeRepository.get(this)
         WidgetScheduler.ensure(this)
         // В 1.8.0 был «Хамелеон» с фоновой работой — убираем её и его настройки.

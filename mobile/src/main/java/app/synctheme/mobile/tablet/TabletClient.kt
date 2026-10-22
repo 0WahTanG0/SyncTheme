@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -33,8 +34,20 @@ class TabletUnreachable(message: String) : IOException(message)
 
 /** Телефон: находит планшет в сети, связывается с ним по коду и отправляет ему тему. */
 object TabletClient {
-    /** Планшеты с включённым приёмом в той же сети Wi‑Fi. */
-    fun discover(context: Context): Flow<List<AdbService>> = AdbDiscovery.services(context, TabletProtocol.SERVICE)
+    /**
+     * Планшеты с включённым приёмом в той же сети Wi‑Fi — каждый один раз: после перезапусков в сети
+     * остаются старые записи того же планшета («… (2)», «… (3)»), они сводятся в одну.
+     */
+    fun discover(context: Context): Flow<List<AdbService>> = AdbDiscovery.services(context, TabletProtocol.SERVICE).map(::distinctDevices)
+
+    /** Имя без « (2)», которое Android добавляет при совпадении имён в сети. */
+    fun baseName(service: String): String = service.replace(Regex(" \\(\\d+\\)$"), "")
+
+    /** По одной записи на устройство: та, что на постоянном порту приёма (новая), иначе — любая. */
+    fun distinctDevices(list: List<AdbService>): List<AdbService> =
+        list.groupBy { baseName(it.name) }.values.map { same ->
+            (same.firstOrNull { it.port in TabletProtocol.PORTS } ?: same.last()).let { it.copy(name = baseName(it.name)) }
+        }
 
     /** Связывание по коду с экрана планшета. */
     suspend fun pair(context: Context, host: String, port: Int, code: String, service: String? = null): Peer = withContext(Dispatchers.IO) {
@@ -49,7 +62,10 @@ object TabletClient {
                 write(proof)
             }
         }.toByteArray()
-        val socket = connect(host, port, 5_000) ?: throw TabletUnreachable(UNREACHABLE)
+        // Адрес из списка мог устареть (старая запись в сети) — тогда постоянные порты того же планшета.
+        val socket = connect(host, port, 5_000)
+            ?: TabletProtocol.PORTS.firstNotNullOfOrNull { if (it == port) null else connect(host, it, 1_500) }
+            ?: throw TabletUnreachable(UNREACHABLE)
         val reply = exchange(socket, TabletProtocol.PAIR, payload, TabletProtocol.PAIR_OK)
         val input = DataInputStream(ByteArrayInputStream(TabletProtocol.open(key, reply)))
         val secret = ByteArray(32).also(input::readFully)
@@ -130,9 +146,9 @@ object TabletClient {
         throw TabletUnreachable(UNREACHABLE)
     }
 
-    /** Планшет в списке найденных: по имени службы (при совпадении имён Android добавляет « (2)»). */
+    /** Планшет в списке найденных: по имени службы без « (2)», которое Android добавляет при совпадении имён. */
     private fun AdbService.matches(peer: Peer): Boolean =
-        peer.service?.let { name == it || name.startsWith("$it (") } ?: (name == "SyncTheme · ${peer.name}")
+        baseName(name) == baseName(peer.service ?: "SyncTheme · ${peer.name}")
 
     private fun connect(host: String, port: Int, timeout: Int): Socket? {
         val socket = Socket()

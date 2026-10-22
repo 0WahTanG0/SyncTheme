@@ -253,7 +253,7 @@ private fun AddDeviceDialog(vm: MainViewModel, onOpenInstaller: () -> Unit, onDi
                 // Планшеты и телефоны с включённым «Принимать тему с телефона».
                 found.forEach { service ->
                     val name = service.name.removePrefix("SyncTheme · ")
-                    val isPaired = paired?.let { it.service == service.name || it.name == name } == true
+                    val isPaired = paired?.let { TabletClient.baseName(it.service.orEmpty()) == service.name || it.name == name } == true
                     DeviceRow(NavIcons.Tablet, name, if (isPaired) "Уже подключён" else "В вашей сети Wi‑Fi", if (isPaired) StatusOk else null) {
                         FilledTonalButton(onClick = { pairing = service }) { Text(if (isPaired) "Связать заново" else "Подключить", maxLines = 1) }
                     }

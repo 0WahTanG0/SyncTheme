@@ -8,7 +8,7 @@ import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
+import java.util.concurrent.Executor
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -29,7 +29,9 @@ object AdbDiscovery {
         val nsd = context.getSystemService(NsdManager::class.java)
         val found = ConcurrentHashMap<String, AdbService>()
         val ownAddresses = localAddresses()
-        val executor = Executors.newSingleThreadExecutor()
+        // Ответы NsdManager — прямо в его потоке. Свой пул потоков здесь опасен: после отмены поиска
+        // система ещё присылает «callback снят», и закрытый пул роняет приложение (RejectedExecutionException).
+        val executor = Executor { it.run() }
         val callbacks = ConcurrentHashMap<String, Any>()
 
         fun publish() {
@@ -73,13 +75,15 @@ object AdbDiscovery {
                     }
                 } else {
                     @Suppress("DEPRECATION")
-                    nsd.resolveService(info, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) = Unit
-                        override fun onServiceResolved(info: NsdServiceInfo) {
-                            @Suppress("DEPRECATION")
-                            resolved(info.serviceName, listOfNotNull(info.host), info.port)
-                        }
-                    })
+                    runCatching {
+                        nsd.resolveService(info, object : NsdManager.ResolveListener {
+                            override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) = Unit
+                            override fun onServiceResolved(info: NsdServiceInfo) {
+                                @Suppress("DEPRECATION")
+                                resolved(info.serviceName, listOfNotNull(info.host), info.port)
+                            }
+                        })
+                    }
                 }
             }
         }
@@ -94,7 +98,6 @@ object AdbDiscovery {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 callbacks.values.forEach { runCatching { nsd.unregisterServiceInfoCallback(it as NsdManager.ServiceInfoCallback) } }
             }
-            executor.shutdown()
         }
     }
 

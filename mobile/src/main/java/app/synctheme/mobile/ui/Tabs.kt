@@ -77,6 +77,7 @@ import app.synctheme.core.Presets
 import app.synctheme.core.Theme
 import app.synctheme.mobile.watch.TimeCheck
 import app.synctheme.mobile.watch.TimeCheckResult
+import app.synctheme.mobile.util.CrashLog
 import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.watch.WatchReport
 import app.synctheme.mobile.widget.WidgetKind
@@ -475,6 +476,22 @@ fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable (
                     runCatching { context.assets.open(path).bufferedReader().readText() }.getOrDefault("")
                 }
             }) { Text("Лицензии шрифтов") }
+            // Приложение падало — отчёт можно скопировать и прислать разработчику.
+            var crash by remember { mutableStateOf(CrashLog.last(context)) }
+            crash?.let { report ->
+                val lines = report.lines()
+                Text(
+                    "Был сбой ${lines.getOrNull(1).orEmpty().substringBefore(" · ")}: ${lines.getOrNull(2).orEmpty().take(120)}",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        context.getSystemService(android.content.ClipboardManager::class.java)
+                            ?.setPrimaryClip(android.content.ClipData.newPlainText("SyncTheme crash", report))
+                    }) { Text("Скопировать отчёт") }
+                    TextButton(onClick = { CrashLog.clear(context); crash = null }) { Text("Удалить") }
+                }
+            }
         }
         licenses?.let { text ->
             AlertDialog(
