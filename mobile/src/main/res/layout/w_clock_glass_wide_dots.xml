@@ -7,6 +7,15 @@
     android:layout_height="match_parent">
 
     <ImageView
+        android:id="@+id/sc_sky28"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/wsc_day_r28"
+        android:importantForAccessibility="no" />
+
+    <ImageView
         android:id="@+id/bg_g"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

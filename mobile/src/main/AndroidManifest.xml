@@ -203,6 +203,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- Папка «Приложений»: раскрывается поверх рабочего стола из виджета. -->
+        <activity
+            android:name=".mobile.widget.FolderActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:noHistory="true"
+            android:taskAffinity=".folder"
+            android:theme="@style/Theme.SyncTheme.Folder" />
+
         <!-- Настройка виджета: при добавлении, по «Настройки» у виджета и из приложения. -->
         <activity
             android:name=".mobile.widget.WidgetConfigActivity"

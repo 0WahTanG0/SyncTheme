@@ -7,6 +7,15 @@
     android:layout_height="match_parent">
 
     <ImageView
+        android:id="@+id/sc_sky28"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/wsc_day_r28"
+        android:importantForAccessibility="no" />
+
+    <ImageView
         android:id="@+id/bg_s"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -79,18 +88,6 @@
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/s_range"
-            android:layout_marginBottom="8dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="start"
-            android:fontFamily="@font/onest_500"
-            android:textSize="12sp"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#FFFFFFFF" />
 
         <LinearLayout
             android:gravity="center"
@@ -325,7 +322,7 @@
 
                 <TextView
                     android:id="@+id/s_d0_day"
-                    android:layout_weight="1"
+                    android:layout_weight="0.9"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="start"
@@ -346,7 +343,7 @@
 
                 <TextView
                     android:id="@+id/s_d0_min"
-                    android:layout_width="44dp"
+                    android:layout_width="38dp"
                     android:layout_height="wrap_content"
                     android:gravity="end"
                     android:fontFamily="@font/onest_500"
@@ -355,11 +352,21 @@
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
+                <ImageView
+                    android:id="@+id/rb_d0"
+                    android:layout_weight="1.3"
+                    android:layout_marginHorizontal="8dp"
+                    android:layout_width="0dp"
+                    android:layout_height="6dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/wpill"
+                    android:importantForAccessibility="no" />
+
                 <TextView
                     android:id="@+id/m_d0_max"
-                    android:layout_width="44dp"
+                    android:layout_width="32dp"
                     android:layout_height="wrap_content"
-                    android:gravity="end"
+                    android:gravity="start"
                     android:fontFamily="@font/oswald_500"
                     android:textSize="12sp"
                     android:maxLines="1"
@@ -377,7 +384,7 @@
 
                 <TextView
                     android:id="@+id/s_d1_day"
-                    android:layout_weight="1"
+                    android:layout_weight="0.9"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="start"
@@ -398,7 +405,7 @@
 
                 <TextView
                     android:id="@+id/s_d1_min"
-                    android:layout_width="44dp"
+                    android:layout_width="38dp"
                     android:layout_height="wrap_content"
                     android:gravity="end"
                     android:fontFamily="@font/onest_500"
@@ -407,11 +414,21 @@
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
+                <ImageView
+                    android:id="@+id/rb_d1"
+                    android:layout_weight="1.3"
+                    android:layout_marginHorizontal="8dp"
+                    android:layout_width="0dp"
+                    android:layout_height="6dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/wpill"
+                    android:importantForAccessibility="no" />
+
                 <TextView
                     android:id="@+id/m_d1_max"
-                    android:layout_width="44dp"
+                    android:layout_width="32dp"
                     android:layout_height="wrap_content"
-                    android:gravity="end"
+                    android:gravity="start"
                     android:fontFamily="@font/oswald_500"
                     android:textSize="12sp"
                     android:maxLines="1"
@@ -429,7 +446,7 @@
 
                 <TextView
                     android:id="@+id/s_d2_day"
-                    android:layout_weight="1"
+                    android:layout_weight="0.9"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="start"
@@ -450,7 +467,7 @@
 
                 <TextView
                     android:id="@+id/s_d2_min"
-                    android:layout_width="44dp"
+                    android:layout_width="38dp"
                     android:layout_height="wrap_content"
                     android:gravity="end"
                     android:fontFamily="@font/onest_500"
@@ -459,11 +476,21 @@
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
+                <ImageView
+                    android:id="@+id/rb_d2"
+                    android:layout_weight="1.3"
+                    android:layout_marginHorizontal="8dp"
+                    android:layout_width="0dp"
+                    android:layout_height="6dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/wpill"
+                    android:importantForAccessibility="no" />
+
                 <TextView
                     android:id="@+id/m_d2_max"
-                    android:layout_width="44dp"
+                    android:layout_width="32dp"
                     android:layout_height="wrap_content"
-                    android:gravity="end"
+                    android:gravity="start"
                     android:fontFamily="@font/oswald_500"
                     android:textSize="12sp"
                     android:maxLines="1"
@@ -481,7 +508,7 @@
 
                 <TextView
                     android:id="@+id/s_d3_day"
-                    android:layout_weight="1"
+                    android:layout_weight="0.9"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="start"
@@ -502,7 +529,7 @@
 
                 <TextView
                     android:id="@+id/s_d3_min"
-                    android:layout_width="44dp"
+                    android:layout_width="38dp"
                     android:layout_height="wrap_content"
                     android:gravity="end"
                     android:fontFamily="@font/onest_500"
@@ -511,11 +538,21 @@
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
+                <ImageView
+                    android:id="@+id/rb_d3"
+                    android:layout_weight="1.3"
+                    android:layout_marginHorizontal="8dp"
+                    android:layout_width="0dp"
+                    android:layout_height="6dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/wpill"
+                    android:importantForAccessibility="no" />
+
                 <TextView
                     android:id="@+id/m_d3_max"
-                    android:layout_width="44dp"
+                    android:layout_width="32dp"
                     android:layout_height="wrap_content"
-                    android:gravity="end"
+                    android:gravity="start"
                     android:fontFamily="@font/oswald_500"
                     android:textSize="12sp"
                     android:maxLines="1"
@@ -533,7 +570,7 @@
 
                 <TextView
                     android:id="@+id/s_d4_day"
-                    android:layout_weight="1"
+                    android:layout_weight="0.9"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="start"
@@ -554,7 +591,7 @@
 
                 <TextView
                     android:id="@+id/s_d4_min"
-                    android:layout_width="44dp"
+                    android:layout_width="38dp"
                     android:layout_height="wrap_content"
                     android:gravity="end"
                     android:fontFamily="@font/onest_500"
@@ -563,11 +600,21 @@
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
 
+                <ImageView
+                    android:id="@+id/rb_d4"
+                    android:layout_weight="1.3"
+                    android:layout_marginHorizontal="8dp"
+                    android:layout_width="0dp"
+                    android:layout_height="6dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/wpill"
+                    android:importantForAccessibility="no" />
+
                 <TextView
                     android:id="@+id/m_d4_max"
-                    android:layout_width="44dp"
+                    android:layout_width="32dp"
                     android:layout_height="wrap_content"
-                    android:gravity="end"
+                    android:gravity="start"
                     android:fontFamily="@font/oswald_500"
                     android:textSize="12sp"
                     android:maxLines="1"

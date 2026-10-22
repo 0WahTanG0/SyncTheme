@@ -110,6 +110,14 @@ object AppCatalog {
         )
     }
 
+    /** Что открывает нажатие на часы на обоях: выбранное приложение или будильники. */
+    fun wallClockIntent(context: Context, openApp: String?): Intent? =
+        openApp?.let { launchIntent(context, it) } ?: defaultIntent(context, WidgetKind.CLOCK)
+
+    /** Подпись того, что открывает нажатие на часы на обоях. */
+    fun wallClockTarget(context: Context, openApp: String?): String =
+        openApp?.let { label(context, it) ?: it } ?: "Будильники"
+
     private fun defaultIntent(context: Context, kind: WidgetKind): Intent? {
         val pm = context.packageManager
         fun Intent.ifResolves() = takeIf { pm.resolveActivity(it, 0) != null }

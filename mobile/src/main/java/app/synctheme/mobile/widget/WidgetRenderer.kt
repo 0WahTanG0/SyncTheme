@@ -2,12 +2,14 @@ package app.synctheme.mobile.widget
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.os.BatteryManager
+import android.provider.Settings
 import android.text.format.DateFormat
 import android.util.SizeF
 import android.view.Gravity
@@ -58,14 +60,14 @@ object WidgetRenderer {
     }
 
     /** Данные, общие для всех размеров одного виджета: считаются один раз. */
-    private class Data(val context: Context, val config: WidgetConfig, val weather: WeatherData?) {
+    private class Data(val context: Context, val config: WidgetConfig, val weather: WeatherData?, val widgetId: Int) {
         val alarm: String? by lazy { nextAlarm(context) }
         val events: List<CalendarEvent> by lazy { CalendarData.upcoming(context, 3) }
         val month by lazy { CalendarData.month() }
         val battery: Battery by lazy { Battery.read(context) }
         val apps: List<Pair<String, Bitmap?>> by lazy {
             val circle = config.style != "glass"
-            config.apps.ifEmpty { AppCatalog.defaults(context) }.take(8).map { it to AppCatalog.icon(context, it, 120, circle) }
+            config.apps.ifEmpty { AppCatalog.defaults(context) }.take(APPS_ON_WIDGET).map { it to AppCatalog.icon(context, it, 120, circle) }
         }
     }
 
@@ -107,8 +109,9 @@ object WidgetRenderer {
         theme: Theme,
         weather: WeatherData? = WeatherRepository(context).cached,
         sizes: List<SizeF> = emptyList(),
+        widgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID,
     ): RemoteViews {
-        val data = Data(context, config, weather)
+        val data = Data(context, config, weather, widgetId)
         if (sizes.isNotEmpty()) {
             val byClass = HashMap<WidgetSize, RemoteViews>()
             return RemoteViews(
@@ -132,23 +135,35 @@ object WidgetRenderer {
         size: WidgetSize,
         weather: WeatherData? = WeatherRepository(context).cached,
         dp: SizeF = SizeF(size.previewW.toFloat(), size.previewH.toFloat()),
-    ): RemoteViews = sized(context, kind, config, theme, size, Data(context, config, weather), dp)
+    ): RemoteViews = sized(context, kind, config, theme, size, Data(context, config, weather, AppWidgetManager.INVALID_APPWIDGET_ID), dp)
 
     private fun sized(
         context: Context, kind: WidgetKind, config: WidgetConfig, theme: Theme, size: WidgetSize, data: Data, dp: SizeF,
     ): RemoteViews {
+        if (kind == WidgetKind.APPS && config.isFolder) return FolderWidget.views(context, config, theme, dp, data.widgetId)
         val layout = WidgetLayouts[layoutKey(kind, config, size)]
             ?: WidgetLayouts[layoutKey(kind, WidgetConfig(style = kind.defaultStyle), size)]!!
         val style = kind.style(config.style).id
-        val p = Palette(theme, config, family(kind, style), layout.accentBackground)
         val rv = RemoteViews(context.packageName, layout.res)
         val v = Views(rv, layout)
+        // Небо — по погоде или по времени суток; на нём текст светлый, акцент — осветлённый цвет темы (если цвета не свои).
+        val scene = when {
+            kind == WidgetKind.WEATHER && config.scene -> data.weather?.now?.let { WeatherCodes.scene(it.code, it.isDay) }
+            kind == WidgetKind.CLOCK && config.sky -> skyNow()
+            else -> null
+        }?.takeIf { SkyScenes.radii.any { r -> v.has("sc_sky$r") } }
+        val colors = if (scene == null) config else config.copy(
+            textColor = config.textColor ?: WHITE,
+            accentColor = config.accentColor ?: ColorUtils.blendARGB(theme.accentColor, WHITE, 0.45f),
+        )
+        val p = Palette(theme, colors, family(kind, style), layout.accentBackground)
         v.paint(p, config.align)
+        if (scene != null) v.sky(scene, config.opacity)
         when (kind) {
             WidgetKind.CLOCK -> v.clock(style, data, p)
             WidgetKind.CALENDAR -> v.calendar(context, family(kind, style), data, p)
             WidgetKind.WEATHER -> v.weather(data, p)
-            WidgetKind.BATTERY -> v.battery(data.battery)
+            WidgetKind.BATTERY -> v.battery(context, data.battery)
             WidgetKind.APPS -> v.apps(context, data)
         }
         if (size.vertical) {
@@ -187,6 +202,8 @@ object WidgetRenderer {
         inline fun each(slot: String, action: (Int) -> Unit) {
             for (id in WidgetSlots[slot]) if (layout.has(id)) action(id)
         }
+
+        fun has(slot: String) = WidgetSlots[slot].any(layout::has)
 
         fun paint(p: Palette, align: WidgetAlign) {
             val gravity = when (align) {
@@ -288,6 +305,19 @@ object WidgetRenderer {
 
         // ------------------------------------------------------------ погода
 
+        /** Небо вместо подложки стиля. */
+        fun sky(scene: String, opacity: Float) {
+            for (r in SkyScenes.radii) each("sc_sky$r") {
+                rv.setImageViewResource(it, SkyScenes.of(scene, r))
+                rv.setViewVisibility(it, View.VISIBLE)
+                // Небо видно и при прозрачной подложке; ползунок делает его плотнее.
+                rv.setInt(it, "setImageAlpha", (255 * (0.55f + 0.45f * opacity.coerceIn(0f, 1f))).roundToInt())
+            }
+            if (layout.has(R.id.bg_s)) rv.setViewVisibility(R.id.bg_s, View.GONE)
+            // У «Стекла» от стекла остаются блик и рамка поверх неба.
+            if (layout.has(R.id.bg_g)) rv.setInt(R.id.bg_g, "setImageAlpha", 70)
+        }
+
         fun weather(data: Data, p: Palette) {
             val mono = !data.config.colorIcons
             fun icon(slot: String, code: Int, isDay: Boolean) {
@@ -329,6 +359,9 @@ object WidgetRenderer {
                     text("h${i}_temp", deg(h.temp))
                 }
             }
+            val week = w.days.take(5)
+            val low = week.minOfOrNull { it.min } ?: 0.0
+            val high = week.maxOfOrNull { it.max } ?: 0.0
             for (i in 0 until 5) {
                 val d = w.days.getOrNull(i)
                 visible("cell_d$i", d != null)
@@ -338,15 +371,22 @@ object WidgetRenderer {
                     icon("wx_d$i", d.code, true)
                     text("d${i}_min", deg(d.min))
                     text("d${i}_max", deg(d.max))
+                    each("rb_d$i") { rv.setImageViewBitmap(it, RangeBar.render(d.min, d.max, low, high, w.now.temp.takeIf { i == 0 }, p.main)) }
                 }
             }
         }
 
         // ------------------------------------------------------------ батарея
 
-        fun battery(b: Battery) {
+        fun battery(context: Context, b: Battery) {
             text("pct", "${b.level}%")
             for (slot in listOf("pb_ring", "pb_bar")) each(slot) { rv.setProgressBar(it, 100, b.level, false) }
+            // Цвет по состоянию: заряжается — зелёный, мало заряда — янтарный и красный, иначе — акцент темы.
+            b.color?.let { c ->
+                for (slot in listOf("pb_ring", "pb_bar")) each(slot) { rv.setColorStateList(it, "setProgressTintList", ColorStateList.valueOf(c)) }
+                tint("i_bolt", c)
+            }
+            text("device", Battery.deviceName(context))
             text("state", b.state)
             visible("i_bolt", b.charging)
             visible("remain", b.remain != null)
@@ -384,6 +424,18 @@ object WidgetRenderer {
 
     private fun deg(t: Double) = "${t.roundToInt()}°"
 
+    /** Текущий час — для неба часов; тесты подставляют свой. */
+    internal var hourNow: () -> Int = { java.time.LocalTime.now().hour }
+
+    /** Небо часов по времени суток. */
+    fun skyNow(hour: Int = hourNow()): String = when (hour) {
+        in 5..7 -> "dawn"
+        in 8..16 -> "day"
+        in 17..19 -> "sunset"
+        in 20..21 -> "evening"
+        else -> "night"
+    }
+
     private fun nextAlarm(context: Context): String? {
         val info = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock ?: return null
         val at = Instant.ofEpochMilli(info.triggerTime).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -405,7 +457,21 @@ object WidgetRenderer {
         val temperature: String,
         val health: String,
     ) {
+        /** Цвет заряда по состоянию; null — акцент темы. */
+        val color: Int?
+            get() = when {
+                charging -> 0xFF34C759.toInt()
+                level <= 15 -> 0xFFFF453A.toInt()
+                level <= 30 -> 0xFFFFB020.toInt()
+                else -> null
+            }
+
         companion object {
+            /** Имя телефона, как оно задано в настройках («Galaxy S25+»), иначе модель. */
+            fun deviceName(context: Context): String =
+                runCatching { Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME) }.getOrNull()
+                    ?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL ?: "Телефон"
+
             fun read(context: Context): Battery {
                 val bm = context.getSystemService(BatteryManager::class.java)
                 val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).coerceIn(0, 100)
@@ -427,7 +493,7 @@ object WidgetRenderer {
                 val temp = sticky?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE) ?: Int.MIN_VALUE
                 val temperature = if (temp == Int.MIN_VALUE) "" else "${(temp / 10.0).roundToInt()}°C"
                 val health = when (sticky?.getIntExtra(BatteryManager.EXTRA_HEALTH, 0)) {
-                    BatteryManager.BATTERY_HEALTH_GOOD -> "Состояние: норма"
+                    BatteryManager.BATTERY_HEALTH_GOOD -> ""
                     BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Перегрев"
                     BatteryManager.BATTERY_HEALTH_COLD -> "Слишком холодно"
                     BatteryManager.BATTERY_HEALTH_DEAD, BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE,

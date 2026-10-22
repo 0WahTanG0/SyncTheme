@@ -23,7 +23,7 @@
         android:gravity="center">
 
         <TextView
-            android:id="@+id/a_title"
+            android:id="@+id/a_device"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
@@ -34,7 +34,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#FFFFFFFF"
-            android:text="Батарея" />
+            android:text="Телефон" />
 
         <FrameLayout
             android:layout_height="0dp"

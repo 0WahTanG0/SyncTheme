@@ -14,13 +14,14 @@ import androidx.work.WorkerParameters
 import app.synctheme.mobile.data.WeatherRepository
 import java.util.concurrent.TimeUnit
 
-/** Фоновые обновления: погода (30 мин), календарь (час и при изменениях), батарея (15 мин). */
+/** Фоновые обновления: погода (30 мин), календарь (час и при изменениях), батарея (15 мин), небо часов (30 мин). */
 object WidgetScheduler {
     private const val WEATHER = "weather_refresh"
     private const val WEATHER_NOW = "weather_refresh_now"
     private const val CALENDAR = "calendar_refresh"
     private const val CALENDAR_CHANGES = "calendar_changes"
     private const val BATTERY = "battery_widget_refresh"
+    private const val CLOCK_SKY = "clock_sky_refresh"
 
     fun ensure(context: Context) {
         val wm = WorkManager.getInstance(context)
@@ -53,6 +54,16 @@ object WidgetScheduler {
             )
         } else {
             wm.cancelUniqueWork(BATTERY)
+        }
+
+        // Небо на часах меняется с временем суток — им достаточно обновляться раз в полчаса.
+        if (WidgetUpdater.placed(context).any { it.kind == WidgetKind.CLOCK && it.config.sky }) {
+            wm.enqueueUniquePeriodicWork(
+                CLOCK_SKY, ExistingPeriodicWorkPolicy.KEEP,
+                PeriodicWorkRequestBuilder<ClockSkyWorker>(30, TimeUnit.MINUTES).build(),
+            )
+        } else {
+            wm.cancelUniqueWork(CLOCK_SKY)
         }
     }
 
@@ -112,6 +123,13 @@ class CalendarChangeWorker(context: Context, params: WorkerParameters) : Corouti
 class BatteryWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         WidgetUpdater.update(applicationContext, WidgetKind.BATTERY)
+        return Result.success()
+    }
+}
+
+class ClockSkyWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        WidgetUpdater.update(applicationContext, WidgetKind.CLOCK)
         return Result.success()
     }
 }

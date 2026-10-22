@@ -210,6 +210,8 @@ for old in os.listdir(os.path.join(RES, "layout")):
 
 
 def layout(name, *layers):
+    if name.startswith(("w_wx_", "w_clock_")):
+        layers = with_sky(layers)
     root = frame(*layers, id="widget_root")
     xml = root.render(0).replace("<FrameLayout", f"<FrameLayout\n    {NS}", 1)
     write(os.path.join(RES, "layout", f"{name}.xml"), f'<?xml version="1.0" encoding="utf-8"?>\n{HEADER}\n' + xml + "\n")
@@ -322,6 +324,47 @@ def shaped_bg(f):
     return bg(f)
 
 
+# Небо: у погоды — под текущую погоду (днём и ночью), у часов — под время суток. Лежит под
+# подложкой стиля и показывается вместо неё; скругление — как у подложки, оно зашито в имя
+# элемента (sc_sky28). Добавляется ко всем разметкам часов и погоды с прямоугольной подложкой.
+SCENES = OrderedDict([
+    ("clear_day", ("#FF2F7FE6", "#FF3E9BEA", "#FF6CC4F0")),
+    ("clear_night", ("#FF070B22", "#FF141E45", "#FF2C3B6E")),
+    ("cloudy_day", ("#FF4D5E74", "#FF66798F", "#FF8C9DB0")),
+    ("cloudy_night", ("#FF161C27", "#FF232B39", "#FF3A4556")),
+    ("rain", ("#FF1E2A38", "#FF2D4053", "#FF46617A")),
+    ("storm", ("#FF140F26", "#FF2A2145", "#FF4A3F6B")),
+    ("snow", ("#FF3F5873", "#FF5A7591", "#FF8098B2")),
+    ("fog", ("#FF4E555E", "#FF656D77", "#FF858D96")),
+    # Время суток — для часов.
+    ("dawn", ("#FF2B2F6B", "#FF8E5A8C", "#FFE2906F")),
+    ("day", ("#FF2B78DE", "#FF4597E8", "#FF7DBDF0")),
+    ("sunset", ("#FF2A1B4F", "#FFB33F68", "#FFE88A55")),
+    ("evening", ("#FF0E1738", "#FF27295E", "#FF443A72")),
+    ("night", ("#FF04060F", "#FF0B1230", "#FF19244C")),
+])
+SKY_RADII = [18, 28, 36]
+# Подложка стиля → скругление неба. У «Неона» (своё свечение) и у фигур неба нет.
+SKY_FOR = {"wbg_r18": 18, "wbg_r28": 28, "wbg_r36": 36, "wbg_glass": 28}
+
+
+def wx_bg(f):
+    return bg(f)
+
+
+def with_sky(layers):
+    """Небо под прямоугольной подложкой стиля (если она есть и это не «Неон»)."""
+    srcs = {l.attrs.get("android:id"): l.attrs.get("android:src", "") for l in layers if isinstance(l, E)}
+    if any(i and i.startswith("@+id/fx_") for i in srcs):
+        return layers
+    for i, src in srcs.items():
+        if i in ("@+id/bg_s", "@+id/bg_g"):
+            rad = SKY_FOR.get(src.replace("@drawable/", ""))
+            if rad:
+                return (img(f"sc_sky{rad}", f"wsc_day_r{rad}", scale="fitXY", vis="gone"),) + tuple(layers)
+    return layers
+
+
 # ---------------------------------------------------------------- вертикальные формы
 #
 # Столбики (narrow, column) и высокие (tall) — зеркало полосок: там главное значение во всю высоту,
@@ -392,7 +435,7 @@ def calendar_vertical(f, size, F, name):
     rows = []
     for i in range(EVENTS):
         if tall:
-            rows.append(row(img(f"ed_{i}", "wdot", w="6dp", h="6dp"),
+            rows.append(row(img(f"ed_{i}", "wpill", w="3dp", h="26dp", scale="fitXY"),
                             col(text(f"m_ev{i}_title", font=F["body"], size=12, g="start", h="16sp"),
                                 text(f"s_ev{i}_time", font=F["body"], size=10, g="start", h="14sp"),
                                 w="0dp", weight=1, h="wrap", ms="6dp"),
@@ -435,7 +478,7 @@ def weather_vertical(f, size, F, name):
                  vtext("s_range", F["body"], v["small"], v["smallBox"]),
                  vdivider(v, size),
                  *hours)
-    return layout(name, *shaped_bg(f), body)
+    return layout(name, *wx_bg(f), body)
 
 
 def battery_vertical(f, size, F, name):
@@ -798,12 +841,12 @@ def event_rows(f, n, size=13, compact=False, inline=False):
     rows = []
     for i in range(n):
         if inline:
-            rows.append(row(img(f"ed_{i}", "wdot", w="7dp", h="7dp"),
+            rows.append(row(img(f"ed_{i}", "wpill", w="3dp", h="16dp", scale="fitXY"),
                             text(f"m_ev{i}_title", font=F["body"], size=size, g="start", w="0dp", weight=1, ms="8dp"),
                             text(f"s_ev{i}_time", font=F["body"], size=size - 2, g="end", w="wrap", ms="6dp"),
                             id=f"row_ev{i}", mv="2dp"))
             continue
-        rows.append(row(img(f"ed_{i}", "wdot", w="7dp", h="7dp"),
+        rows.append(row(img(f"ed_{i}", "wpill", w="3dp", h="16dp" if compact else "30dp", scale="fitXY"),
                         col(text(f"m_ev{i}_title", font=F["body"], size=size, g="start"),
                             text(f"s_ev{i}_time", font=F["body"], size=size - 2, g="start") if not compact else None,
                             w="0dp", weight=1, h="wrap", ms="8dp", g="start"),
@@ -824,7 +867,7 @@ def month_grid(f):
             i = r * 7 + c
             cells.append(frame(
                 img(f"tb_{i}", today, w="26dp", h="26dp" if today != "wbar" else "2dp", lg="center" if today != "wbar" else "bottom|center_horizontal", vis="gone"),
-                text(f"m_cd{i}", font=font, size=12),
+                text(f"m_cd{i}", font=font, size=12, h="match"),
                 w="0dp", h="match", weight=1))
         rows.append(row(*cells, h="0dp", weight=1, g="center"))
     return rows
@@ -971,10 +1014,11 @@ def daily(f, size=12, icon=22):
     F = FONTS[f]
     rows = []
     for i in range(DAYS_N):
-        rows.append(row(text(f"s_d{i}_day", font=F["body"], size=size, w="0dp", weight=1, g="start", caps=True),
+        rows.append(row(text(f"s_d{i}_day", font=F["body"], size=size, w="0dp", weight=0.9, g="start", caps=True),
                         img(f"wx_d{i}", "wx_clear_day", w=f"{icon}dp", h=f"{icon}dp"),
-                        text(f"s_d{i}_min", font=F["body"], size=size, w="44dp", g="end"),
-                        text(f"m_d{i}_max", font=F["sub"], size=size, w="44dp", g="end"),
+                        text(f"s_d{i}_min", font=F["body"], size=size, w="38dp", g="end"),
+                        img(f"rb_d{i}", "wpill", w="0dp", h="6dp", weight=1.3, scale="fitXY", mh="8dp"),
+                        text(f"m_d{i}_max", font=F["sub"], size=size, w="32dp", g="start"),
                         id=f"cell_d{i}", h="0dp", weight=1))
     return rows
 
@@ -1016,7 +1060,7 @@ def weather_shaped(f, size, name):
                    hline("if_line", mv="8dp"),
                    *hours,
                    pad="12dp")
-    return layout(name, *shaped_bg(f), body)
+    return layout(name, *wx_bg(f), body)
 
 
 def weather(f, size):
@@ -1036,7 +1080,7 @@ def weather(f, size):
                           col(img("wx_now", "wx_partly_day", w="match", h="0dp", weight=0.8),
                               text("m_temp", font=F["main"], auto=(10, 60), h="0dp", weight=1, shadow=True),
                               pad="20dp"))
-        return layout(name, *bg(f),
+        return layout(name, *wx_bg(f),
                       col(img("wx_now", "wx_partly_day", w="match", h="0dp", weight=0.9),
                           text("m_temp", font=F["main"], auto=(14, 120), h="0dp", weight=1),
                           pad="10dp"))
@@ -1048,7 +1092,7 @@ def weather(f, size):
                        w="0dp", weight=1, ms="10dp", g="center_vertical|start"),
                    text("s_range", font=F["body"], size=12, w="wrap", g="end"),
                    h="match", padH="14dp", padV="6dp")
-        return layout(name, *bg(f), body)
+        return layout(name, *wx_bg(f), body)
     if size == "m":
         if f == "bold":
             body = col(row(text("a_city", font=F["label"], size=12, caps=True, spacing=0.08, w="0dp", weight=1, g="start"),
@@ -1084,7 +1128,8 @@ def weather(f, size):
                        text("m_city", font=F["sub"], size=15, mt="6dp"),
                        text("a_desc", font=F["body"], size=12),
                        pad="14dp")
-        return layout(name, *bg(f), body)
+        # У «Облака» в квадрате своя фигура-облако — фон по погоде только у прямоугольных подложек.
+        return layout(name, *(bg(f) if f == "blob" else wx_bg(f)), body)
     head = row(col(text("m_city", font=F["sub"], size=15, g="start"),
                    text("a_desc", font=F["body"], size=12, g="start"),
                    w="0dp", weight=1, g="start"),
@@ -1104,14 +1149,14 @@ def weather(f, size):
                           id=f"cell_h{i}", w="0dp", h="wrap", weight=1) for i in range(4)],
                     w="0dp", weight=1.5, h="match", g="center")
         body = row(now, vline("if_vline", mv="6dp", mh="10dp"), hours, h="match", padH="14dp", padV="10dp")
-        return layout(name, *bg(f), body)
+        return layout(name, *wx_bg(f), body)
+    # Большой: сейчас, по часам и на 5 дней с полосками «мин–макс» (макс. и мин. на сегодня — в первой строке).
     body = col(head,
-               text("s_range", font=F["body"], size=12, g="start", mb="8dp"),
                hourly(f),
                hline("if_line", mv="8dp"),
                col(*daily(f), h="0dp", weight=1),
                pad="14dp")
-    return layout(name, *bg(f), body)
+    return layout(name, *wx_bg(f), body)
 
 
 # ---------------------------------------------------------------- батарея
@@ -1225,7 +1270,7 @@ def battery(f, size):
     big = (frame(img("sh_a", "wsh_flower"), text("o_pct", font=F["main"], auto=(16, 120), pad="34dp"), h="0dp", weight=1) if f == "blob" else
            frame(ring_pct(f, 160, shadow=shadow), h="0dp", weight=1) if f in ("glass", "neon", "minimal") else
            text("m_pct", font=F["main"], auto=(30, 300), h="0dp", weight=1))
-    body = col(text("a_title", font=F["label"], size=13, caps=True, spacing=0.06, txt="Батарея"),
+    body = col(text("a_device", font=F["label"], size=13, caps=True, spacing=0.06, txt="Телефон"),
                big,
                state("m", 15, mt="8dp"),
                text("s_remain", font=F["body"], size=12),
@@ -1370,6 +1415,13 @@ def rrect(radius, color="#FFFFFFFF", stroke=None):
 for name, radius in [("wbg_r18", "18dp"), ("wbg_r24", "24dp"), ("wbg_r28", "28dp"), ("wbg_r36", "36dp"), ("wbg_pill", "999dp")]:
     shape(name, rrect(radius))
 shape("wsh_pill", rrect("999dp"))
+shape("wpill", rrect("99dp"))
+for cond, (top, mid, bottom) in SCENES.items():
+    for rad in SKY_RADII:
+        shape(f"wsc_{cond}_r{rad}", f'''<shape {NS} android:shape="rectangle">
+    <gradient android:angle="270" android:startColor="{top}" android:centerColor="{mid}" android:endColor="{bottom}" android:type="linear" />
+    <corners android:radius="{rad}dp" />
+</shape>''')
 # Стекло: светлая полупрозрачная заливка и тонкая светлая рамка; цвет не меняется, только прозрачность.
 shape("wbg_glass", f'''<layer-list {NS}>
     <item>
@@ -1728,6 +1780,13 @@ kt += ["}", "", "/** Слот данных → все элементы, кото
 for slot, values in slots.items():
     kt.append(f'        "{slot}" to intArrayOf({", ".join("R.id." + v for v in values)}),')
 kt += ["    )", "", "    operator fun get(slot: String): IntArray = map[slot] ?: IntArray(0)", "}"]
+kt += ["", "/** Небо (по погоде или времени суток): градиент со скруглением подложки стиля. */", "object SkyScenes {",
+       "    val radii = intArrayOf(" + ", ".join(str(r) for r in SKY_RADII) + ")", "",
+       "    fun of(scene: String, radius: Int): Int = when (\"${scene}_$radius\") {"]
+for cond in SCENES:
+    for rad in SKY_RADII:
+        kt.append(f'        "{cond}_{rad}" -> R.drawable.wsc_{cond}_r{rad}')
+kt += ["        else -> R.drawable.wsc_cloudy_day_r28", "    }", "}"]
 write(os.path.join(KT, "WidgetIds.kt"), "\n".join(kt) + "\n")
 
 vs = ["package app.synctheme.mobile.widget", "", "// Сгенерировано scripts/gen_widgets.py — не редактировать вручную.", "",

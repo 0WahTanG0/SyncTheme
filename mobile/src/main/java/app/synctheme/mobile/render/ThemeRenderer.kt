@@ -577,7 +577,14 @@ object ThemeRenderer {
     }
 
     /** Прямоугольник, который занимают часы на обоях (для превью: куда не ставить виджеты). */
-    private fun wallClockArea(theme: Theme, spot: WallClockSpot): RectF? {
+    /** Попало ли касание (x, y) в часы на обоях — с запасом [slop] под палец. */
+    fun wallClockHit(theme: Theme, spot: WallClockSpot, x: Float, y: Float, slop: Float): Boolean {
+        val area = wallClockArea(theme, spot) ?: return false
+        return x in area.left - slop..area.right + slop && y in area.top - slop..area.bottom + slop
+    }
+
+    /** Прямоугольник, который занимают цифры и дата часов на обоях. */
+    fun wallClockArea(theme: Theme, spot: WallClockSpot): RectF? {
         val font = wallClockFont(theme)
         var area: RectF? = null
         for (line in spot.lines) {

@@ -56,7 +56,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -98,7 +107,10 @@ class WidgetConfigActivity : ComponentActivity() {
         }
         val theme = ThemeRepository.get(this).applied.value
         val stored = WidgetUpdater.config(this, id, kind)
-        val initial = if (kind == WidgetKind.APPS && stored.apps.isEmpty()) stored.copy(apps = AppCatalog.defaults(this)) else stored
+        // Новые «Приложения» — сразу папкой: на рабочем столе спокойный значок.
+        val initial = if (kind == WidgetKind.APPS && stored.apps.isEmpty()) {
+            stored.copy(apps = AppCatalog.defaults(this), folder = FolderMode.ICON)
+        } else stored
         setContent {
             AppTheme(theme.accentColor) {
                 WidgetConfigScreen(kind, initial, theme, onCancel = ::finish) { config -> save(id, kind, config) }
@@ -166,6 +178,8 @@ fun WidgetConfigScreen(
     var picker by remember { mutableStateOf<String?>(null) } // "open" или "apps"
     var calendarAllowed by remember { mutableStateOf(CalendarData.hasPermission(context)) }
     val wallpaper = remember { ThemeRenderer.background(context, theme, 720, 720).asImageBitmap() }
+    val view = LocalView.current
+    var previewBounds by remember { mutableStateOf<android.graphics.Rect?>(null) }
     val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         calendarAllowed = it
         config = config.copy() // перерисовать превью с событиями
@@ -186,7 +200,20 @@ fun WidgetConfigScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Image(wallpaper, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                WidgetPreview(kind, config, theme, weather, size)
+                WidgetPreview(
+                    kind, config, theme, weather, size,
+                    Modifier.onGloballyPositioned { c ->
+                        val at = IntArray(2).also(view::getLocationOnScreen)
+                        val b = c.boundsInWindow()
+                        previewBounds = android.graphics.Rect(
+                            at[0] + b.left.toInt(), at[1] + b.top.toInt(), at[0] + b.right.toInt(), at[1] + b.bottom.toInt(),
+                        )
+                    },
+                )
+                if (kind == WidgetKind.APPS && config.folder == FolderMode.HIDDEN) {
+                    // Невидимый виджет: в превью — только пунктир, где он стоит.
+                    Box(Modifier.size(size.previewW.dp, size.previewH.dp).dashedBorder(Color.White.copy(alpha = 0.7f), 18.dp))
+                }
             }
             ChipRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
                 WidgetSize.entries.forEach { s ->
@@ -232,10 +259,15 @@ fun WidgetConfigScreen(
                     }
                 }
                 if (kind == WidgetKind.APPS) {
+                    item {
+                        FolderSection(config, onChange = { config = it }) {
+                            context.startActivity(FolderActivity.preview(context, config, previewBounds))
+                        }
+                    }
                     item { AppsSection(config, onChange = { config = it }, onAdd = { picker = "apps" }) }
                 }
-                item {
-                    Section("Подложка") {
+                if (!(kind == WidgetKind.APPS && config.folder == FolderMode.HIDDEN)) item {
+                    Section(if (kind == WidgetKind.APPS && config.folder == FolderMode.ICON) "Подложка значка" else "Подложка") {
                         LabeledSlider("Непрозрачность", config.opacity, 0f..1f, "${(config.opacity * 100).toInt()}%") {
                             config = config.copy(opacity = it)
                         }
@@ -260,8 +292,23 @@ fun WidgetConfigScreen(
                                 }
                             }
                         }
+                        if (kind == WidgetKind.CLOCK) {
+                            val neon = style == "neon" || style == "analog_neon"
+                            SwitchRow("Небо по времени суток", config.sky, enabled = !neon) { config = config.copy(sky = it) }
+                            Text(
+                                if (neon) "У «Неона» своё свечение — небо в других стилях."
+                                else "Вместо подложки — небо: рассвет, день, закат, вечер и ночь сменяются сами.",
+                                style = MaterialTheme.typography.bodySmall, color = look.muted,
+                            )
+                        }
                         if (kind == WidgetKind.WEATHER) {
                             SwitchRow("Цветные иконки погоды", config.colorIcons) { config = config.copy(colorIcons = it) }
+                            SwitchRow("Фон по погоде", config.scene, enabled = style != "neon") { config = config.copy(scene = it) }
+                            Text(
+                                if (style == "neon") "У «Неона» своё свечение — фон по погоде в других стилях."
+                                else "Небо под текущую погоду: ясно, облачно, дождь, снег, гроза, туман — днём и ночью.",
+                                style = MaterialTheme.typography.bodySmall, color = look.muted,
+                            )
                         }
                     }
                 }
@@ -315,9 +362,9 @@ fun WidgetConfigScreen(
         }
         "apps" -> AppPickerDialog(
             title = "Приложения в папке", multi = true, selected = config.apps,
-            onDismiss = { picker = null },
+            onDismiss = { picker = null }, limit = if (config.isFolder) APPS_IN_FOLDER else APPS_ON_WIDGET,
         ) { picked ->
-            config = config.copy(apps = picked.take(8))
+            config = config.copy(apps = picked)
             picker = null
         }
     }
@@ -336,12 +383,52 @@ private fun defaultTargetTitle(context: android.content.Context, kind: WidgetKin
     WidgetKind.APPS -> ""
 }
 
+/** «Приложения»: значки на виджете или папка, которая раскрывается по нажатию. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FolderSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit, onPreview: () -> Unit) {
+    val muted = LocalLook.current.muted
+    Section("Вид на рабочем столе") {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FolderMode.entries.forEach { m ->
+                FilterChip(config.folder == m, {
+                    // Из папки на виджет со значками помещается меньше приложений.
+                    onChange(config.copy(folder = m, apps = if (m == FolderMode.ICONS) config.apps.take(APPS_ON_WIDGET) else config.apps))
+                }, label = { Text(m.title) })
+            }
+        }
+        Text(
+            when (config.folder) {
+                FolderMode.ICONS -> "Значки приложений лежат прямо на виджете."
+                FolderMode.ICON -> "На рабочем столе — спокойный значок одного цвета. Нажатие раскрывает папку с приложениями."
+                FolderMode.HIDDEN -> "На рабочем столе ничего не видно: нажмите на место, где стоит виджет, — и папка раскроется. " +
+                    "Границы виджета видны, когда вы его перемещаете."
+            },
+            style = MaterialTheme.typography.bodySmall, color = muted,
+        )
+        if (config.folder == FolderMode.ICON) {
+            Text("Рисунок на значке", style = MaterialTheme.typography.labelMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FolderGlyph.entries.forEach { g -> FilterChip(config.glyph == g, { onChange(config.copy(glyph = g)) }, label = { Text(g.title) }) }
+            }
+        }
+        if (config.isFolder) {
+            Text("Анимация открытия", style = MaterialTheme.typography.labelMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FolderAnim.entries.forEach { a -> FilterChip(config.animation == a, { onChange(config.copy(animation = a)) }, label = { Text(a.title) }) }
+            }
+            OutlinedButton(onClick = onPreview) { Text("Посмотреть, как раскрывается") }
+        }
+    }
+}
+
 @Composable
 private fun AppsSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit, onAdd: () -> Unit) {
     val context = LocalContext.current
     Section("Приложения") {
         Text(
-            "До 8 приложений. На маленьком виджете видно первые 4, на широком и большом — все с подписями.",
+            if (config.isFolder) "До $APPS_IN_FOLDER приложений. В папке они стоят по 3–4 в ряд с подписями."
+            else "До $APPS_ON_WIDGET приложений. На маленьком виджете видно первые 4, на широком и большом — все с подписями.",
             style = MaterialTheme.typography.bodySmall, color = LocalLook.current.muted,
         )
         config.apps.forEachIndexed { i, component ->
@@ -373,13 +460,14 @@ private fun AppIcon(component: String, sizeDp: Int) {
     if (bitmap != null) Image(bitmap, null, modifier = Modifier.size(sizeDp.dp)) else Spacer(Modifier.size(sizeDp.dp))
 }
 
-/** Выбор приложений из установленных: одного или нескольких (до 8). */
+/** Выбор приложений из установленных: одного или нескольких (до [limit]). */
 @Composable
-private fun AppPickerDialog(
+internal fun AppPickerDialog(
     title: String,
     multi: Boolean,
     selected: List<String>,
     onDismiss: () -> Unit,
+    limit: Int = 8,
     onPick: (List<String>) -> Unit,
 ) {
     val context = LocalContext.current
@@ -389,7 +477,7 @@ private fun AppPickerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        confirmButton = { if (multi) TextButton(onClick = { onPick(chosen) }) { Text("Готово (${chosen.size}/8)") } },
+        confirmButton = { if (multi) TextButton(onClick = { onPick(chosen) }) { Text("Готово (${chosen.size}/$limit)") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
         text = {
             Column {
@@ -406,7 +494,7 @@ private fun AppPickerDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth().clickable {
                                 if (!multi) onPick(listOf(app.component))
-                                else chosen = if (on) chosen - app.component else if (chosen.size < 8) chosen + app.component else chosen
+                                else chosen = if (on) chosen - app.component else if (chosen.size < limit) chosen + app.component else chosen
                             }.padding(vertical = 6.dp),
                         ) {
                             AppIcon(app.component, 36)
@@ -418,5 +506,13 @@ private fun AppPickerDialog(
                 }
             }
         },
+    )
+}
+
+/** Пунктирная рамка — где стоит невидимый виджет. */
+private fun Modifier.dashedBorder(color: Color, radius: Dp) = drawBehind {
+    drawRoundRect(
+        color, cornerRadius = CornerRadius(radius.toPx()),
+        style = Stroke(width = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx()))),
     )
 }

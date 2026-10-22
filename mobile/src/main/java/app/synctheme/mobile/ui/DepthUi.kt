@@ -25,6 +25,8 @@ import app.synctheme.core.WallClockLayout
 import app.synctheme.mobile.devices.PhoneInfo
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.wallpaper.ClockWallpaper
+import app.synctheme.mobile.widget.AppCatalog
+import app.synctheme.mobile.widget.AppPickerDialog
 
 // ---------------------------------------------------------------- часы на обоях
 
@@ -83,6 +85,24 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
         }
     }
     SwitchRow("Дата над часами", wall.showDate) { on -> vm.setWallClock(wall.copy(showDate = on)) }
+    SwitchRow("Открывать приложение по нажатию", wall.tapToOpen) { on -> vm.setWallClock(wall.copy(tapToOpen = on)) }
+    if (wall.tapToOpen) {
+        var picking by remember { mutableStateOf(false) }
+        Text(
+            "Нажатие на часы открывает: ${AppCatalog.wallClockTarget(context, wall.openApp)}.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = { picking = true }) { Text("Выбрать приложение") }
+            if (wall.openApp != null) TextButton(onClick = { vm.setWallClock(wall.copy(openApp = null)) }) { Text("Будильники") }
+        }
+        if (picking) {
+            AppPickerDialog("Что открывать по нажатию на часы", multi = false, selected = listOfNotNull(wall.openApp), onDismiss = { picking = false }) {
+                vm.setWallClock(wall.copy(openApp = it.firstOrNull()))
+                picking = false
+            }
+        }
+    }
     Text("Шрифт", style = MaterialTheme.typography.labelMedium)
     DigitFontPicker(wall.font, ThemeRenderer.wallClockFont(theme.copy(wallClock = wall.copy(font = null)))) { f -> vm.setWallClock(wall.copy(font = f)) }
     var active by remember { mutableStateOf(ClockWallpaper.isActive(context)) }

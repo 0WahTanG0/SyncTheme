@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widgets.py — не редактировать вручную. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="270" android:startColor="#FF4E555E" android:centerColor="#FF656D77" android:endColor="#FF858D96" android:type="linear" />
+    <corners android:radius="28dp" />
+</shape>

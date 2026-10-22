@@ -386,4 +386,17 @@ class FeaturesTest {
         view.draw(canvas)
         return bmp
     }
+
+    /** Нажатие на часы на обоях: попадает только по часам (с запасом под палец) и открывает выбранное приложение. */
+    @Test
+    fun wallClockTapOpensApp() {
+        val theme = Presets.all[0].copy(wallClock = WallClock(WallClockLayout.TOP, depth = false, openApp = "com.example.notes/.Main"))
+        val spot = ThemeRenderer.wallClockSpot(context, theme, 1080, 2340)
+        val area = ThemeRenderer.wallClockArea(theme, spot)!!
+        assertTrue("по цифрам", ThemeRenderer.wallClockHit(theme, spot, area.centerX(), area.centerY(), 40f))
+        assertTrue("рядом, в пределах запаса", ThemeRenderer.wallClockHit(theme, spot, area.centerX(), area.bottom + 30f, 40f))
+        assertTrue("внизу экрана — мимо", !ThemeRenderer.wallClockHit(theme, spot, 540f, 2200f, 40f))
+        val intent = app.synctheme.mobile.widget.AppCatalog.wallClockIntent(context, theme.wallClock!!.openApp)!!
+        assertEquals("com.example.notes", intent.component?.packageName)
+    }
 }

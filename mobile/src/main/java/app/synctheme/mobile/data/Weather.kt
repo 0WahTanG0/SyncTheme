@@ -199,6 +199,16 @@ object WeatherCodes {
         else -> R.drawable.wx_cloudy
     }
 
+    /** Небо для «Фона по погоде» (см. SkyScenes). */
+    fun scene(code: Int, isDay: Boolean): String = when (code) {
+        0, 1 -> if (isDay) "clear_day" else "clear_night"
+        45, 48 -> "fog"
+        in 51..67, in 80..82 -> "rain"
+        in 71..77, 85, 86 -> "snow"
+        in 95..99 -> "storm"
+        else -> if (isDay) "cloudy_day" else "cloudy_night"
+    }
+
     fun description(code: Int): String = when (code) {
         0 -> "Ясно"
         1 -> "Преимущественно ясно"

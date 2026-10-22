@@ -120,6 +120,10 @@ data class WallClock(
     val showDate: Boolean = true,
     /** Место, куда часы передвинули вручную; null — само: по объекту фото (с глубиной) или по [layout]. */
     val place: ClockPlace? = null,
+    /** Открывать приложение по нажатию на часы. */
+    val tapToOpen: Boolean = true,
+    /** Что открывать: «пакет/активити»; null — будильники. */
+    val openApp: String? = null,
 )
 
 /**

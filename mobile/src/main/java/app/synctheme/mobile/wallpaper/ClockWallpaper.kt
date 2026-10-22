@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.service.wallpaper.WallpaperService
@@ -22,6 +23,7 @@ import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.render.WallClockSpot
+import app.synctheme.mobile.widget.AppCatalog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,7 +52,8 @@ private class Layers(val key: Any, val background: Bitmap, val foreground: Bitma
 
 /**
  * Обои с часами: фон темы, время шрифтом цифр и — с эффектом глубины — главный объект фото поверх цифр.
- * Перерисовываются раз в минуту, пока видны, и сразу при смене темы.
+ * Перерисовываются раз в минуту, пока видны, и сразу при смене темы. Нажатие на часы открывает
+ * выбранное приложение: о касаниях пустого места рабочего стола обоям сообщает лаунчер.
  *
  * Надёжность: кадр рисуется всякий раз, когда система просит (onSurfaceRedrawNeeded, включение
  * экрана, разблокировка); маска объекта, если её ещё нет, считается прямо здесь; при ошибке
@@ -98,6 +101,25 @@ class ClockWallpaperService : WallpaperService() {
             }
             registerReceiver(events, filter)
             scope.launch { repo.applied.collect { prepare() } }
+        }
+
+        override fun onCommand(action: String?, x: Int, y: Int, z: Int, extras: Bundle?, resultRequested: Boolean): Bundle? {
+            if (action == WallpaperManager.COMMAND_TAP) onTap(x.toFloat(), y.toFloat())
+            return super.onCommand(action, x, y, z, extras, resultRequested)
+        }
+
+        /** Касание пустого места рабочего стола: если на часах (с запасом под палец) — открываем приложение. */
+        private fun onTap(x: Float, y: Float) {
+            val l = layers ?: return
+            val theme = repo.applied.value
+            val wall = theme.wallClock ?: return
+            if (!wall.tapToOpen || lockOnly || keyguard?.isKeyguardLocked == true) return
+            // Место часов посчитано для размера слоёв, касание — в точках поверхности.
+            val sx = x * l.width / width.coerceAtLeast(1)
+            val sy = y * l.height / height.coerceAtLeast(1)
+            if (!ThemeRenderer.wallClockHit(theme, l.spot, sx, sy, TAP_SLOP_DP * resources.displayMetrics.density)) return
+            val intent = AppCatalog.wallClockIntent(this@ClockWallpaperService, wall.openApp) ?: return
+            runCatching { startActivity(intent) }.onFailure { Log.w(TAG, "Tap launch failed", it) }
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -228,5 +250,6 @@ class ClockWallpaperService : WallpaperService() {
 
     private companion object {
         const val TAG = "ClockWallpaper"
+        const val TAP_SLOP_DP = 20
     }
 }

@@ -84,7 +84,7 @@ object WidgetUpdater {
     fun updateOne(context: Context, manager: AppWidgetManager, id: Int, kind: WidgetKind) {
         val theme = ThemeRepository.get(context).applied.value
         runCatching {
-            manager.updateAppWidget(id, WidgetRenderer.build(context, kind, config(context, id, kind), theme, sizes = sizes(manager, id)))
+            manager.updateAppWidget(id, WidgetRenderer.build(context, kind, config(context, id, kind), theme, sizes = sizes(manager, id), widgetId = id))
         }
     }
 

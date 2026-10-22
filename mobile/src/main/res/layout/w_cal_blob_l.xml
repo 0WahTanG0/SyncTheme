@@ -176,7 +176,7 @@
                     <TextView
                         android:id="@+id/m_cd0"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -203,7 +203,7 @@
                     <TextView
                         android:id="@+id/m_cd1"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -230,7 +230,7 @@
                     <TextView
                         android:id="@+id/m_cd2"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -257,7 +257,7 @@
                     <TextView
                         android:id="@+id/m_cd3"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -284,7 +284,7 @@
                     <TextView
                         android:id="@+id/m_cd4"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -311,7 +311,7 @@
                     <TextView
                         android:id="@+id/m_cd5"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -338,7 +338,7 @@
                     <TextView
                         android:id="@+id/m_cd6"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -373,7 +373,7 @@
                     <TextView
                         android:id="@+id/m_cd7"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -400,7 +400,7 @@
                     <TextView
                         android:id="@+id/m_cd8"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -427,7 +427,7 @@
                     <TextView
                         android:id="@+id/m_cd9"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -454,7 +454,7 @@
                     <TextView
                         android:id="@+id/m_cd10"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -481,7 +481,7 @@
                     <TextView
                         android:id="@+id/m_cd11"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -508,7 +508,7 @@
                     <TextView
                         android:id="@+id/m_cd12"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -535,7 +535,7 @@
                     <TextView
                         android:id="@+id/m_cd13"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -570,7 +570,7 @@
                     <TextView
                         android:id="@+id/m_cd14"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -597,7 +597,7 @@
                     <TextView
                         android:id="@+id/m_cd15"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -624,7 +624,7 @@
                     <TextView
                         android:id="@+id/m_cd16"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -651,7 +651,7 @@
                     <TextView
                         android:id="@+id/m_cd17"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -678,7 +678,7 @@
                     <TextView
                         android:id="@+id/m_cd18"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -705,7 +705,7 @@
                     <TextView
                         android:id="@+id/m_cd19"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -732,7 +732,7 @@
                     <TextView
                         android:id="@+id/m_cd20"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -767,7 +767,7 @@
                     <TextView
                         android:id="@+id/m_cd21"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -794,7 +794,7 @@
                     <TextView
                         android:id="@+id/m_cd22"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -821,7 +821,7 @@
                     <TextView
                         android:id="@+id/m_cd23"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -848,7 +848,7 @@
                     <TextView
                         android:id="@+id/m_cd24"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -875,7 +875,7 @@
                     <TextView
                         android:id="@+id/m_cd25"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -902,7 +902,7 @@
                     <TextView
                         android:id="@+id/m_cd26"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -929,7 +929,7 @@
                     <TextView
                         android:id="@+id/m_cd27"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -964,7 +964,7 @@
                     <TextView
                         android:id="@+id/m_cd28"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -991,7 +991,7 @@
                     <TextView
                         android:id="@+id/m_cd29"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1018,7 +1018,7 @@
                     <TextView
                         android:id="@+id/m_cd30"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1045,7 +1045,7 @@
                     <TextView
                         android:id="@+id/m_cd31"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1072,7 +1072,7 @@
                     <TextView
                         android:id="@+id/m_cd32"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1099,7 +1099,7 @@
                     <TextView
                         android:id="@+id/m_cd33"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1126,7 +1126,7 @@
                     <TextView
                         android:id="@+id/m_cd34"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1161,7 +1161,7 @@
                     <TextView
                         android:id="@+id/m_cd35"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1188,7 +1188,7 @@
                     <TextView
                         android:id="@+id/m_cd36"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1215,7 +1215,7 @@
                     <TextView
                         android:id="@+id/m_cd37"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1242,7 +1242,7 @@
                     <TextView
                         android:id="@+id/m_cd38"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1269,7 +1269,7 @@
                     <TextView
                         android:id="@+id/m_cd39"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1296,7 +1296,7 @@
                     <TextView
                         android:id="@+id/m_cd40"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1323,7 +1323,7 @@
                     <TextView
                         android:id="@+id/m_cd41"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:gravity="center"
                         android:fontFamily="@font/nunito_700"
                         android:textSize="12sp"
@@ -1353,10 +1353,10 @@
 
             <ImageView
                 android:id="@+id/ed_0"
-                android:layout_width="7dp"
-                android:layout_height="7dp"
-                android:scaleType="fitCenter"
-                android:src="@drawable/wdot"
+                android:layout_width="3dp"
+                android:layout_height="16dp"
+                android:scaleType="fitXY"
+                android:src="@drawable/wpill"
                 android:importantForAccessibility="no" />
 
             <LinearLayout
@@ -1390,10 +1390,10 @@
 
             <ImageView
                 android:id="@+id/ed_1"
-                android:layout_width="7dp"
-                android:layout_height="7dp"
-                android:scaleType="fitCenter"
-                android:src="@drawable/wdot"
+                android:layout_width="3dp"
+                android:layout_height="16dp"
+                android:scaleType="fitXY"
+                android:src="@drawable/wpill"
                 android:importantForAccessibility="no" />
 
             <LinearLayout

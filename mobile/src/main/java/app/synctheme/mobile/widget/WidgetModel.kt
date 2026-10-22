@@ -109,6 +109,38 @@ enum class WidgetSize(val key: String, val title: String, val minW: Float, val m
 @Serializable
 enum class WidgetAlign(val title: String) { START("Слева"), CENTER("По центру"), END("Справа") }
 
+/** Как «Приложения» выглядят на рабочем столе. */
+@Serializable
+enum class FolderMode(val title: String) {
+    /** Значки приложений прямо на виджете. */
+    ICONS("Значки"),
+    /** Спокойный значок папки; нажатие раскрывает папку. */
+    ICON("Значок папки"),
+    /** Виджета не видно; нажатие на его место раскрывает папку. */
+    HIDDEN("Невидимый"),
+}
+
+/** Как раскрывается папка. */
+@Serializable
+enum class FolderAnim(val title: String) {
+    REVEAL("Раскрытие"),
+    SPRING("Пружина"),
+    FAN("Веер"),
+    CASCADE("Каскад"),
+    SPIRAL("Спираль"),
+}
+
+/** Рисунок на значке папки. */
+@Serializable
+enum class FolderGlyph(val title: String) {
+    DOTS("Точки"),
+    SILHOUETTES("Силуэты"),
+}
+
+/** Приложений в папке: на виджете со значками — 8, в раскрывающейся — 12. */
+const val APPS_ON_WIDGET = 8
+const val APPS_IN_FOLDER = 12
+
 /** Настройки одного размещённого виджета; цвета по умолчанию берутся из темы. */
 @Serializable
 data class WidgetConfig(
@@ -123,6 +155,10 @@ data class WidgetConfig(
     val accentColor: Int? = null,
     /** Иконки погоды в своих цветах или в цвете текста. */
     val colorIcons: Boolean = true,
+    /** Погода: фон — небо под текущую погоду (днём и ночью) вместо подложки стиля. */
+    val scene: Boolean = true,
+    /** Часы: фон — небо под время суток (рассвет, день, закат, вечер, ночь). */
+    val sky: Boolean = false,
     /** Приложения в папке: «пакет/активити». */
     val apps: List<String> = emptyList(),
     /** Подпись папки (пусто — без подписи). */
@@ -131,7 +167,14 @@ data class WidgetConfig(
     val openApp: String? = null,
     /** Шрифт цифр часов ([DigitFont]); null — как задумано в стиле. */
     val font: String? = null,
+    /** «Приложения»: значки на виджете, значок папки или невидимый виджет. */
+    val folder: FolderMode = FolderMode.ICONS,
+    val animation: FolderAnim = FolderAnim.REVEAL,
+    val glyph: FolderGlyph = FolderGlyph.DOTS,
 ) {
+    /** Приложения раскрываются из папки, а не лежат на виджете. */
+    val isFolder get() = folder != FolderMode.ICONS
+
     fun digitFont(): DigitFont = font?.let { f -> DigitFont.entries.firstOrNull { it.name == f } } ?: defaultDigitFont(style)
 }
 

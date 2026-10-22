@@ -2,6 +2,8 @@ package app.synctheme.mobile
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.os.BatteryManager
 import android.os.Looper
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -62,13 +64,23 @@ class RenderingTest {
         )
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val d = context.resources.displayMetrics.density
+        android.provider.Settings.Global.putString(context.contentResolver, android.provider.Settings.Global.DEVICE_NAME, "Galaxy S25+")
+        // Батарея как на телефоне: 64 % и заряжается — видно цвет зарядки.
+        shadowOf(context.getSystemService(BatteryManager::class.java)).apply {
+            setIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY, 64)
+            setIsCharging(true)
+        }
+        context.sendStickyBroadcast(
+            Intent(Intent.ACTION_BATTERY_CHANGED).putExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_CHARGING)
+                .putExtra(BatteryManager.EXTRA_TEMPERATURE, 312).putExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_GOOD),
+        )
         for (theme in listOf(Presets.all[0], Presets.all.first { it.id == "sakura" })) {
             for (kind in WidgetKind.entries) {
                 // В Robolectric нет установленных приложений — значки заменятся заглушками, подписи — именами пакетов.
                 val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
                 val variants = kind.styles.map { it.title to WidgetConfig(style = it.id, opacity = 0.45f, apps = apps) } +
                     listOf("Свои настройки" to WidgetConfig(style = kind.defaultStyle, align = WidgetAlign.START, opacity = 0.85f,
-                        showSeconds = false, colorIcons = false, title = "Избранное", apps = apps.take(3)))
+                        showSeconds = false, colorIcons = false, title = "Избранное", apps = apps.take(3), sky = true, scene = false))
                 val gap = (12 * d).toInt()
                 val cellW = WidgetSize.entries.map { (it.previewW * d).toInt() }
                 val rowH = (WidgetSize.entries.maxOf { it.previewH } * d).toInt()
@@ -96,6 +108,51 @@ class RenderingTest {
                 assertTrue(all.apply(activity, FrameLayout(activity)) != null)
             }
         }
+    }
+
+    /** Небо: часы в разное время суток (сверху) и погода в разную погоду (снизу). */
+    @Test
+    fun widgetSkies() {
+        val forecast = WeatherRepository.parseForecast(
+            javaClass.classLoader!!.getResource("forecast.json")!!.readText(), "Москва", System.currentTimeMillis(),
+        )
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val d = context.resources.displayMetrics.density
+        val theme = Presets.all[0]
+        val size = WidgetSize.M
+        val cw = (size.previewW * d).toInt()
+        val ch = (size.previewH * d).toInt()
+        val gap = (12 * d).toInt()
+        val hours = listOf(6, 12, 18, 20, 23)
+        // Ясно днём и ночью, облачно, дождь, снег, гроза.
+        val weathers = listOf(0 to true, 0 to false, 3 to true, 63 to true, 73 to true, 95 to false)
+        val cols = maxOf(hours.size, weathers.size)
+        val sheet = Bitmap.createBitmap(cols * (cw + gap) + gap, 2 * (ch + gap) + gap, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(sheet)
+        canvas.drawColor(0xFF202024.toInt())
+        fun draw(views: android.widget.RemoteViews, r: Int, c: Int) {
+            val host = FrameLayout(activity)
+            activity.setContentView(host)
+            val view = views.apply(activity, host)
+            host.addView(view)
+            shadowOf(Looper.getMainLooper()).idle()
+            val bmp = render(view, size.previewW, size.previewH, ThemeRenderer.background(context, theme, cw, ch))
+            canvas.drawBitmap(bmp, (gap + c * (cw + gap)).toFloat(), (gap + r * (ch + gap)).toFloat(), null)
+        }
+        val saved = WidgetRenderer.hourNow
+        try {
+            hours.forEachIndexed { c, h ->
+                WidgetRenderer.hourNow = { h }
+                draw(WidgetRenderer.buildSize(context, WidgetKind.CLOCK, WidgetConfig(style = "glass", sky = true, opacity = 0.6f), theme, size, forecast), 0, c)
+            }
+        } finally {
+            WidgetRenderer.hourNow = saved
+        }
+        weathers.forEachIndexed { c, (code, day) ->
+            val w = forecast.copy(now = forecast.now.copy(code = code, isDay = day))
+            draw(WidgetRenderer.buildSize(context, WidgetKind.WEATHER, WidgetConfig(style = "bold", opacity = 0.6f), theme, size, w), 1, c)
+        }
+        sheet.save("widget_skies.png")
     }
 
     /** Шрифты цифр в каждом стиле цифровых часов (размер 2×2 и 4×2): строки — шрифты, столбцы — стили. */

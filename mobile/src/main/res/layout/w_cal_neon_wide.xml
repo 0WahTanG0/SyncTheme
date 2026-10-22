@@ -116,10 +116,10 @@
 
                 <ImageView
                     android:id="@+id/ed_0"
-                    android:layout_width="7dp"
-                    android:layout_height="7dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/wdot"
+                    android:layout_width="3dp"
+                    android:layout_height="16dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/wpill"
                     android:importantForAccessibility="no" />
 
                 <TextView
@@ -158,10 +158,10 @@
 
                 <ImageView
                     android:id="@+id/ed_1"
-                    android:layout_width="7dp"
-                    android:layout_height="7dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/wdot"
+                    android:layout_width="3dp"
+                    android:layout_height="16dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/wpill"
                     android:importantForAccessibility="no" />
 
                 <TextView
@@ -200,10 +200,10 @@
 
                 <ImageView
                     android:id="@+id/ed_2"
-                    android:layout_width="7dp"
-                    android:layout_height="7dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/wdot"
+                    android:layout_width="3dp"
+                    android:layout_height="16dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/wpill"
                     android:importantForAccessibility="no" />
 
                 <TextView
