@@ -244,6 +244,17 @@ object FolderLineStore {
 
     fun remove(context: Context, line: List<Float>) = save(context, all(context).filter { it != line })
 
+    /** Линия, нарисованная поверх рабочего стола для настройки виджета: настройка заберёт её, когда вернётся на экран. */
+    fun setPending(context: Context, line: List<Float>) {
+        prefs(context).edit().putString("pending", json.encodeToString(line)).apply()
+    }
+
+    fun takePending(context: Context): List<Float>? {
+        val raw = prefs(context).getString("pending", null) ?: return null
+        prefs(context).edit().remove("pending").apply()
+        return runCatching { json.decodeFromString<List<Float>>(raw) }.getOrNull()
+    }
+
     private fun save(context: Context, lines: List<List<Float>>) {
         prefs(context).edit().putString("lines", json.encodeToString(lines)).apply()
     }

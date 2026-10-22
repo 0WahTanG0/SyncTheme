@@ -213,6 +213,15 @@
             android:taskAffinity=".folder"
             android:theme="@style/Theme.SyncTheme.Folder" />
 
+        <!-- Своя линия папки: прозрачное окно поверх рабочего стола, рисуется пальцем. -->
+        <activity
+            android:name=".mobile.widget.FolderDrawActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=".folderdraw"
+            android:theme="@style/Theme.SyncTheme.Folder" />
+
         <!-- Настройка виджета: при добавлении, по «Настройки» у виджета и из приложения. -->
         <activity
             android:name=".mobile.widget.WidgetConfigActivity"

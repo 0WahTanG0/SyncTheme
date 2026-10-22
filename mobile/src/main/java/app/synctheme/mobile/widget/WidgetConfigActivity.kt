@@ -64,6 +64,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.font.FontWeight
@@ -180,7 +181,6 @@ fun WidgetConfigScreen(
     val wallpaper = remember { ThemeRenderer.background(context, theme, 720, 720).asImageBitmap() }
     val view = LocalView.current
     var previewBounds by remember { mutableStateOf<android.graphics.Rect?>(null) }
-    var drawLine by remember { mutableStateOf(false) }
     val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         calendarAllowed = it
         config = config.copy() // перерисовать превью с событиями
@@ -190,20 +190,10 @@ fun WidgetConfigScreen(
     val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("bold", "glass", "minimal")
     val digital = kind == WidgetKind.CLOCK && !analog
 
-    if (drawLine) {
-        androidx.activity.compose.BackHandler { drawLine = false }
-        FolderLineEditor(
-            config, theme,
-            onPreview = { line ->
-                context.startActivity(FolderActivity.preview(context, config.copy(shape = FolderShape.CUSTOM, line = line), null))
-            },
-            onCancel = { drawLine = false },
-        ) { line ->
-            config = config.copy(shape = FolderShape.CUSTOM, line = line)
-            FolderLineStore.add(context, line)
-            drawLine = false
-        }
-        return
+    // Линия, нарисованная поверх рабочего стола, приходит, когда настройка снова на экране.
+    LifecycleResumeEffect(Unit) {
+        FolderLineStore.takePending(context)?.let { config = config.copy(shape = FolderShape.CUSTOM, line = it) }
+        onPauseOrDispose { }
     }
 
     AppBackdrop {
@@ -277,7 +267,7 @@ fun WidgetConfigScreen(
                 }
                 if (kind == WidgetKind.APPS) {
                     item {
-                        FolderSection(config, onChange = { config = it }, onDraw = { drawLine = true }) {
+                        FolderSection(config, onChange = { config = it }, onDraw = { FolderDrawActivity.startFromSettings(context, config) }) {
                             context.startActivity(FolderActivity.preview(context, config, previewBounds))
                         }
                     }
@@ -466,8 +456,13 @@ private fun FolderSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit
             style = MaterialTheme.typography.bodySmall, color = muted,
         )
         OutlinedButton(onClick = onDraw) {
-            Text(if (config.shape == FolderShape.CUSTOM) "Изменить свою линию" else "Нарисовать свою линию")
+            Text(if (config.shape == FolderShape.CUSTOM) "Перерисовать на рабочем столе" else "Нарисовать на рабочем столе")
         }
+        Text(
+            "Откроется главный экран — проведите линию прямо поверх своих значков и виджетов, и вы вернётесь сюда. " +
+                "Или откройте папку на рабочем столе и задержите палец на пустом месте — линия нарисуется на той же странице.",
+            style = MaterialTheme.typography.bodySmall, color = muted,
+        )
         Text("Анимация", style = MaterialTheme.typography.labelMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FolderAnim.entries.forEach { a -> FilterChip(config.animation == a, { onChange(config.copy(animation = a)) }, label = { Text(a.title) }) }

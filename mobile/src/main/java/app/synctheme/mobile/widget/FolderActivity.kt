@@ -100,12 +100,20 @@ class FolderActivity : ComponentActivity() {
             ?: WidgetUpdater.config(this, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0), WidgetKind.APPS)
         val theme = ThemeRepository.get(this).applied.value
         val origin = intent.sourceBounds
+        val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
         val blur = config.dim && blurBehind()
         onBackPressedDispatcher.addCallback(this) { closing = true }
         setContent {
             FolderScreen(
                 config, theme, origin, closing, blurred = blur,
                 onOpen = ::launch, onDismiss = { closing = true }, onClosed = ::close,
+                // Долгое нажатие на пустом месте — нарисовать линию прямо на этой странице рабочего стола.
+                onRedraw = if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID || intent.hasExtra(EXTRA_CONFIG)) null else {
+                    {
+                        startActivity(FolderDrawActivity.forWidget(this, widgetId))
+                        close()
+                    }
+                },
             )
         }
     }
@@ -182,6 +190,7 @@ fun FolderScreen(
     onOpen: (String, Rect) -> Unit,
     onDismiss: () -> Unit,
     onClosed: () -> Unit,
+    onRedraw: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val apps = remember(config) { folderApps(context, config) }
@@ -194,8 +203,8 @@ fun FolderScreen(
             onClosed()
         }
     }
-    if (config.shape == FolderShape.GRID) FolderOverlay(config, theme, apps, origin, progress.value, blurred, onOpen, onDismiss)
-    else FolderLineOverlay(config, theme, apps, origin, progress.value, blurred, onOpen, onDismiss)
+    if (config.shape == FolderShape.GRID) FolderOverlay(config, theme, apps, origin, progress.value, blurred, onOpen, onDismiss, onRedraw)
+    else FolderLineOverlay(config, theme, apps, origin, progress.value, blurred, onOpen, onDismiss, onRedraw)
 }
 
 /** Сетка папки: до 4 приложений — 2 в ряд, до 9 — по 3, больше — по 4. */
@@ -266,6 +275,7 @@ fun FolderOverlay(
     blurred: Boolean = false,
     onOpen: (String, Rect) -> Unit = { _, _ -> },
     onDismiss: () -> Unit = {},
+    onRedraw: (() -> Unit)? = null,
 ) {
     val look = remember(config, theme) { FolderLook(config, theme) }
     val density = LocalDensity.current
@@ -273,7 +283,7 @@ fun FolderOverlay(
     BoxWithConstraints(
         Modifier.fillMaxSize()
             .then(if (config.dim) Modifier.drawBehind { drawRect(Color.Black.copy(alpha = (if (blurred) 0.28f else 0.5f) * q)) } else Modifier)
-            .pointerInput(Unit) { detectTapGestures { onDismiss() } },
+            .pointerInput(onRedraw) { detectTapGestures(onLongPress = onRedraw?.let { r -> { r() } }) { onDismiss() } },
     ) {
         val px = { v: Float -> with(density) { v.dp.toPx() } }
         val n = apps.size
@@ -477,6 +487,7 @@ fun FolderLineOverlay(
     blurred: Boolean = false,
     onOpen: (String, Rect) -> Unit = { _, _ -> },
     onDismiss: () -> Unit = {},
+    onRedraw: (() -> Unit)? = null,
 ) {
     val look = remember(config, theme) { FolderLook(config, theme) }
     val density = LocalDensity.current
@@ -484,7 +495,7 @@ fun FolderLineOverlay(
     BoxWithConstraints(
         Modifier.fillMaxSize()
             .then(if (config.dim) Modifier.drawBehind { drawRect(Color.Black.copy(alpha = (if (blurred) 0.28f else 0.5f) * q)) } else Modifier)
-            .pointerInput(Unit) { detectTapGestures { onDismiss() } },
+            .pointerInput(onRedraw) { detectTapGestures(onLongPress = onRedraw?.let { r -> { r() } }) { onDismiss() } },
     ) {
         val screen = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         val from = origin?.let { Offset(it.exactCenterX(), it.exactCenterY()) } ?: Offset(screen.width / 2, screen.height * 0.82f)

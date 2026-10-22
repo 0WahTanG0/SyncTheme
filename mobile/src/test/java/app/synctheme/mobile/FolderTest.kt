@@ -35,7 +35,7 @@ import app.synctheme.mobile.widget.FolderAnim
 import app.synctheme.mobile.widget.FolderApp
 import app.synctheme.mobile.widget.FolderGlyph
 import app.synctheme.mobile.widget.FolderMode
-import app.synctheme.mobile.widget.FolderLineEditor
+import app.synctheme.mobile.widget.FolderDrawOverlay
 import app.synctheme.mobile.widget.FolderLineOverlay
 import app.synctheme.mobile.widget.FolderLines
 import app.synctheme.mobile.widget.FolderOverlay
@@ -182,12 +182,19 @@ class FolderTest {
         assertTrue(norm.size in 16..128 && norm.all { it in 0f..1f })
     }
 
-    /** Своя линия рисуется пальцем: изогнутая линия сохраняется в настройку виджета. */
+    /** Своя линия рисуется пальцем поверх рабочего стола: изогнутая линия сохраняется в настройку виджета. */
     @Test
     fun drawsLineWithFinger() {
         var result: List<Float>? = null
         val config = WidgetConfig(style = "glass", folder = FolderMode.ICON, apps = (0 until 7).map { "com.example.app$it/.Main" })
-        compose.setContent { FolderLineEditor(config, theme, onPreview = {}, onCancel = {}) { result = it } }
+        // За прозрачным окном на телефоне — рабочий стол; здесь вместо него обои с виджетами.
+        val home = ThemeRenderer.phonePreview(app, theme, 721, 1601).asImageBitmap()
+        compose.setContent {
+            Box(Modifier.fillMaxSize()) {
+                Image(home, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                FolderDrawOverlay(config, theme, onCancel = {}) { result = it }
+            }
+        }
         compose.waitForIdle()
         compose.onNodeWithContentDescription("Холст линии").performTouchInput {
             down(Offset(width * 0.18f, height * 0.86f))
@@ -205,13 +212,13 @@ class FolderTest {
         val line = result
         assertNotNull("линия сохранена", line)
         assertTrue("точек: ${line!!.size}", line.size >= 16)
-        // Изогнутая: середина заметно в стороне от прямой между концами.
+        // Изогнутая: точки линии заметно отходят от прямой между её концами.
         val pts = line.chunked(2)
         val a = pts.first()
         val b = pts.last()
-        val m = pts[pts.size / 2]
-        val cross = kotlin.math.abs((b[0] - a[0]) * (m[1] - a[1]) - (b[1] - a[1]) * (m[0] - a[0]))
-        assertTrue("изгиб: $cross", cross > 0.01f)
+        val chord = kotlin.math.hypot(b[0] - a[0], b[1] - a[1])
+        val bend = pts.maxOf { m -> kotlin.math.abs((b[0] - a[0]) * (m[1] - a[1]) - (b[1] - a[1]) * (m[0] - a[0])) / chord }
+        assertTrue("изгиб: $bend", bend > 0.03f)
     }
 
     /** Значок папки во всех стилях, точками и силуэтами, и невидимый виджет — собираются и открывают папку. */
