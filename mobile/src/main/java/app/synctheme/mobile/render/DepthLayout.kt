@@ -5,14 +5,15 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import app.synctheme.core.Background
 import app.synctheme.core.DigitFont
+import app.synctheme.core.TimeShift
 import app.synctheme.core.WatchFaceXml
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.math.sign
 
 /** Часть фото (в долях его ширины и высоты), которая попадает в кадр. */
 internal object Crop {
@@ -22,6 +23,17 @@ internal object Crop {
         val w = frameW / scale / imgW
         val h = frameH / scale / imgH
         return RectF((1 - w) / 2, (1 - h) / 2, (1 + w) / 2, (1 + h) / 2)
+    }
+
+    /** Кадр фона [bg]: его центр и увеличение (как пользователь подвинул фото), в пределах фото. */
+    fun of(imgW: Int, imgH: Int, frameW: Float, frameH: Float, bg: Background): RectF {
+        val base = center(imgW, imgH, frameW, frameH)
+        val zoom = bg.zoom.coerceIn(1f, 5f)
+        val w = base.width() / zoom
+        val h = base.height() / zoom
+        val cx = bg.focusX.coerceIn(w / 2, 1 - w / 2)
+        val cy = bg.focusY.coerceIn(h / 2, 1 - h / 2)
+        return RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
     }
 
     fun pixels(crop: RectF, imgW: Int, imgH: Int) = Rect(
@@ -47,6 +59,9 @@ internal class MaskGrid(val cols: Int, val rows: Int, private val alpha: FloatAr
 
     /** Доля кадра, занятая объектом. */
     val mass = sat.last() / (cols * rows)
+
+    /** Объект в клетке (x, y); за пределами кадра — 0. */
+    fun at(x: Int, y: Int): Float = if (x in 0 until cols && y in 0 until rows) alpha[y * cols + x] else 0f
 
     /** Доля прямоугольника (в долях кадра), которую закрывает объект. */
     fun coverage(r: RectF): Float {
@@ -282,120 +297,94 @@ internal object WallClockPlacer {
 }
 
 /**
- * Кадр фото для циферблата с глубиной. Время на часах стоит там, где его рисует стиль, поэтому
- * двигается фото: объект остаётся со своей стороны от времени и заходит на цифры лишь краем — около
- * [WallClockPlacer.TARGET] их площади, при этом объект почти целиком остаётся на циферблате.
+ * Время на циферблате при эффекте глубины: блок времени сдвигается (и при нужде уменьшается)
+ * с противоположной от объекта стороны так, что объект лишь слегка заходит на цифры, — как часы на
+ * обоях телефона. Фото не двигается. Блок не выходит за круг экрана и не наезжает на мини-виджеты.
  */
-internal object WatchFraming {
-    private const val GRID = 90
+internal object WatchTimePlacer {
+    const val GRID = 90
+    private const val SIZE = 450f
 
     /**
-     * @param mask маска объекта (пропорции фото); [timeInk] — где на циферблате время (альфа, GRID×GRID,
-     * объединение по нескольким моментам — стрелки и «планеты» движутся).
+     * @param mask маска объекта в кадре циферблата (GRID×GRID), [ink] — блок времени на своём месте
+     * (альфа, GRID×GRID), [pivot] — центр масштабирования блока (точки 450×450), [obstacles] — мини-виджеты.
      */
-    fun crop(mask: Bitmap, timeInk: FloatArray): RectF {
-        val base = Crop.center(mask.width, mask.height, 1f, 1f)
-        val small = shrink(mask)
-        val full = MaskGrid.of(small, RectF(0f, 0f, 1f, 1f), GRID, GRID)
-        if (full.mass < 0.005f) return base
-        val inkSum = timeInk.sum()
-        if (inkSum <= 0f) return base
-        // Где время на циферблате и где объект на фото: объект должен остаться со своей стороны.
-        val (tx, ty) = weightedCenter(timeInk)
-        val (px, py) = full.centroid()
-        // Время по участкам: объект не должен закрыть один участок (цифру, стрелку) слишком сильно.
-        val blocks = (GRID / BLOCK) * (GRID / BLOCK)
-        val blockInk = FloatArray(blocks)
-        for (i in timeInk.indices) blockInk[block(i)] += timeInk[i]
-        val natural = (px - 0.5f) to (py - 0.5f)
-        var best = base
+    fun place(mask: MaskGrid, ink: FloatArray, pivot: Pair<Float, Float>, obstacles: List<RectF>): TimeShift? {
+        if (mask.mass < 0.005f) return null
+        val cells = ink.indices.filter { ink[it] > 0.05f }
+        if (cells.isEmpty()) return null
+        val inkSum = cells.sumOf { ink[it].toDouble() }.toFloat()
+        val cell = SIZE / GRID
+        // Центр блока и объекта; объект должен оказаться напротив — со своей стороны от времени.
+        var bx = 0f
+        var by = 0f
+        for (i in cells) {
+            bx += ink[i] * (i % GRID + 0.5f) * cell
+            by += ink[i] * (i / GRID + 0.5f) * cell
+        }
+        bx /= inkSum
+        by /= inkSum
+        val (sx, sy) = mask.centroid().let { (x, y) -> x * SIZE to y * SIZE }
+        val dirX = sx - SIZE / 2
+        val dirY = sy - SIZE / 2
+        val offCenter = hypot(dirX, dirY) > SIZE * 0.06f
+        val horizontal = abs(dirX) > abs(dirY)
+        val (px, py) = pivot
+        // Клетки блока заранее: положение, вес и участок (по 15 клеток), чтобы объект не закрыл одну цифру целиком.
+        val n = cells.size
+        val ox = FloatArray(n) { (cells[it] % GRID + 0.5f) * cell }
+        val oy = FloatArray(n) { (cells[it] / GRID + 0.5f) * cell }
+        val wgt = FloatArray(n) { ink[cells[it]] }
+        val part = IntArray(n) { (cells[it] / GRID / 15) * 6 + (cells[it] % GRID) / 15 }
+        val partInk = FloatArray(36).also { a -> for (k in 0 until n) a[part[k]] += wgt[k] }
+        val partOver = FloatArray(36)
+        val r2 = (SIZE / 2 - 12) * (SIZE / 2 - 12)
+        val limit = inkSum * 0.01f
+        var best: TimeShift? = null
         var bestScore = Float.MAX_VALUE
-        for (zoom in listOf(1f, 1.15f, 1.3f, 1.5f)) {
-            val cw = base.width() / zoom
-            val ch = base.height() / zoom
-            for (iy in 0..8) for (ix in 0..8) {
-                val left = (1 - cw) * ix / 8f
-                val top = (1 - ch) * iy / 8f
-                val crop = RectF(left, top, left + cw, top + ch)
-                val m = render(small, crop)
+        for (scale in listOf(1f, 0.9f, 0.8f, 0.7f, 0.6f)) {
+            for (dy in -168..168 step 12) for (dx in -168..168 step 12) {
                 var over = 0f
-                val blockOver = FloatArray(blocks)
-                var inside = 0f
-                var sx = 0f
-                var sy = 0f
-                for (i in m.indices) {
-                    val a = m[i]
-                    if (a == 0f) continue
-                    over += a * timeInk[i]
-                    blockOver[block(i)] += a * timeInk[i]
-                    val x = i % GRID + 0.5f
-                    val y = i / GRID + 0.5f
-                    if (hypot(x - GRID / 2f, y - GRID / 2f) <= GRID / 2f) {
-                        inside += a
-                        sx += a * x
-                        sy += a * y
+                var outside = 0f
+                var blocked = 0f
+                partOver.fill(0f)
+                var k = 0
+                while (k < n) {
+                    val x = px + (ox[k] - px) * scale + dx
+                    val y = py + (oy[k] - py) * scale + dy
+                    val a = wgt[k]
+                    val ex = x - SIZE / 2
+                    val ey = y - SIZE / 2
+                    if (ex * ex + ey * ey > r2) {
+                        outside += a
+                        if (outside > limit) break
                     }
+                    for (o in obstacles) if (o.contains(x, y)) blocked += a
+                    val m = mask.at((x / cell).toInt(), (y / cell).toInt())
+                    over += a * m
+                    partOver[part[k]] += a * m
+                    k++
                 }
-                if (inside == 0f) continue
+                if (outside > limit) continue
+                var worst = 0f
+                for (p in 0 until 36) if (partInk[p] > inkSum * 0.03f) worst = max(worst, partOver[p] / partInk[p])
                 val overlap = over / inkSum
-                var local = 0f
-                for (b in 0 until blocks) if (blockInk[b] > inkSum * 0.03f) local = max(local, blockOver[b] / blockInk[b])
-                // Какая доля всего объекта видна на круглом циферблате.
-                val visible = (inside / (GRID * GRID)) * (cw * ch) / full.mass
-                val dx = sx / inside / GRID - tx
-                val dy = sy / inside / GRID - ty
-                // Объект ушёл на другую сторону от времени — так нельзя.
-                val wrongSide = (if (abs(natural.first) > 0.08f && dx * natural.first < 0) 1f else 0f) +
-                    (if (abs(natural.second) > 0.08f && dy * natural.second < 0) 1f else 0f)
-                // И главное направление сохраняется: объект справа должен быть именно справа от времени, а не сверху.
-                val horizontal = abs(natural.first) >= abs(natural.second)
-                val along = if (horizontal) dx * sign(natural.first) else dy * sign(natural.second)
-                val across = if (horizontal) abs(dy) else abs(dx)
-                val offAxis = if (abs(natural.first) + abs(natural.second) > 0.08f && along < across) 1.5f else 0f
-                val shift = hypot(crop.centerX() - base.centerX(), crop.centerY() - base.centerY())
-                val score = abs(overlap - WallClockPlacer.TARGET) * 5 + max(0f, local - 0.35f) * 4 + (1 - visible.coerceAtMost(1f)) * 2 +
-                    (zoom - 1) * 0.5f + shift * 0.4f + wrongSide * 3 + offAxis
+                // Где окажется блок относительно объекта.
+                val vx = px + (bx - px) * scale + dx - sx
+                val vy = py + (by - py) * scale + dy - sy
+                val wrongSide = when {
+                    !offCenter -> if (vy > 0) 1f else 0f
+                    horizontal -> if (vx * dirX >= 0 || abs(vx) < abs(vy) * 0.6f) 1f else 0f
+                    else -> if (vy * dirY >= 0 || abs(vy) < abs(vx) * 0.6f) 1f else 0f
+                }
+                val score = abs(overlap - WallClockPlacer.TARGET) * 5 + max(0f, worst - 0.35f) * 4 +
+                    blocked / inkSum * 6 + (1 - scale) * 1.2f + hypot(dx.toFloat(), dy.toFloat()) / SIZE * 0.6f + wrongSide * 3
                 if (score < bestScore) {
                     bestScore = score
-                    best = crop
+                    best = TimeShift(dx.toFloat(), dy.toFloat(), scale)
                 }
             }
         }
-        small.recycle()
-        return best
+        return best?.takeUnless { it.identity }
     }
-
-    private const val BLOCK = 15
-
-    private fun block(i: Int) = (i / GRID / BLOCK) * (GRID / BLOCK) + (i % GRID) / BLOCK
-
-    private fun weightedCenter(a: FloatArray): Pair<Float, Float> {
-        var sx = 0f
-        var sy = 0f
-        var m = 0f
-        for (i in a.indices) {
-            sx += a[i] * (i % GRID + 0.5f)
-            sy += a[i] * (i / GRID + 0.5f)
-            m += a[i]
-        }
-        return sx / m / GRID to sy / m / GRID
-    }
-
-    /** Маска поменьше: сотни кадров из неё рисуются быстро. */
-    private fun shrink(mask: Bitmap): Bitmap {
-        val scale = 240f / max(mask.width, mask.height)
-        return if (scale >= 1f) mask.copy(Bitmap.Config.ARGB_8888, false)
-        else Bitmap.createScaledBitmap(mask, (mask.width * scale).roundToInt().coerceAtLeast(1), (mask.height * scale).roundToInt().coerceAtLeast(1), true)
-    }
-
-    private fun render(mask: Bitmap, crop: RectF): FloatArray {
-        val bmp = Bitmap.createBitmap(GRID, GRID, Bitmap.Config.ARGB_8888)
-        Canvas(bmp).drawBitmap(mask, Crop.pixels(crop, mask.width, mask.height), RectF(0f, 0f, GRID.toFloat(), GRID.toFloat()), Paint(Paint.FILTER_BITMAP_FLAG))
-        val px = IntArray(GRID * GRID)
-        bmp.getPixels(px, 0, GRID, 0, 0, GRID, GRID)
-        bmp.recycle()
-        return FloatArray(px.size) { (px[it] ushr 24) / 255f }
-    }
-
-    const val INK_GRID = GRID
 }

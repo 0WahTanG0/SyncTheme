@@ -45,6 +45,12 @@ enum class ClockStyle {
     /** Есть ли цифры времени (у стрелочных нет — им шрифт цифр не нужен). */
     val hasDigits get() = this != ANALOG && this != BLOB
 
+    /**
+     * Время — отдельный блок цифр, который можно подвинуть по циферблату. У стрелок, «Планет»
+     * и «Барабана» время привязано к центру циферблата.
+     */
+    val movableTime get() = this != ANALOG && this != BLOB && this != PLANETS && this != DRUM
+
     /** Шрифт цифр, с которым стиль задуман; null — системный шрифт с выбранной насыщенностью. */
     val defaultDigitFont: DigitFont?
         get() = when (this) {
@@ -80,7 +86,15 @@ data class Background(
     val angle: Float = 135f,
     /** Имя файла фото в каталоге приложения на телефоне (только для PHOTO). */
     val photoFile: String? = null,
-)
+    /** Кадр фото: центр видимой части (доли ширины и высоты фото) … */
+    val focusX: Float = 0.5f,
+    val focusY: Float = 0.5f,
+    /** … и увеличение: 1 — фото заполняет экран по меньшей стороне. */
+    val zoom: Float = 1f,
+) {
+    /** Кадр фото по умолчанию — середина, без увеличения. */
+    val framed get() = focusX != 0.5f || focusY != 0.5f || zoom != 1f
+}
 
 /** Где на обоях стоят часы. */
 @Serializable
@@ -104,7 +118,29 @@ data class WallClock(
     /** Шрифт цифр; null — как у циферблата часов. */
     val font: DigitFont? = null,
     val showDate: Boolean = true,
+    /** Место, куда часы передвинули вручную; null — само: по объекту фото (с глубиной) или по [layout]. */
+    val place: ClockPlace? = null,
 )
+
+/**
+ * Часы на обоях, передвинутые вручную: центр цифр (доли ширины и высоты экрана), размер
+ * относительно обычного и раскладка — одной строкой или часы над минутами.
+ */
+@Serializable
+data class ClockPlace(val x: Float, val y: Float, val scale: Float = 1f, val stacked: Boolean = false)
+
+/** Кадр фото: центр видимой части (доли фото) и увеличение. */
+@Serializable
+data class PhotoCrop(val focusX: Float = 0.5f, val focusY: Float = 0.5f, val zoom: Float = 1f)
+
+/**
+ * Сдвиг блока времени на циферблате (в точках 450×450) и его масштаб вокруг центра блока.
+ * Работает у стилей с [ClockStyle.movableTime].
+ */
+@Serializable
+data class TimeShift(val dx: Float = 0f, val dy: Float = 0f, val scale: Float = 1f) {
+    val identity get() = dx == 0f && dy == 0f && scale == 1f
+}
 
 /**
  * Настройки циферблата часов. Если в теме их нет (`Theme.watch == null`),
@@ -127,6 +163,8 @@ data class WatchSettings(
     val digitFont: DigitFont? = null,
     /** Эффект глубины: главный объект фото фона рисуется поверх цифр. */
     val depth: Boolean = false,
+    /** Время, передвинутое вручную; null — само: напротив объекта фото (с глубиной) или как в стиле. */
+    val timeShift: TimeShift? = null,
 ) {
     /** Итоговый шрифт цифр; null — системный шрифт с насыщенностью [fontWeight]. */
     fun digits(): DigitFont? = digitFont ?: clockStyle.defaultDigitFont
@@ -167,6 +205,10 @@ data class Theme(
     val digitFont: DigitFont? = null,
     /** Эффект глубины на циферблате. */
     val watchDepth: Boolean = false,
+    /** Время на циферблате, передвинутое вручную (когда часы повторяют телефон). */
+    val watchTimeShift: TimeShift? = null,
+    /** Кадр фото на часах, когда у них тот же фон, что у телефона: его двигают отдельно от телефона. */
+    val watchPhotoCrop: PhotoCrop? = null,
     /** Часы на обоях телефона; null — обычные обои без часов. */
     val wallClock: WallClock? = null,
     /**
@@ -192,9 +234,12 @@ data class Theme(
         complications = watchComplications,
         digitFont = digitFont,
         depth = watchDepth,
+        timeShift = watchTimeShift,
     )
 
-    fun watchBackground(): Background = watchSettings().background ?: background
+    fun watchBackground(): Background = watchSettings().background
+        ?: watchPhotoCrop?.let { background.copy(focusX = it.focusX, focusY = it.focusY, zoom = it.zoom) }
+        ?: background
 
     fun lockScreenBackground(): Background = lockBackground ?: background
 

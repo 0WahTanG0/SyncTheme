@@ -7,6 +7,7 @@ import app.synctheme.core.DialStyle
 import app.synctheme.core.Presets
 import app.synctheme.core.SyncProtocol
 import app.synctheme.core.Theme
+import app.synctheme.core.TimeShift
 import app.synctheme.core.WatchFaceApk
 import app.synctheme.core.WatchFaceXml
 import com.google.android.wearable.watchface.validator.client.DwfValidatorFactory
@@ -46,6 +47,10 @@ class WatchFaceValidationTest {
             for (style in ClockStyle.entries) {
                 add(Presets.default.copy(id = "depth-$style", clockStyle = style, watchDepth = true))
                 add(Presets.all.first { it.id == "sakura" }.copy(id = "light-$style", clockStyle = style, watchDepth = true))
+            }
+            // Время, передвинутое по циферблату (вручную или напротив объекта фото).
+            for (style in ClockStyle.entries) {
+                add(Presets.default.copy(id = "shift-$style", clockStyle = style, watchDepth = true, watchTimeShift = TimeShift(-60f, 42f, 0.8f)))
             }
             for (dial in DialStyle.entries) {
                 add(Presets.default.copy(id = "dial-$dial", clockStyle = ClockStyle.ANALOG, dialStyle = dial))

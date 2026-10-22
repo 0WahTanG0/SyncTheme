@@ -108,6 +108,7 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
                     onDim = { d -> a.vm.update { it.copy(dim = d) } },
                     onPickPhoto = { a.pickPhoto(BgTarget.HOME) },
                     onEditColor = { editColor(ColorTarget.Gradient(BgTarget.HOME, it)) },
+                    onArrange = { a.arrange(ArrangeTarget.HOME) },
                 )
             }
         }
@@ -122,7 +123,7 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
             }
         }
         item {
-            ExpandableSection("Часы на обоях", summary = wallClockSummary(theme)) { WallClockContent(theme, a.vm) }
+            ExpandableSection("Часы на обоях", summary = wallClockSummary(theme)) { WallClockContent(theme, a.vm) { a.arrange(ArrangeTarget.HOME) } }
         }
 
         item {
@@ -207,9 +208,9 @@ private fun ThemeStrip(
         Spacer(Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item(key = "photo") {
-                Column(Modifier.width(76.dp).clickable(onClick = onPhoto), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.width(66.dp).clickable(onClick = onPhoto), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
-                        Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(look.primary),
+                        Modifier.padding(bottom = 7.dp).size(54.dp, 117.dp).clip(RoundedCornerShape(14.dp)).background(look.primary),
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Default.Add, contentDescription = null, tint = look.onPrimary, modifier = Modifier.size(30.dp)) }
                     Spacer(Modifier.height(4.dp))
@@ -389,11 +390,17 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
             val photo = theme.watchBackground().type == BackgroundType.PHOTO
             SwitchRow("Эффект глубины", w.depth && photo, enabled = photo) { v -> a.vm.setWatchDepth(v) { t -> a.editWatchFace(t) } }
             Text(
-                if (photo) "Главный объект фото — человек, питомец, гора — стоит перед временем. Фото само сдвигается так, " +
-                    "чтобы объект остался со своей стороны и лишь слегка заходил на цифры; время видно сквозь него."
-                else "Эффект глубины работает с фото на фоне часов.",
+                when {
+                    !photo -> "Эффект глубины работает с фото на фоне часов."
+                    w.clockStyle.movableTime -> "Главный объект фото — человек, питомец, гора — стоит перед временем. Время само встаёт " +
+                        "с другой стороны от объекта, так что объект лишь слегка заходит на цифры, а их видно сквозь него."
+                    else -> "Главный объект фото стоит перед стрелками. У этого стиля время в центре — если объект мешает, подвиньте фото."
+                },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            arrangeLabel(theme, ArrangeTarget.WATCH)?.let { label ->
+                OutlinedButton(onClick = { a.arrange(ArrangeTarget.WATCH) }) { Text(label) }
+            }
             val ambient by a.vm.ambientPreview.collectAsStateWithLifecycle()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.size(84.dp).clip(CircleShape).background(Color.Black)) {
@@ -426,6 +433,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
                         onBg = { b -> a.vm.updateWatch { it.copy(background = b) } },
                         onDim = { d -> a.vm.updateWatch { it.copy(dim = d) } },
                         onPickPhoto = { a.pickPhoto(BgTarget.WATCH) },
+                        onArrange = { a.arrange(ArrangeTarget.WATCH) },
                         onEditColor = { editColor(ColorTarget.Gradient(BgTarget.WATCH, it)) },
                     )
                 } else {
@@ -506,6 +514,7 @@ private fun BackgroundEditorContent(
     onDim: (Float) -> Unit,
     onPickPhoto: () -> Unit,
     onEditColor: (Int) -> Unit,
+    onArrange: (() -> Unit)? = null,
 ) {
     run {
         ChipRow {
@@ -521,7 +530,10 @@ private fun BackgroundEditorContent(
             }
         }
         if (bg.type == BackgroundType.PHOTO) {
-            OutlinedButton(onClick = onPickPhoto) { Text(if (bg.photoFile == null) "Выбрать фото" else "Другое фото") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onPickPhoto) { Text(if (bg.photoFile == null) "Выбрать фото" else "Другое фото") }
+                if (bg.photoFile != null && onArrange != null) OutlinedButton(onClick = onArrange) { Text("Подвинуть фото") }
+            }
         } else {
             val count = if (bg.type == BackgroundType.SOLID) 1 else bg.colors.size
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

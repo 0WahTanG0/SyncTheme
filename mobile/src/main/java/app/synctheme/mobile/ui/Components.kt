@@ -1,5 +1,8 @@
 package app.synctheme.mobile.ui
 
+import android.content.Context
+import android.util.LruCache
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,10 +39,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.Theme
+import app.synctheme.mobile.render.ThemeRenderer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun Section(title: String, highlight: Boolean = false, content: @Composable () -> Unit) {
@@ -104,50 +116,73 @@ fun ColorSwatch(color: Int, size: Dp = 40.dp, selected: Boolean = false, onClick
     )
 }
 
-/** Миниатюра темы для ленты пресетов; форма зависит от оформления. */
+/**
+ * Миниатюры тем рисуются по-настоящему — обои с виджетами и циферблат — в фоне, по одной за раз,
+ * чтобы не тормозить главное превью, и запоминаются, пока тема не изменилась.
+ */
+private object ThumbCache {
+    private val cache = LruCache<Theme, Pair<ImageBitmap, ImageBitmap>>(32)
+    private val renderer = Dispatchers.Default.limitedParallelism(1)
+
+    fun cached(theme: Theme) = cache.get(theme)
+
+    suspend fun render(context: Context, theme: Theme, phoneW: Int, watch: Int) = cache.get(theme) ?: withContext(renderer) {
+        cache.get(theme) ?: runCatching {
+            val phone = ThemeRenderer.phonePreview(context, theme, phoneW, phoneW * 13 / 6).asImageBitmap()
+            phone to ThemeRenderer.watchPreview(context, theme, watch).asImageBitmap()
+        }.getOrNull()?.also { cache.put(theme, it) }
+    }
+}
+
+/** Миниатюра темы для ленты: телефон с обоями и виджетами и часы рядом, пока рисуются — градиент темы. */
 @Composable
 fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val look = LocalLook.current
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val images by produceState(ThumbCache.cached(theme), theme) {
+        value = ThumbCache.render(context, theme, with(density) { 54.dp.roundToPx() }, with(density) { 46.dp.roundToPx() })
+    }
     val colors = theme.background.colors.ifEmpty { listOf(0xFF000000.toInt()) }.map { Color(it) }
     val brush = when {
         colors.size == 1 -> Brush.linearGradient(listOf(colors[0], colors[0]))
         theme.background.type == BackgroundType.RADIAL -> Brush.radialGradient(colors)
         else -> Brush.linearGradient(colors)
     }
-    val shape = when (look.style) {
-        AppStyle.GLASS -> RoundedCornerShape(20.dp)
-        AppStyle.EXPRESSIVE -> listOf(CookieShape, CircleShape, RoundedCornerShape(20.dp), CloverShape, FlowerShape)[
-            Math.floorMod(theme.id.hashCode(), 5)
-        ]
-        AppStyle.NEON -> RoundedCornerShape(14.dp)
-    }
+    val shape = RoundedCornerShape(
+        when (look.style) {
+            AppStyle.GLASS -> 14.dp
+            AppStyle.EXPRESSIVE -> 18.dp
+            AppStyle.NEON -> 10.dp
+        },
+    )
     Column(
-        modifier = modifier.width(76.dp).clickable(onClick = onClick),
+        modifier = modifier.width(84.dp).clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .then(if (selected) Modifier.glow(look, shape, 10.dp) else Modifier)
-                .clip(shape)
-                .background(brush)
-                .border(
-                    if (selected) 3.dp else 1.dp,
-                    if (selected) look.primary else Color.White.copy(alpha = 0.2f),
-                    shape,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = when (theme.clockStyle) {
-                    app.synctheme.core.ClockStyle.ANALOG, app.synctheme.core.ClockStyle.BLOB -> "◷"
-                    app.synctheme.core.ClockStyle.STACKED, app.synctheme.core.ClockStyle.BOLD -> "10\n08"
-                    else -> "10:08"
-                },
-                color = Color(theme.textColor),
-                style = MaterialTheme.typography.labelMedium,
-                lineHeight = MaterialTheme.typography.labelMedium.fontSize,
-            )
+        Box(Modifier.size(84.dp, 124.dp)) {
+            Box(
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .size(54.dp, 117.dp)
+                    .then(if (selected) Modifier.glow(look, shape, 10.dp) else Modifier)
+                    .clip(shape)
+                    .background(brush)
+                    .border(
+                        if (selected) 3.dp else 1.dp,
+                        if (selected) look.primary else Color.White.copy(alpha = 0.2f),
+                        shape,
+                    ),
+            ) {
+                images?.let { Image(it.first, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize()) }
+            }
+            Box(
+                Modifier.align(Alignment.BottomEnd).size(48.dp).clip(CircleShape).background(Color(0xFF0A0A0A))
+                    .border(2.dp, if (selected) look.primary else Color(0xFF2A2A2E), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                images?.let { Image(it.second, null, modifier = Modifier.size(44.dp).clip(CircleShape)) }
+            }
         }
         Spacer(Modifier.height(4.dp))
         Text(theme.name, style = MaterialTheme.typography.labelMedium, maxLines = 1)

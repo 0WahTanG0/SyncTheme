@@ -15,4 +15,5 @@
     <string name="weather_my_location">Моё местоположение</string>
     <string name="wallpaper_clock">Часы SyncTheme</string>
     <string name="wallpaper_clock_desc">Обои темы с часами; главный объект фото встаёт поверх цифр</string>
+    <string name="share_target">Обои в SyncTheme</string>
 </resources>

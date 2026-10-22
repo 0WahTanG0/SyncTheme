@@ -105,9 +105,12 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
 
     var tab by rememberSaveable { mutableStateOf(initialTab) }
+    LaunchedEffect(Unit) { vm.tabRequests.collect { tab = it } }
     /** На вкладке «Обои»: редактируется рабочий стол или экран блокировки. */
     var lock by rememberSaveable { mutableStateOf(initialLock) }
     var photoTarget by remember { mutableStateOf(BgTarget.HOME) }
+    /** Открыт редактор расположения (часы и фото). */
+    var arrange by rememberSaveable { mutableStateOf<ArrangeTarget?>(null) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { vm.pickPhoto(it, photoTarget) }
     }
@@ -120,6 +123,7 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
                 photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
             openInstaller = onOpenInstaller,
+            arrange = { arrange = it },
             configureWidget = { id ->
                 context.startActivity(
                     Intent(context, WidgetConfigActivity::class.java)
@@ -130,6 +134,12 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
         )
     }
     var colorTarget by remember { mutableStateOf<ColorTarget?>(null) }
+
+    arrange?.let { target ->
+        androidx.activity.compose.BackHandler { arrange = null }
+        ArrangeScreen(vm, target) { arrange = null }
+        return
+    }
 
     val density = LocalDensity.current
     val header = remember(density) { CollapsingHeader(with(density) { 224.dp.toPx() }, with(density) { 96.dp.toPx() }) }
@@ -218,6 +228,8 @@ class ScreenActions(
     val pickPhoto: (BgTarget) -> Unit,
     val openInstaller: () -> Unit,
     val configureWidget: (Int) -> Unit,
+    /** Редактор расположения: подвинуть часы (время) и фото. */
+    val arrange: (ArrangeTarget) -> Unit = {},
 ) {
     /** Меняет циферблат: в отдельных настройках часов или, если их нет, в общей теме. */
     fun editWatchFace(transform: (app.synctheme.core.WatchSettings) -> app.synctheme.core.WatchSettings) {
@@ -228,7 +240,7 @@ class ScreenActions(
             it.copy(
                 clockStyle = n.clockStyle, dialStyle = n.dialStyle, fontWeight = n.fontWeight, showSeconds = n.showSeconds,
                 showDate = n.showDate, watchComplications = n.complications, digitFont = n.digitFont,
-                watchDepth = n.depth,
+                watchDepth = n.depth, watchTimeShift = n.timeShift,
             )
         }
     }

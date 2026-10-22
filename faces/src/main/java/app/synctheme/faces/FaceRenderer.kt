@@ -15,6 +15,7 @@ import app.synctheme.core.DigitFont
 import app.synctheme.core.FontWeight
 import app.synctheme.core.WatchFaceXml
 import app.synctheme.core.WatchFaceXml.Layer
+import app.synctheme.core.TimeShift
 import app.synctheme.core.WatchSettings
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,37 +45,38 @@ object FaceRenderer {
     const val SIZE = WatchFaceXml.SIZE.toFloat()
     private const val C = SIZE / 2
 
-    /** Картинка циферблата sizePx × sizePx. */
+    /** Картинка циферблата sizePx × sizePx; shift — сдвиг блока времени (см. WatchFaceXml.generate). */
     fun render(
         context: Context, w: WatchSettings, bg: Bitmap?, fg: Bitmap?, state: FaceState, sizePx: Int,
-        fonts: FaceFonts = FaceFonts(context),
+        fonts: FaceFonts = FaceFonts(context), shift: TimeShift? = w.timeShift,
     ): Bitmap {
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.scale(sizePx / SIZE, sizePx / SIZE)
-        draw(canvas, w, bg, fg, state, fonts)
+        draw(canvas, w, bg, fg, state, fonts, shift)
         return bmp
     }
 
     /** Рисует циферблат на canvas, уже масштабированный к 450×450. */
-    fun draw(canvas: Canvas, w: WatchSettings, bg: Bitmap?, fg: Bitmap?, state: FaceState, fonts: FaceFonts) {
+    fun draw(canvas: Canvas, w: WatchSettings, bg: Bitmap?, fg: Bitmap?, state: FaceState, fonts: FaceFonts, shift: TimeShift? = w.timeShift) {
+        val moved = WatchFaceXml.activeShift(w, shift)
         canvas.save()
         canvas.clipPath(Path().apply { addCircle(C, C, C, Path.Direction.CW) })
         canvas.drawColor(Color.BLACK)
         if (state.ambient) {
             // Always-On: фона, объекта с фото и мини-виджетов нет, время — светлыми цветами.
-            Frame(canvas, WatchFaceXml.forLayer(w, Layer.AMBIENT), state, fonts, Layer.AMBIENT).style()
+            Frame(canvas, WatchFaceXml.forLayer(w, Layer.AMBIENT), state, fonts, Layer.AMBIENT, null).style()
             canvas.restore()
             return
         }
         bg?.let { canvas.drawBitmap(it, null, RectF(0f, 0f, SIZE, SIZE), Paint(Paint.FILTER_BITMAP_FLAG)) }
-        val full = Frame(canvas, w, state, fonts, Layer.FULL)
+        val full = Frame(canvas, w, state, fonts, Layer.FULL, moved)
         full.style()
         if (w.depth && fg != null) {
             canvas.drawBitmap(fg, null, RectF(0f, 0f, SIZE, SIZE), Paint(Paint.FILTER_BITMAP_FLAG))
             // Время поверх объекта — полупрозрачное, чтобы его было видно сквозь объект.
             canvas.saveLayerAlpha(0f, 0f, SIZE, SIZE, WatchFaceXml.DEPTH_TIME_ALPHA)
-            Frame(canvas, WatchFaceXml.forLayer(w, Layer.TIME), state, fonts, Layer.TIME).style()
+            Frame(canvas, WatchFaceXml.forLayer(w, Layer.TIME), state, fonts, Layer.TIME, moved).style()
             canvas.restore()
         }
         // Мини-виджеты — поверх слоя глубины, как в WatchFaceXml.
@@ -82,9 +84,22 @@ object FaceRenderer {
         canvas.restore()
     }
 
-    /** Только время стиля (слой «время поверх объекта»), без фона и украшений, — чтобы знать, где оно. */
-    fun drawTime(canvas: Canvas, w: WatchSettings, state: FaceState, fonts: FaceFonts) {
-        Frame(canvas, WatchFaceXml.forLayer(w, Layer.TIME), state, fonts, Layer.TIME).style()
+    /**
+     * Только блок времени стиля (цифры и дата) на своём месте, без фона и украшений, — чтобы знать,
+     * где он и сколько места занимает.
+     */
+    fun drawTimeBlock(canvas: Canvas, w: WatchSettings, state: FaceState, fonts: FaceFonts) {
+        Frame(canvas, WatchFaceXml.forLayer(w, Layer.TIME).copy(showDate = w.showDate), state, fonts, Layer.TIME, null).style()
+    }
+
+    /** Где стоят мини-виджеты стиля (круги в точках 450×450) — время на них лучше не двигать. */
+    fun complicationAreas(context: Context, w: WatchSettings, fonts: FaceFonts): List<RectF> {
+        if (!w.complications) return emptyList()
+        val scratch = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        val frame = Frame(Canvas(scratch), w, FaceState.preview(), fonts, Layer.FULL, null)
+        frame.style()
+        scratch.recycle()
+        return frame.complicationAreas
     }
 
     private fun withAlpha(color: Int, alpha: Float): Int =
@@ -93,9 +108,23 @@ object FaceRenderer {
     private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
 
     /** Один слой кадра: всё, что нужно функциям стилей. */
-    private class Frame(val canvas: Canvas, val w: WatchSettings, val s: FaceState, val f: FaceFonts, val layer: Layer) {
+    private class Frame(
+        val canvas: Canvas, val w: WatchSettings, val s: FaceState, val f: FaceFonts, val layer: Layer, val shift: TimeShift?,
+    ) {
         /** Мини-виджеты откладываются и рисуются после слоя глубины. */
         val complications = mutableListOf<() -> Unit>()
+        val complicationAreas = mutableListOf<RectF>()
+
+        /** Блок времени — сдвинутый и масштабированный, как группа «timeBlock» в WatchFaceXml. */
+        inline fun block(body: () -> Unit) {
+            val sh = shift ?: return body()
+            val (px, py) = WatchFaceXml.timePivot(w.clockStyle)
+            canvas.save()
+            canvas.translate(sh.dx, sh.dy)
+            canvas.scale(sh.scale, sh.scale, px, py)
+            body()
+            canvas.restore()
+        }
         val full get() = layer == Layer.FULL
         val ambient get() = layer == Layer.AMBIENT
 
@@ -183,6 +212,7 @@ object FaceRenderer {
 
         /** Мини-виджет: заряд (с дугой) или шаги — в стиле темы. Рисуется после слоя глубины. */
         fun complication(cx: Float, cy: Float, r: Float, ranged: Boolean, text: Int = w.textColor) {
+            complicationAreas += RectF(cx - r, cy - r, cx + r, cy + r)
             if (ranged && s.battery == null || !ranged && s.steps == null) return
             complications += {
                 val disc = if (WatchFaceXml.isLight(text)) 0x66000000 else 0x80FFFFFF.toInt()
@@ -207,10 +237,12 @@ object FaceRenderer {
 
         fun digital() {
             if (w.showSeconds) secondsRing()
-            if (w.showDate) textCentered(date("EEE d MMM"), 225f, 114f, textPaint(w.accentColor, 30f))
-            val font = w.digits()
-            if (font != null) digits(s.timeText, 225f, 215f, 380, 110, font, w.textColor)
-            else textCentered(s.timeText, 225f, 215f, textPaint(w.textColor, 132f, typeface(w.fontWeight)))
+            block {
+                if (w.showDate) textCentered(date("EEE d MMM"), 225f, 114f, textPaint(w.accentColor, 30f))
+                val font = w.digits()
+                if (font != null) digits(s.timeText, 225f, 215f, 380, 110, font, w.textColor)
+                else textCentered(s.timeText, 225f, 215f, textPaint(w.textColor, 132f, typeface(w.fontWeight)))
+            }
             if (w.complications) {
                 complication(165f, 348f, 48f, true)
                 complication(285f, 348f, 48f, false)
@@ -219,16 +251,18 @@ object FaceRenderer {
 
         fun stacked() {
             if (w.showSeconds) secondsRing()
-            val font = w.digits()
-            if (font != null) {
-                digits(s.hourText, 225f, 143f, 240, 130, font, w.textColor)
-                digits(s.minuteText, 225f, 297f, 240, 130, font, w.accentColor)
-            } else {
-                val tf = typeface(w.fontWeight)
-                textCentered(s.hourText, 225f, 143f, textPaint(w.textColor, 168f, tf))
-                textCentered(s.minuteText, 225f, 297f, textPaint(w.accentColor, 168f, tf))
+            block {
+                val font = w.digits()
+                if (font != null) {
+                    digits(s.hourText, 225f, 143f, 240, 130, font, w.textColor)
+                    digits(s.minuteText, 225f, 297f, 240, 130, font, w.accentColor)
+                } else {
+                    val tf = typeface(w.fontWeight)
+                    textCentered(s.hourText, 225f, 143f, textPaint(w.textColor, 168f, tf))
+                    textCentered(s.minuteText, 225f, 297f, textPaint(w.accentColor, 168f, tf))
+                }
+                if (w.showDate) textCentered(date("EEE d"), 225f, 400f, textPaint(w.textColor, 26f))
             }
-            if (w.showDate) textCentered(date("EEE d"), 225f, 400f, textPaint(w.textColor, 26f))
             if (w.complications) {
                 complication(63f, 222f, 45f, true)
                 complication(387f, 222f, 45f, false)
@@ -318,9 +352,11 @@ object FaceRenderer {
         fun bold() {
             if (w.showSeconds) secondsRing()
             val font = w.digits() ?: DigitFont.NARROW
-            digits(s.hourText, 225f, 136f, 300, 170, font, w.textColor)
-            digits(s.minuteText, 225f, 318f, 300, 170, font, w.accentColor)
-            if (w.showDate) textCentered(date("EEE d"), 378f, 225f, textPaint(w.accentColor, 24f, f.label))
+            block {
+                digits(s.hourText, 225f, 136f, 300, 170, font, w.textColor)
+                digits(s.minuteText, 225f, 318f, 300, 170, font, w.accentColor)
+                if (w.showDate) textCentered(date("EEE d"), 378f, 225f, textPaint(w.accentColor, 24f, f.label))
+            }
             if (w.complications) complication(63f, 225f, 39f, true)
         }
 
@@ -343,8 +379,10 @@ object FaceRenderer {
                 ringArc(212f, 0f, s.secondAngle, w.accentColor, 4f)
                 dot(212f, s.secondAngle, w.textColor, 12f)
             }
-            if (w.showDate) textCentered(date("EEE d MMM"), 225f, 138f, textPaint(w.accentColor, 26f, f.label))
-            digits(s.timeText, 225f, 222f, 280, 76, w.digits() ?: DigitFont.SPACE, w.textColor)
+            block {
+                if (w.showDate) textCentered(date("EEE d MMM"), 225f, 138f, textPaint(w.accentColor, 26f, f.label))
+                digits(s.timeText, 225f, 222f, 280, 76, w.digits() ?: DigitFont.SPACE, w.textColor)
+            }
             if (w.complications) {
                 complication(185f, 323f, 33f, true)
                 complication(265f, 323f, 33f, false)
@@ -373,13 +411,15 @@ object FaceRenderer {
                 dot(210f, head, Color.WHITE, 11f)
             }
             val font = w.digits() ?: DigitFont.TUBE
-            if (full) {
-                val halo = withAlpha(w.accentColor, 0x66)
-                digits(s.timeText, 222f, 225f, 300, 84, font, halo)
-                digits(s.timeText, 228f, 231f, 300, 84, font, halo)
+            block {
+                if (full) {
+                    val halo = withAlpha(w.accentColor, 0x66)
+                    digits(s.timeText, 222f, 225f, 300, 84, font, halo)
+                    digits(s.timeText, 228f, 231f, 300, 84, font, halo)
+                }
+                digits(s.timeText, 225f, 228f, 300, 84, font, text)
+                if (w.showDate) textCentered(date("EEE d MMM"), 225f, 136f, textPaint(w.accentColor, 24f, f.label))
             }
-            digits(s.timeText, 225f, 228f, 300, 84, font, text)
-            if (w.showDate) textCentered(date("EEE d MMM"), 225f, 136f, textPaint(w.accentColor, 24f, f.label))
             if (w.complications) {
                 complication(184f, 334f, 34f, true, text)
                 complication(266f, 334f, 34f, false, text)
@@ -411,12 +451,14 @@ object FaceRenderer {
         }
 
         fun glass() {
-            if (w.showSeconds) {
-                ringArc(172f, 0f, s.secondAngle, w.accentColor, 5f)
-                dot(172f, s.secondAngle, w.accentColor, 13f)
+            block {
+                if (w.showSeconds) {
+                    ringArc(172f, 0f, s.secondAngle, w.accentColor, 5f)
+                    dot(172f, s.secondAngle, w.accentColor, 13f)
+                }
+                if (w.showDate) textCentered(date("EEE, d MMM"), 225f, 140f, textPaint(withAlpha(w.textColor, 0.8f), 25f, f.label))
+                digits(s.timeText, 225f, 222f, 280, 84, w.digits() ?: DigitFont.ITALIC, w.textColor)
             }
-            if (w.showDate) textCentered(date("EEE, d MMM"), 225f, 140f, textPaint(withAlpha(w.textColor, 0.8f), 25f, f.label))
-            digits(s.timeText, 225f, 222f, 280, 84, w.digits() ?: DigitFont.ITALIC, w.textColor)
             if (w.complications) {
                 complication(186f, 322f, 34f, true)
                 complication(264f, 322f, 34f, false)
@@ -440,8 +482,10 @@ object FaceRenderer {
                 dot(196f, s.minuteAngle, w.accentColor, if (ambient) 10f else 16f)
             }
             if (w.showSeconds) dot(180f, s.secondAngle, withAlpha(w.textColor, 0.6f), 7f)
-            digits(s.timeText, 225f, 220f, 320, 90, w.digits() ?: DigitFont.THIN, w.textColor)
-            if (w.showDate) textCentered(date("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 22f, f.label))
+            block {
+                digits(s.timeText, 225f, 220f, 320, 90, w.digits() ?: DigitFont.THIN, w.textColor)
+                if (w.showDate) textCentered(date("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 22f, f.label))
+            }
             if (w.complications) {
                 complication(187f, 361f, 31f, true)
                 complication(263f, 361f, 31f, false)
@@ -493,7 +537,7 @@ object FaceRenderer {
             }
         }
 
-        fun columns() {
+        fun columns() = block {
             val font = w.digits() ?: DigitFont.SERIF
             val h = s.hour
             val m = s.minute
@@ -576,8 +620,10 @@ object FaceRenderer {
                     canvas.drawCircle(x, y, 3f, p)
                 }
             }
-            digits(s.timeText, 225f, 212f, 330, 112, w.digits() ?: DigitFont.DOTS, w.textColor)
-            if (w.showDate) textCentered(date("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 24f, f.label))
+            block {
+                digits(s.timeText, 225f, 212f, 330, 112, w.digits() ?: DigitFont.DOTS, w.textColor)
+                if (w.showDate) textCentered(date("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 24f, f.label))
+            }
             if (w.complications) {
                 complication(187f, 365f, 31f, true)
                 complication(263f, 365f, 31f, false)
@@ -603,18 +649,25 @@ object FaceRenderer {
                         canvas.drawCircle(bx + r, y + r, r, bubble)
                     }
                 }
-                digits(s.timeText, 228f, 213f, 330, 110, font, 0x40000000)
             } else if (ambient) {
                 canvas.drawLine(40f, 330f, 410f, 330f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = withAlpha(w.accentColor, 0x80); strokeWidth = 2f; strokeCap = Paint.Cap.ROUND
                 })
             }
-            digits(s.timeText, 225f, 210f, 330, 110, font, w.textColor)
-            if (w.showDate) textCentered(date("EEE d MMM"), 225f, 128f, textPaint(w.textColor, 26f, f.label))
+            block {
+                if (full) digits(s.timeText, 228f, 213f, 330, 110, font, 0x40000000)
+                digits(s.timeText, 225f, 210f, 330, 110, font, w.textColor)
+                if (w.showDate) textCentered(date("EEE d MMM"), 225f, 128f, textPaint(w.textColor, 26f, f.label))
+            }
             if (w.complications) complication(225f, 335f, 39f, true)
         }
 
         fun diagonal() {
+            block { diagonalBlock() }
+            if (w.complications) complication(100f, 300f, 38f, true)
+        }
+
+        fun diagonalBlock() {
             if (w.showSeconds) {
                 val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 2f; strokeCap = Paint.Cap.ROUND; color = withAlpha(w.textColor, 0.2f) }
                 canvas.drawLine(108f, 342f, 342f, 108f, p)
@@ -626,7 +679,6 @@ object FaceRenderer {
             digits(s.hourText, 165f, 165f, 210, 140, font, w.textColor)
             digits(s.minuteText, 288f, 292f, 210, 140, font, w.accentColor)
             if (w.showDate) textCentered(date("EEE d"), 355f, 135f, textPaint(w.accentColor, 22f, f.label))
-            if (w.complications) complication(100f, 300f, 38f, true)
         }
     }
 }

@@ -1,17 +1,22 @@
 package app.synctheme.mobile.ui
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.Theme
@@ -25,6 +30,7 @@ import app.synctheme.mobile.wallpaper.ClockWallpaper
 
 fun wallClockSummary(theme: Theme): String {
     val wall = theme.wallClock ?: return "Выключены"
+    if (wall.place != null) return "Вкл · где вы поставили"
     if (wall.depth && theme.background.type == BackgroundType.PHOTO) return "Вкл · рядом с объектом фото"
     val layout = when (wall.layout) {
         WallClockLayout.TOP -> "вверху"
@@ -36,7 +42,7 @@ fun wallClockSummary(theme: Theme): String {
 
 /** Часы прямо на обоях рабочего стола (живые обои) и эффект глубины. */
 @Composable
-fun WallClockContent(theme: Theme, vm: MainViewModel) {
+fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}) {
     val context = LocalContext.current
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val wall = theme.wallClock
@@ -61,8 +67,15 @@ fun WallClockContent(theme: Theme, vm: MainViewModel) {
         },
         style = MaterialTheme.typography.bodySmall, color = muted,
     )
-    // С глубиной место часов выбирается по объекту; без неё — одна из раскладок.
-    if (!depth) {
+    val place = wall.place
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(onClick = onArrange) { Text(arrangeLabel(theme, ArrangeTarget.HOME) ?: "Подвинуть часы") }
+        if (place != null) TextButton(onClick = { vm.setWallClock(wall.copy(place = null)) }) { Text("Вернуть само") }
+    }
+    if (place != null) {
+        Text("Часы стоят там, куда вы их передвинули.", style = MaterialTheme.typography.bodySmall, color = muted)
+    } else if (!depth) {
+        // С глубиной место часов выбирается по объекту; без неё — одна из раскладок.
         ChipRow {
             listOf(WallClockLayout.TOP to "Вверху", WallClockLayout.STACKED to "Столбиком", WallClockLayout.CENTER to "По центру").forEach { (l, label) ->
                 FilterChip(wall.layout == l, { vm.setWallClock(wall.copy(layout = l)) }, label = { Text(label) })

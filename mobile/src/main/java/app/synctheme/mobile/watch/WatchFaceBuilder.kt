@@ -29,7 +29,9 @@ class WatchFaceBuilder(private val context: Context) {
         val bgJpeg = bg.encode(Bitmap.CompressFormat.JPEG, 90)
         val fg = if (settings.depth) ThemeRenderer.watchForeground(context, theme) else null
         val fgPng = fg?.encode(Bitmap.CompressFormat.PNG, 100)
-        val preview = ThemeRenderer.watchPreview(context, settings, bg, PREVIEW_SIZE, fg).encode(Bitmap.CompressFormat.PNG, 100)
+        // Время передвинуто вручную или встаёт напротив объекта фото — в превью и в циферблате одинаково.
+        val shift = ThemeRenderer.watchTimeShift(context, theme)
+        val preview = ThemeRenderer.watchPreview(context, settings, bg, PREVIEW_SIZE, fg, shift).encode(Bitmap.CompressFormat.PNG, 100)
         bg.recycle()
         fg?.recycle()
 
@@ -40,7 +42,7 @@ class WatchFaceBuilder(private val context: Context) {
             assets.open("watchface_cert.der").use { it.readBytes() },
         )
         val workDir = File(context.cacheDir, "watchface").apply { mkdirs() }
-        val xml = WatchFaceXml.generate(settings, foreground = fgPng != null)
+        val xml = WatchFaceXml.generate(settings, foreground = fgPng != null, shift = shift)
         val apk = WatchFaceApk.build(template, xml, bgJpeg, preview, signer, workDir, foreground = fgPng)
 
         val apkFile = File(workDir, "watchface.apk").apply { writeBytes(apk) }

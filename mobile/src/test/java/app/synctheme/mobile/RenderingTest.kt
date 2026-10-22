@@ -62,7 +62,7 @@ class RenderingTest {
         )
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val d = context.resources.displayMetrics.density
-        for (theme in listOf(Presets.all[0], Presets.all[6])) {
+        for (theme in listOf(Presets.all[0], Presets.all.first { it.id == "sakura" })) {
             for (kind in WidgetKind.entries) {
                 // В Robolectric нет установленных приложений — значки заменятся заглушками, подписи — именами пакетов.
                 val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
@@ -155,7 +155,7 @@ class RenderingTest {
         val size = 300
         val gap = 20
         val styles = ClockStyle.entries
-        val themes = listOf(Presets.all[0], Presets.all[6], Presets.all[4])
+        val themes = listOf(Presets.all[0], Presets.all.first { it.id == "sakura" }, Presets.all[4])
         val sheet = Bitmap.createBitmap(styles.size * (size + gap) + gap, themes.size * (size + gap) + gap, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(sheet)
         canvas.drawColor(0xFF202024.toInt())

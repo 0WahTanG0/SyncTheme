@@ -18,6 +18,8 @@ import app.synctheme.core.Theme
 import app.synctheme.core.WatchSettings
 import app.synctheme.core.WallClock
 import app.synctheme.mobile.data.ApplyTargets
+import app.synctheme.mobile.data.NotAnImageException
+import app.synctheme.mobile.data.SharedImage
 import app.synctheme.mobile.data.ThemeApplier
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.DepthException
@@ -228,13 +230,54 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         ApplyTargets.save(app, t)
     }
 
-    /**
-     * Фото из галереи. Для рабочего стола под снимок подстраиваются цвета цифр, акцента,
-     * виджетов и циферблата; для экрана блокировки и часов меняется только их фон.
-     */
+    /** Фото из галереи. */
     fun pickPhoto(uri: Uri, target: BgTarget = BgTarget.HOME) = viewModelScope.launch {
         _busy.value = "Загружаю фото…"
         try {
+            setPhoto(uri, target)
+        } catch (e: Exception) {
+            _messages.tryEmit("Не удалось открыть фото: ${e.message}")
+        } finally {
+            _busy.value = null
+        }
+    }
+
+    /** Открыть вкладку (например, «Обои» — когда прислали картинку из другого приложения). */
+    private val _tabRequests = MutableSharedFlow<Tab>(extraBufferCapacity = 1)
+    val tabRequests: SharedFlow<Tab> = _tabRequests
+
+    /**
+     * Картинка из другого приложения («Поделиться» → SyncTheme): сама картинка или ссылка на неё
+     * (Pinterest, страница сайта). Становится фоном рабочего стола в черновике — дальше её можно
+     * подвинуть, поменять цвета и нажать «Применить».
+     */
+    fun importShared(intent: android.content.Intent) = viewModelScope.launch {
+        _tabRequests.tryEmit(Tab.WALLPAPER)
+        val source = SharedImage.source(intent)
+        _busy.value = "Загружаю картинку из $source…"
+        var downloaded: java.io.File? = null
+        try {
+            val uri = SharedImage.stream(intent)
+                ?: SharedImage.url(intent)?.let { link -> SharedImage.download(app, link).also { downloaded = it }.let(Uri::fromFile) }
+                ?: throw NotAnImageException("В присланном нет картинки")
+            setPhoto(uri, BgTarget.HOME)
+            _messages.tryEmit("Картинка из $source — на обоях. Подвиньте фото и часы, если нужно, и нажмите «Применить»")
+        } catch (e: NotAnImageException) {
+            _messages.tryEmit(e.message.orEmpty())
+        } catch (e: Exception) {
+            _messages.tryEmit("Не удалось получить картинку: ${e.message ?: e.javaClass.simpleName}")
+        } finally {
+            downloaded?.delete()
+            _busy.value = null
+        }
+    }
+
+    /**
+     * Фото становится фоном. Для рабочего стола под снимок подстраиваются цвета цифр, акцента,
+     * виджетов и циферблата; для экрана блокировки и часов меняется только их фон.
+     */
+    private suspend fun setPhoto(uri: Uri, target: BgTarget) {
+        run {
             val name = repo.importPhoto(uri)
             val palette = withContext(Dispatchers.Default) {
                 val small = BitmapFactory.decodeFile(
@@ -250,21 +293,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val light = ColorUtils.calculateLuminance(dominant) > 0.6
             val photo = Background(BackgroundType.PHOTO, colors, photoFile = name)
             when (target) {
+                // Новое фото — новый объект: часы снова встают сами, кадр фото — по центру.
                 BgTarget.HOME -> update {
                     it.copy(
                         background = photo,
                         accentColor = accent,
                         textColor = if (light) 0xFF1A1A1A.toInt() else 0xFFFFFFFF.toInt(),
                         dim = if (light) 0f else maxOf(it.dim, 0.15f),
+                        wallClock = it.wallClock?.copy(place = null),
+                        watchTimeShift = null,
+                        watchPhotoCrop = null,
                     )
                 }
                 BgTarget.LOCK -> update { it.copy(lockBackground = photo, lockDim = it.lockDim ?: it.dim) }
-                BgTarget.WATCH -> updateWatch { it.copy(background = photo) }
+                BgTarget.WATCH -> update { it.copy(watch = it.watchSettings().copy(background = photo, timeShift = null), watchPhotoCrop = null) }
             }
-        } catch (e: Exception) {
-            _messages.tryEmit("Не удалось открыть фото: ${e.message}")
-        } finally {
-            _busy.value = null
         }
     }
 

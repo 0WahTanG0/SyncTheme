@@ -17,11 +17,13 @@ import android.graphics.Shader
 import android.graphics.Typeface
 import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
+import app.synctheme.core.ClockPlace
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.DialStyle
 import app.synctheme.core.DigitFont
 import app.synctheme.core.FontWeight
 import app.synctheme.core.Theme
+import app.synctheme.core.TimeShift
 import app.synctheme.core.WatchSettings
 import app.synctheme.core.WatchFaceXml
 import android.text.format.DateFormat
@@ -67,11 +69,11 @@ object ThemeRenderer {
         return bmp
     }
 
-    /** @param crop часть фото в кадре (доли); null — середина фото, как обычно у обоев. */
-    fun background(context: Context, bg: Background, dim: Float, width: Int, height: Int, crop: RectF? = null): Bitmap {
+    /** Фон в кадре width × height; фото — в том кадре, как его подвинули ([Background.focusX], zoom). */
+    fun background(context: Context, bg: Background, dim: Float, width: Int, height: Int): Bitmap {
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        drawBackground(canvas, bg, width.toFloat(), height.toFloat(), photo(context, bg), crop)
+        drawBackground(canvas, bg, width.toFloat(), height.toFloat(), photo(context, bg))
         darken(canvas, dim)
         return bmp
     }
@@ -85,14 +87,14 @@ object ThemeRenderer {
      * Слой глубины: главный объект фото (по маске [SubjectMask]) на прозрачном фоне, обрезанный
      * и затемнённый так же, как фон. null — у фона нет фото или маски.
      */
-    fun foreground(context: Context, bg: Background, dim: Float, width: Int, height: Int, crop: RectF? = null): Bitmap? {
+    fun foreground(context: Context, bg: Background, dim: Float, width: Int, height: Int): Bitmap? {
         val name = bg.photoFile?.takeIf { bg.type == BackgroundType.PHOTO } ?: return null
         val mask = SubjectMask.load(context, name) ?: return null
         val photo = photo(context, bg) ?: return null
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         // Обрезка в долях: у маски те же пропорции, что у фото, поэтому она ложится точно на объект.
-        val c = crop ?: Crop.center(photo.width, photo.height, width.toFloat(), height.toFloat())
+        val c = Crop.of(photo.width, photo.height, width.toFloat(), height.toFloat(), bg)
         drawCrop(canvas, photo, c, width.toFloat(), height.toFloat())
         darken(canvas, dim)
         val cut = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
@@ -100,53 +102,101 @@ object ThemeRenderer {
         return bmp
     }
 
-    /** Слой глубины для часов (450×450, как фон циферблата и в том же кадре фото). */
+    /** Слой глубины для часов (450×450, в том же кадре фото, что и фон циферблата). */
     fun watchForeground(context: Context, theme: Theme): Bitmap? =
-        foreground(context, theme.watchBackground(), theme.watchSettings().dim, WatchFaceXml.SIZE, WatchFaceXml.SIZE, watchCrop(context, theme))
+        foreground(context, theme.watchBackground(), theme.watchSettings().dim, WatchFaceXml.SIZE, WatchFaceXml.SIZE)
 
-    private val watchCrops = LinkedHashMap<String, RectF>()
+    private val watchShifts = LinkedHashMap<String, TimeShift?>()
 
     /**
-     * Кадр фото для циферблата с глубиной: объект со своей стороны от времени и закрывает лишь край
-     * цифр (см. [WatchFraming]). null — глубина выключена или объекта нет: фото по центру.
+     * Где стоит время на циферблате: передвинутое вручную, а с эффектом глубины — напротив объекта
+     * фото и так, что объект лишь слегка заходит на цифры ([WatchTimePlacer]). Фото при этом не двигается.
+     * null — время на своём месте в стиле.
      */
-    fun watchCrop(context: Context, theme: Theme): RectF? {
+    fun watchTimeShift(context: Context, theme: Theme): TimeShift? {
         val w = theme.watchSettings()
-        val bg = theme.watchBackground()
+        if (!w.clockStyle.movableTime) return null
+        w.timeShift?.let { return it.takeUnless { s -> s.identity } }
         if (!w.depth) return null
+        val bg = theme.watchBackground()
         val name = bg.photoFile?.takeIf { bg.type == BackgroundType.PHOTO } ?: return null
         val file = SubjectMask.file(context, name)
         if (!file.exists()) return null
-        val time = WatchFaceXml.forLayer(w, WatchFaceXml.Layer.TIME)
-        val key = "$name|${file.lastModified()}|${time.copy(textColor = 0, accentColor = 0, background = null).hashCode()}"
-        synchronized(watchCrops) { watchCrops[key]?.let { return RectF(it) } }
+        val key = "$name|${file.lastModified()}|${bg.focusX}|${bg.focusY}|${bg.zoom}|" +
+            w.copy(textColor = 0, accentColor = 0, background = null, dim = 0f).hashCode()
+        synchronized(watchShifts) { if (key in watchShifts) return watchShifts[key] }
         val mask = SubjectMask.load(context, name) ?: return null
-        val crop = WatchFraming.crop(mask, timeInk(context, w))
-        synchronized(watchCrops) {
-            watchCrops[key] = RectF(crop)
-            while (watchCrops.size > 8) watchCrops.remove(watchCrops.keys.first())
+        val n = WatchTimePlacer.GRID
+        val grid = MaskGrid.of(mask, Crop.of(mask.width, mask.height, 1f, 1f, bg), n, n)
+        val shift = WatchTimePlacer.place(
+            grid, blockInk(context, w), WatchFaceXml.timePivot(w.clockStyle), FaceRenderer.complicationAreas(context, w, fonts(context)),
+        )
+        synchronized(watchShifts) {
+            watchShifts[key] = shift
+            while (watchShifts.size > 16) watchShifts.remove(watchShifts.keys.first())
         }
-        return crop
+        return shift
     }
 
-    /** Где на циферблате время: слой «время» стиля в нескольких моментах (стрелки и «планеты» движутся). */
-    private fun timeInk(context: Context, w: WatchSettings): FloatArray {
-        val n = WatchFraming.INK_GRID
-        val ink = FloatArray(n * n)
+    /**
+     * Сдвиг времени, при котором блок времени целиком внутри круга экрана: если палец увёл его за край,
+     * блок останавливается у края.
+     */
+    fun fitShift(context: Context, theme: Theme, shift: TimeShift): TimeShift {
+        val w = theme.watchSettings()
+        val ink = blockInk(context, w)
+        val n = WatchTimePlacer.GRID
+        val cell = WATCH / n
+        val (px, py) = WatchFaceXml.timePivot(w.clockStyle)
+        val r = WATCH / 2 - 8
+        fun inside(dx: Float, dy: Float, s: Float): Boolean {
+            for (i in ink.indices) {
+                if (ink[i] < 0.2f) continue
+                val x = px + ((i % n + 0.5f) * cell - px) * s + dx - WATCH / 2
+                val y = py + ((i / n + 0.5f) * cell - py) * s + dy - WATCH / 2
+                if (x * x + y * y > r * r) return false
+            }
+            return true
+        }
+        var s = shift.scale
+        // Блок крупнее экрана даже по центру — уменьшаем.
+        while (s > 0.4f && !inside(0f, 0f, s)) s -= 0.05f
+        if (inside(shift.dx, shift.dy, s)) return shift.copy(scale = s)
+        // Ближайшая к желаемой точка на пути к центру.
+        var lo = 0f
+        var hi = 1f
+        repeat(12) {
+            val mid = (lo + hi) / 2
+            if (inside(shift.dx * mid, shift.dy * mid, s)) lo = mid else hi = mid
+        }
+        return TimeShift(shift.dx * lo, shift.dy * lo, s)
+    }
+
+    private val blockInks = LinkedHashMap<WatchSettings, FloatArray>()
+
+    /** Где на циферблате блок времени стиля (альфа на сетке [WatchTimePlacer.GRID]) — на своём месте. */
+    private fun blockInk(context: Context, w0: WatchSettings): FloatArray {
+        val w = w0.copy(textColor = 0xFFFFFFFF.toInt(), accentColor = 0xFFFFFFFF.toInt(), background = null, dim = 0f, timeShift = null, depth = false)
+        synchronized(blockInks) { blockInks[w]?.let { return it } }
+        return renderBlockInk(context, w).also { ink ->
+            synchronized(blockInks) {
+                blockInks[w] = ink
+                while (blockInks.size > 8) blockInks.remove(blockInks.keys.first())
+            }
+        }
+    }
+
+    private fun renderBlockInk(context: Context, w: WatchSettings): FloatArray {
+        val n = WatchTimePlacer.GRID
         val bmp = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
+        canvas.scale(n / WATCH, n / WATCH)
+        // 20:48 — широкие цифры: блок с ними занимает больше всего места.
+        FaceRenderer.drawTimeBlock(canvas, w, FaceState(System.currentTimeMillis(), 20, 48, 0f), fonts(context))
         val px = IntArray(n * n)
-        for ((hour, minute) in listOf(10 to 8, 3 to 15, 6 to 40, 12 to 0, 8 to 50, 1 to 25)) {
-            bmp.eraseColor(Color.TRANSPARENT)
-            canvas.save()
-            canvas.scale(n / WATCH, n / WATCH)
-            FaceRenderer.drawTime(canvas, w, FaceState(System.currentTimeMillis(), hour, minute, 0f), fonts(context))
-            canvas.restore()
-            bmp.getPixels(px, 0, n, 0, 0, n, n)
-            for (i in px.indices) ink[i] = max(ink[i], (px[i] ushr 24) / 255f)
-        }
+        bmp.getPixels(px, 0, n, 0, 0, n, n)
         bmp.recycle()
-        return ink
+        return FloatArray(px.size) { (px[it] ushr 24) / 255f }
     }
 
     /** Обои рабочего стола. */
@@ -163,12 +213,13 @@ object ThemeRenderer {
      */
     fun watchBackground(context: Context, theme: Theme): Bitmap {
         val w = theme.watchSettings()
-        val bmp = background(context, theme.watchBackground(), w.dim, WatchFaceXml.SIZE, WatchFaceXml.SIZE, watchCrop(context, theme))
-        drawWatchDecor(Canvas(bmp), w)
+        val bmp = background(context, theme.watchBackground(), w.dim, WatchFaceXml.SIZE, WatchFaceXml.SIZE)
+        drawWatchDecor(Canvas(bmp), w, watchTimeShift(context, theme))
         return bmp
     }
 
-    private fun drawWatchDecor(canvas: Canvas, w: WatchSettings) {
+    /** shift — сдвиг блока времени: стеклянный диск «Стекла» стоит под временем и едет вместе с ним. */
+    private fun drawWatchDecor(canvas: Canvas, w: WatchSettings, shift: TimeShift?) {
         val c = WATCH / 2
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         when (w.clockStyle) {
@@ -183,6 +234,12 @@ object ThemeRenderer {
                 }
             }
             ClockStyle.GLASS -> {
+                val moved = WatchFaceXml.activeShift(w, shift)
+                if (moved != null) {
+                    val (px, py) = WatchFaceXml.timePivot(w.clockStyle)
+                    canvas.translate(moved.dx, moved.dy)
+                    canvas.scale(moved.scale, moved.scale, px, py)
+                }
                 val r = 172f
                 p.color = Colors.withAlpha(Color.WHITE, 0.14f)
                 canvas.drawCircle(c, c, r, p)
@@ -215,13 +272,13 @@ object ThemeRenderer {
         return path
     }
 
-    private fun drawBackground(canvas: Canvas, bg: Background, w: Float, h: Float, photo: Bitmap?, crop: RectF? = null) {
+    private fun drawBackground(canvas: Canvas, bg: Background, w: Float, h: Float, photo: Bitmap?) {
         val colors = bg.colors.ifEmpty { listOf(Color.BLACK) }
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG)
         when (bg.type) {
             BackgroundType.SOLID -> canvas.drawColor(colors.first())
             BackgroundType.PHOTO -> if (photo != null) {
-                drawCrop(canvas, photo, crop ?: Crop.center(photo.width, photo.height, w, h), w, h)
+                drawCrop(canvas, photo, Crop.of(photo.width, photo.height, w, h, bg), w, h)
             } else {
                 drawBackground(canvas, bg.copy(type = BackgroundType.LINEAR), w, h, null)
             }
@@ -270,14 +327,15 @@ object ThemeRenderer {
 
     // ---------- Превью циферблата (тот же рендер, что у классического циферблата на часах) ----------
 
-    fun watchPreview(context: Context, theme: WatchSettings, watchBg: Bitmap, sizePx: Int, foreground: Bitmap? = null): Bitmap =
-        FaceRenderer.render(context, theme, watchBg, foreground, FaceState.preview(DateFormat.is24HourFormat(context)), sizePx, fonts(context))
+    fun watchPreview(
+        context: Context, theme: WatchSettings, watchBg: Bitmap, sizePx: Int, foreground: Bitmap? = null, shift: TimeShift? = theme.timeShift,
+    ): Bitmap = FaceRenderer.render(context, theme, watchBg, foreground, FaceState.preview(DateFormat.is24HourFormat(context)), sizePx, fonts(context), shift)
 
-    /** Превью циферблата темы целиком: фон, слой глубины (если включён) и время. */
+    /** Превью циферблата темы целиком: фон, слой глубины (если включён) и время на своём месте. */
     fun watchPreview(context: Context, theme: Theme, sizePx: Int): Bitmap {
         val bg = watchBackground(context, theme)
         val fg = if (theme.watchSettings().depth) watchForeground(context, theme) else null
-        return watchPreview(context, theme.watchSettings(), bg, sizePx, fg).also {
+        return watchPreview(context, theme.watchSettings(), bg, sizePx, fg, watchTimeShift(context, theme)).also {
             bg.recycle()
             fg?.recycle()
         }
@@ -321,7 +379,8 @@ object ThemeRenderer {
 
     // ---------- Превью телефона: обои + виджеты ----------
 
-    fun phonePreview(context: Context, theme: Theme, width: Int, height: Int): Bitmap {
+    /** @param widgets рисовать ли виджеты и док (в редакторе расположения — только обои и часы). */
+    fun phonePreview(context: Context, theme: Theme, width: Int, height: Int, widgets: Boolean = true): Bitmap {
         val bmp = background(context, theme, width, height)
         val canvas = Canvas(bmp)
         val u = width / 100f
@@ -340,7 +399,7 @@ object ThemeRenderer {
                 it.recycle()
                 drawWallClock(context, canvas, theme, spot, previewMillis(), alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
             }
-        } else {
+        } else if (widgets) {
             // Виджет часов 4x2.
             val clock = RectF(6 * u, 16 * u, 94 * u, 52 * u)
             canvas.drawRoundRect(clock, 7 * u, 7 * u, surface)
@@ -354,6 +413,7 @@ object ThemeRenderer {
             canvas.textCentered(dateString("EEEE, d MMMM"), 50 * u, 47 * u, textPaint(theme.accentColor, 4.2f * u))
         }
 
+        if (!widgets) return bmp
         // Дата 2x2 и батарея 2x2; с часами на обоях — над доком или вверху, где не закрывают часы.
         val top = when {
             wall == null -> 57 * u
@@ -409,11 +469,12 @@ object ThemeRenderer {
         val font = wallClockFont(theme)
         val w = width.toFloat()
         val h = height.toFloat()
+        wall.place?.let { return placedSpot(it, font, w, h) }
         val bg = theme.background
         val photo = bg.photoFile?.takeIf { bg.type == BackgroundType.PHOTO }
         val mask = if (wall.depth && photo != null) SubjectMask.load(context, photo) else null
         if (mask != null) {
-            val grid = MaskGrid.of(mask, Crop.center(mask.width, mask.height, w, h), 72, (72 * h / w).roundToInt())
+            val grid = MaskGrid.of(mask, Crop.of(mask.width, mask.height, w, h, bg), 72, (72 * h / w).roundToInt())
             val label = fonts(context).label
             WallClockPlacer.place(grid, font, w, h, wall.showDate) { pattern, size ->
                 textPaint(Color.WHITE, size, label).measureText(dateString(System.currentTimeMillis(), pattern))
@@ -440,6 +501,79 @@ object ThemeRenderer {
                 date(h * 0.48f, w * 0.04f),
             )
         }
+    }
+
+    /** Обычный кегль часов на обоях: одной строкой во всю ширину или часы над минутами. */
+    private fun baseClockSize(font: DigitFont, w: Float, h: Float, stacked: Boolean) =
+        if (stacked) WatchFaceXml.fit(font, "00", (w * 0.42f).toInt(), (h * 0.12f).toInt())
+        else WatchFaceXml.fit(font, "00:00", (w * 0.86f).toInt(), (h * 0.12f).toInt())
+
+    /** Часы, передвинутые вручную: центр цифр в (x, y), дата над ними. */
+    private fun placedSpot(p: ClockPlace, font: DigitFont, w: Float, h: Float): WallClockSpot {
+        val cx = p.x * w
+        val cy = p.y * h
+        val size = baseClockSize(font, w, h, p.stacked) * p.scale.coerceIn(0.3f, 2.5f)
+        val digitH = font.digitHeight * size
+        val dateSize = w * 0.042f * p.scale.coerceIn(0.75f, 1.3f)
+        return if (p.stacked) {
+            val blockH = 2 * digitH + digitH * 0.16f
+            WallClockSpot(
+                listOf(
+                    WallClockSpot.Line(WallClockSpot.Part.HOURS, cx, cy - blockH / 2 + digitH / 2, size),
+                    WallClockSpot.Line(WallClockSpot.Part.MINUTES, cx, cy + blockH / 2 - digitH / 2, size, accent = true),
+                ),
+                WallClockSpot.DateLabel(cx, cy - blockH / 2 - h * 0.01f - dateSize * 0.7f, dateSize, "EEE, d MMM", Paint.Align.CENTER),
+            )
+        } else {
+            WallClockSpot(
+                listOf(WallClockSpot.Line(WallClockSpot.Part.TIME, cx, cy, size)),
+                WallClockSpot.DateLabel(cx, cy - digitH / 2 - h * 0.012f - dateSize * 0.7f, dateSize, "EEEE, d MMMM", Paint.Align.CENTER),
+            )
+        }
+    }
+
+    /** Место часов, при котором они вместе с датой целиком на экране (с полями по краям). */
+    fun clampPlace(theme: Theme, p: ClockPlace, width: Int, height: Int): ClockPlace {
+        val font = wallClockFont(theme)
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val scale = p.scale.coerceIn(0.3f, 2.5f)
+        // Если и при этом размере часы шире экрана — уменьшаем.
+        val base = baseClockSize(font, w, h, p.stacked)
+        val maxScale = (w * 0.94f) / (font.width(if (p.stacked) "00" else "00:00") * base)
+        val s = minOf(scale, maxScale)
+        val size = base * s
+        val halfW = font.width(if (p.stacked) "00" else "00:00") * size / 2 + w * 0.03f
+        val digitH = font.digitHeight * size
+        val blockH = if (p.stacked) 2 * digitH + digitH * 0.16f else digitH
+        val dateH = w * 0.042f * s.coerceIn(0.75f, 1.3f) * 1.4f + h * 0.012f
+        val top = blockH / 2 + dateH + h * 0.03f
+        val bottom = blockH / 2 + h * 0.03f
+        return p.copy(
+            x = (p.x * w).coerceIn(halfW, w - halfW) / w,
+            y = (p.y * h).coerceIn(top, h - bottom) / h,
+            scale = s,
+        )
+    }
+
+    /**
+     * Те же часы, что стоят сейчас (сами по объекту или по раскладке), как место [ClockPlace] —
+     * с него начинается перетаскивание.
+     */
+    fun clockPlaceOf(context: Context, theme: Theme, width: Int, height: Int): ClockPlace? {
+        theme.wallClock?.place?.let { return it }
+        val spot = wallClockSpot(context, theme, width, height)
+        if (spot.lines.isEmpty()) return null
+        val font = wallClockFont(theme)
+        val stacked = spot.lines.size == 2
+        val top = spot.lines.minOf { it.cy - font.digitHeight * it.size / 2 }
+        val bottom = spot.lines.maxOf { it.cy + font.digitHeight * it.size / 2 }
+        val w = width.toFloat()
+        val h = height.toFloat()
+        return ClockPlace(
+            spot.lines.first().cx / w, (top + bottom) / 2 / h,
+            spot.lines.first().size / baseClockSize(font, w, h, stacked), stacked,
+        )
     }
 
     /** Прямоугольник, который занимают часы на обоях (для превью: куда не ставить виджеты). */

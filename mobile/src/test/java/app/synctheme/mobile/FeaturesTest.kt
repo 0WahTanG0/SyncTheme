@@ -27,6 +27,8 @@ import app.synctheme.faces.FaceState
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.render.ClockSide
+import app.synctheme.mobile.render.Crop
+import app.synctheme.mobile.render.MaskGrid
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.watch.WatchFaceBuilder
@@ -123,7 +125,7 @@ class FeaturesTest {
         val pw = 270
         val ph = 585
         val face = 200
-        val styles = listOf(ClockStyle.DIGITAL, ClockStyle.BOLD, ClockStyle.ORBIT, ClockStyle.ANALOG)
+        val styles = listOf(ClockStyle.DIGITAL, ClockStyle.BOLD, ClockStyle.ORBIT, ClockStyle.GLASS)
         val sheet = Bitmap.createBitmap(16 + (pw + 16) + styles.size * (face + 16), cases.size * (ph + 16) + 16, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(sheet)
         canvas.drawColor(0xFF202024.toInt())
@@ -153,9 +155,26 @@ class FeaturesTest {
             canvas.drawBitmap(ThemeRenderer.phonePreview(context, theme, 540, 1170), null, RectF(16f, y, 16f + pw, y + ph), null)
             styles.forEachIndexed { i, style ->
                 val t = photoTheme(file).copy(clockStyle = style, watchDepth = true)
-                assertNotNull(ThemeRenderer.watchCrop(context, t))
+                // На часах двигается время, а не фото: прочь от объекта.
+                val shift = ThemeRenderer.watchTimeShift(context, t)
+                assertNotNull("$name/$style: время сдвинуто", shift)
+                // Блок времени — с противоположной стороны от объекта (центр объекта — по маске в кадре циферблата).
+                val mask = SubjectMask.load(context, file)!!
+                val (sx, sy) = MaskGrid.of(mask, Crop.of(mask.width, mask.height, 1f, 1f, t.watchBackground()), 90, 90).centroid()
+                val (px, py) = WatchFaceXml.timePivot(style)
+                val bx = px + shift!!.dx
+                val by = py + shift.dy
+                val opposite = when (expected) {
+                    ClockSide.LEFT -> bx < sx * 450
+                    ClockSide.RIGHT -> bx > sx * 450
+                    ClockSide.TOP -> by < sy * 450
+                    ClockSide.BOTTOM -> by > sy * 450
+                }
+                assertTrue("$name/$style: время напротив объекта ($shift)", opposite)
                 canvas.drawBitmap(ThemeRenderer.watchPreview(context, t, face), 32f + pw + i * (face + 16), y + (ph - face) / 2f, null)
             }
+            // У стрелок время в центре — его не двигаем, и фото тоже.
+            assertEquals(null, ThemeRenderer.watchTimeShift(context, photoTheme(file).copy(clockStyle = ClockStyle.ANALOG, watchDepth = true)))
         }
         sheet.save("depth_positions.png")
     }

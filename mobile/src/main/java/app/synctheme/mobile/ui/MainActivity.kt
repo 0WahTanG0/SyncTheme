@@ -1,5 +1,6 @@
 package app.synctheme.mobile.ui
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -11,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.synctheme.mobile.data.SharedImage
 import app.synctheme.mobile.install.InstallerViewModel
 import app.synctheme.mobile.install.WatchInstallerScreen
 
@@ -22,6 +24,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val initialTab = runCatching { Tab.valueOf(intent.getStringExtra(EXTRA_TAB).orEmpty()) }.getOrDefault(Tab.WALLPAPER)
+        // Картинку прислали через «Поделиться» (Pinterest, браузер…): ставим её фоном в черновик.
+        if (savedInstanceState == null && SharedImage.accepts(intent)) viewModel.importShared(intent)
         setContent {
             var showInstaller by rememberSaveable { mutableStateOf(false) }
             val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -36,6 +40,12 @@ class MainActivity : ComponentActivity() {
                 SyncThemeScreen(viewModel, initialTab, onOpenInstaller = { showInstaller = true })
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (SharedImage.accepts(intent)) viewModel.importShared(intent)
     }
 
     override fun onResume() {
