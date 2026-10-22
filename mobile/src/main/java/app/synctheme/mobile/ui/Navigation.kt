@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,6 +30,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -76,12 +80,38 @@ fun BottomNav(tab: Tab, tabs: List<Tab> = Tab.entries, onTab: (Tab) -> Unit) {
     }
 }
 
+/** Меню сбоку — для широкого экрана (телефон боком, планшет). */
+@Composable
+fun SideNav(tab: Tab, tabs: List<Tab>, onTab: (Tab) -> Unit) {
+    val look = LocalLook.current
+    NavigationRail(containerColor = look.bar, modifier = Modifier.fillMaxHeight()) {
+        Spacer(Modifier.weight(1f))
+        tabs.forEach { t ->
+            NavigationRailItem(
+                selected = tab == t,
+                onClick = { onTab(t) },
+                icon = { Icon(t.icon, contentDescription = null) },
+                // Рейка узкая: «Настройки» капсом в «Неоне» не помещаются — подпись чуть мельче.
+                label = { Text(if (look.style == AppStyle.NEON) t.title.uppercase() else t.title, maxLines = 1, softWrap = false, fontSize = if (t.title.length > 7) 10.sp else 12.sp) },
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = look.onPrimary,
+                    selectedTextColor = look.text,
+                    indicatorColor = look.primary,
+                    unselectedIconColor = look.muted,
+                    unselectedTextColor = look.muted,
+                ),
+            )
+        }
+        Spacer(Modifier.weight(1f))
+    }
+}
+
 val Tab.icon: ImageVector
     get() = when (this) {
         Tab.WALLPAPER -> NavIcons.Wallpaper
         Tab.WIDGETS -> NavIcons.Widgets
         Tab.WATCH -> NavIcons.Watch
-        Tab.MORE -> NavIcons.More
+        Tab.MORE -> NavIcons.Settings
     }
 
 /**

@@ -38,6 +38,8 @@ import app.synctheme.mobile.widget.FolderMode
 import app.synctheme.mobile.widget.FolderDrawOverlay
 import app.synctheme.mobile.widget.FolderLineOverlay
 import app.synctheme.mobile.widget.FolderLines
+import app.synctheme.mobile.widget.LineShapes
+import app.synctheme.mobile.widget.defaultBend
 import app.synctheme.mobile.widget.FolderOverlay
 import app.synctheme.mobile.widget.FolderShape
 import app.synctheme.mobile.widget.FolderWidget
@@ -219,6 +221,82 @@ class FolderTest {
         val chord = kotlin.math.hypot(b[0] - a[0], b[1] - a[1])
         val bend = pts.maxOf { m -> kotlin.math.abs((b[0] - a[0]) * (m[1] - a[1]) - (b[1] - a[1]) * (m[0] - a[0])) / chord }
         assertTrue("изгиб: $bend", bend > 0.03f)
+    }
+
+    /** Ровная дуга по трём точкам, изгиб по средней точке и сглаживание дрожащей руки. */
+    @Test
+    fun arcsAndSmoothing() {
+        val a = Offset(100f, 1000f)
+        val b = Offset(700f, 400f)
+        val arc = LineShapes.arc(a, b, 0.3f)
+        assertTrue((arc.first() - a).getDistance() < 1f && (arc.last() - b).getDistance() < 1f)
+        val mid = LineShapes.arcMiddle(a, b, 0.3f)
+        assertTrue("дуга проходит через середину", arc.minOf { (it - mid).getDistance() } < 12f)
+        assertEquals(0.3f, LineShapes.bendFor(a, b, mid), 1e-3f)
+        // Точки дуги — на одной окружности: расстояния до центра равны.
+        val c = run {
+            val (p, q, r) = Triple(arc[0], arc[24], arc[47])
+            val d = 2 * (p.x * (q.y - r.y) + q.x * (r.y - p.y) + r.x * (p.y - q.y))
+            val ux = ((p.x * p.x + p.y * p.y) * (q.y - r.y) + (q.x * q.x + q.y * q.y) * (r.y - p.y) + (r.x * r.x + r.y * r.y) * (p.y - q.y)) / d
+            val uy = ((p.x * p.x + p.y * p.y) * (r.x - q.x) + (q.x * q.x + q.y * q.y) * (p.x - r.x) + (r.x * r.x + r.y * r.y) * (q.x - p.x)) / d
+            Offset(ux, uy)
+        }
+        val radii = arc.map { (it - c).getDistance() }
+        assertTrue("ровная дуга: ${radii.min()}…${radii.max()}", radii.max() - radii.min() < 2f)
+        // Без изгиба — прямая.
+        assertTrue(LineShapes.arc(a, b, 0f).all { LineShapes.distanceToSegment(it, a, b) < 0.5f })
+
+        // Дрожащая прямая линия → две опорные точки, ровная; изогнутая — изгибы остаются, но точек немного.
+        val shaky = (0..200).map { Offset(100f + it * 3f, 1500f - it * 2f + if (it % 2 == 0) 6f else -6f) }
+        assertEquals(2, LineShapes.curve(shaky, 3.5f).keys.size)
+        val wave = (0..300).map { Offset(100f + it * 3f, 2000f - it * 4f + 120f * kotlin.math.sin(it / 25f)) }
+        val curve = LineShapes.curve(wave, 3.5f)
+        assertTrue("опорных точек: ${curve.keys.size}", curve.keys.size in 4..8)
+        val smooth = curve.points()
+        assertTrue("кривая проходит рядом с рисунком", wave.maxOf { w -> smooth.minOf { (it - w).getDistance() } } < 40f)
+        assertEquals(curve.keys.size - 1, curve.smoother().keys.size)
+    }
+
+    /** Инструмент «Дуга»: проводим от начала к концу, потом тянем середину — изгиб сильнее. */
+    @Test
+    fun drawsArcAndBendsIt() {
+        var result: List<Float>? = null
+        val config = WidgetConfig(style = "glass", folder = FolderMode.ICON, apps = (0 until 5).map { "com.example.app$it/.Main" })
+        val home = ThemeRenderer.phonePreview(app, theme, 721, 1601).asImageBitmap()
+        compose.setContent {
+            Box(Modifier.fillMaxSize()) {
+                Image(home, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                FolderDrawOverlay(config, theme, onCancel = {}) { result = it }
+            }
+        }
+        compose.onNodeWithText("Дуга").performClick()
+        compose.waitForIdle()
+        var a = Offset.Zero
+        var b = Offset.Zero
+        var size = Size.Zero
+        compose.onNodeWithContentDescription("Холст линии").performTouchInput {
+            size = Size(width.toFloat(), height.toFloat())
+            a = Offset(width * 0.22f, height * 0.78f)
+            b = Offset(width * 0.78f, height * 0.36f)
+            down(a)
+            for (k in 1..20) moveTo(a + (b - a) * (k / 20f))
+            up()
+        }
+        compose.waitForIdle()
+        val mid = LineShapes.arcMiddle(a, b, defaultBend(a, b, size))
+        val target = LineShapes.arcMiddle(a, b, 0.35f * kotlin.math.sign(defaultBend(a, b, size)))
+        compose.onNodeWithContentDescription("Холст линии").performTouchInput {
+            down(mid)
+            for (k in 1..10) moveTo(mid + (target - mid) * (k / 10f))
+            up()
+        }
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage(File(out, "screen_folder_arc.png").absolutePath)
+        compose.onNodeWithText("Готово").performClick()
+        val pts = result!!.chunked(2).map { Offset(it[0] * size.width, it[1] * size.height) }
+        val chord = (b - a).getDistance()
+        val bend = pts.maxOf { LineShapes.distanceToSegment(it, a, b) } / chord
+        assertEquals("изгиб после правки", 0.35f, bend, 0.05f)
     }
 
     /** Значок папки во всех стилях, точками и силуэтами, и невидимый виджет — собираются и открывают папку. */

@@ -89,4 +89,27 @@ object NavIcons {
         }
         fill { moveTo(12f, 16.3f); arcTo(1f, 1f, 0f, true, true, 12f, 18.3f); arcTo(1f, 1f, 0f, true, true, 12f, 16.3f); close() }
     }
+
+    /** Телефон: корпус и динамик. */
+    val Phone = icon("Phone") {
+        stroke {
+            moveTo(8f, 2.5f); lineTo(16f, 2.5f); quadTo(18f, 2.5f, 18f, 4.5f); lineTo(18f, 19.5f)
+            quadTo(18f, 21.5f, 16f, 21.5f); lineTo(8f, 21.5f); quadTo(6f, 21.5f, 6f, 19.5f); lineTo(6f, 4.5f)
+            quadTo(6f, 2.5f, 8f, 2.5f); close()
+        }
+        stroke { moveTo(10.5f, 5.5f); lineTo(13.5f, 5.5f) }
+    }
+
+    /** Добавить: плюс. */
+    val Add = icon("Add") {
+        stroke { moveTo(12f, 5f); lineTo(12f, 19f); moveTo(5f, 12f); lineTo(19f, 12f) }
+    }
+
+    /** Настройки: три ползунка. */
+    val Settings = icon("Settings") {
+        stroke { moveTo(4f, 6f); lineTo(20f, 6f); moveTo(4f, 12f); lineTo(20f, 12f); moveTo(4f, 18f); lineTo(20f, 18f) }
+        for ((x, y) in listOf(9f to 6f, 15f to 12f, 7f to 18f)) {
+            fill { moveTo(x, y - 2.4f); arcTo(2.4f, 2.4f, 0f, true, true, x, y + 2.4f); arcTo(2.4f, 2.4f, 0f, true, true, x, y - 2.4f); close() }
+        }
+    }
 }

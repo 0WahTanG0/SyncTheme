@@ -8,8 +8,12 @@ import androidx.test.core.app.ApplicationProvider
 import app.synctheme.R
 import app.synctheme.core.Presets
 import app.synctheme.mobile.data.DeviceSettings
+import app.synctheme.mobile.devices.MyDevices
+import app.synctheme.mobile.devices.Watch
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.tablet.TabletReceiver
+import app.synctheme.mobile.tablet.Peer
+import app.synctheme.mobile.tablet.TabletPush
 import app.synctheme.mobile.tablet.TabletStore
 import app.synctheme.mobile.install.InstallerViewModel
 import app.synctheme.mobile.install.WatchInstallerScreen
@@ -56,6 +60,7 @@ class ScreenshotTest {
         ThemeRepository.get(app).setDraft(Presets.all[0])
         // По умолчанию — только телефон; вкладка «Часы» есть, когда часы включены.
         DeviceSettings.setWatch(app, tab == Tab.WATCH)
+        TabletStore.setTablet(app, null)
         prepare(app)
         val vm = MainViewModel(app)
         if (tab == Tab.WATCH) vm.wantStylePreviews()
@@ -152,6 +157,40 @@ class ScreenshotTest {
         TabletReceiver.closePairing()
     }
 
+    /** Подключены часы и планшет — все три устройства рядом в превью, состояние — в шапке. */
+    @Test
+    fun allDevices() = screen("screen_devices", Tab.WIDGETS, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
+        DeviceSettings.setWatch(app, true)
+        TabletStore.setTablet(app, Peer("Galaxy Tab S9 FE", ByteArray(32), host = "192.168.1.20", port = 47231))
+        TabletStore.setPush(app, TabletPush(true, "Тема «Аврора» на планшете", System.currentTimeMillis()))
+    }
+
+    /** «Ещё» → «Устройства» с подключёнными часами и планшетом. */
+    @Test
+    @Config(qualifiers = "w412dp-h2000dp-560dpi")
+    fun devicesList() = screen("screen_devices_list", Tab.MORE, Appearance(AppStyle.EXPRESSIVE, AppMode.LIGHT)) { app ->
+        DeviceSettings.setWatch(app, true)
+        TabletStore.setTablet(app, Peer("Galaxy Tab S9 FE", ByteArray(32), host = "192.168.1.20", port = 47231))
+        TabletStore.setPush(app, TabletPush(false, "Планшет не ответил — тема уйдёт на него, когда он появится в сети", System.currentTimeMillis(), pending = true))
+    }
+
+    /** Телефон боком: меню слева, превью и «Применить» — рядом с настройками. */
+    @Test
+    @Config(qualifiers = "w915dp-h412dp-land-560dpi")
+    fun landscapePhone() = screen("screen_land_phone", Tab.WALLPAPER, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
+        DeviceSettings.setWatch(app, true)
+    }
+
+    /** Планшет в альбомной ориентации. */
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
+    fun landscapeTablet() = screen("screen_land_tablet", Tab.WIDGETS, Appearance(AppStyle.NEON, AppMode.DARK))
+
+    /** Планшет в портрете: колонка по центру. */
+    @Test
+    @Config(qualifiers = "w800dp-h1280dp-xhdpi")
+    fun portraitTablet() = screen("screen_tablet_portrait", Tab.WALLPAPER, Appearance(AppStyle.EXPRESSIVE, AppMode.LIGHT))
+
     @Test
     fun widgetConfigScreen() {
         AppearanceStore.set(ApplicationProvider.getApplicationContext(), Appearance(AppStyle.GLASS, AppMode.DARK))
@@ -203,5 +242,36 @@ class ScreenshotTest {
         vm.edit(host = "192.168.1.50", pairPort = "41234", connectPort = "37515", code = "482913")
         val out = File(System.getProperty("previewsDir")!!, "screen_installer.png")
         captureRoboImage(out.absolutePath) { WatchInstallerScreen(vm, Presets.all[0].accentColor, onClose = {}) }
+    }
+
+    /** Часы нашлись по Bluetooth: модель известна — сразу шаги для неё, без списка. */
+    @Test
+    @Config(qualifiers = "w412dp-h1600dp-560dpi")
+    fun installerDetectedWatch() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
+        MyDevices.setWatch(app, Watch.GALAXY7)
+        val vm = InstallerViewModel(app)
+        // Без поиска в сети: его индикатор крутится бесконечно, и снимок не дождался бы покоя.
+        vm.setManual(true)
+        val out = File(System.getProperty("previewsDir")!!, "screen_installer_detected.png")
+        captureRoboImage(out.absolutePath) { WatchInstallerScreen(vm, Presets.all[0].accentColor, onClose = {}) }
+    }
+
+    /** Установка на часы и настройка виджета — телефон боком. */
+    @Test
+    @Config(qualifiers = "w915dp-h412dp-land-560dpi")
+    fun landscapeDialogs() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
+        val vm = InstallerViewModel(app)
+        val dir = System.getProperty("previewsDir")!!
+        captureRoboImage(File(dir, "screen_installer_land.png").absolutePath) { WatchInstallerScreen(vm, Presets.all[0].accentColor, onClose = {}) }
+        val theme = Presets.all[0]
+        captureRoboImage(File(dir, "screen_widget_config_land.png").absolutePath) {
+            AppTheme(theme.accentColor) {
+                WidgetConfigScreen(WidgetKind.CLOCK, WidgetConfig(style = "glass"), theme, onCancel = {}) {}
+            }
+        }
     }
 }

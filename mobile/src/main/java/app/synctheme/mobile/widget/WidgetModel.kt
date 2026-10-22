@@ -64,16 +64,17 @@ fun defaultDigitFont(style: String): DigitFont = when (style) {
  * сообщает лаунчер. minW × minH (dp) — «идеальный» размер, когда размеры ещё неизвестны;
  * previewW/H — размер превью в настройке.
  */
+/** Размеры превью; [title] — размер в клетках рабочего стола (ширина × высота). */
 enum class WidgetSize(val key: String, val title: String, val minW: Float, val minH: Float, val previewW: Int, val previewH: Int) {
-    S("s", "Квадратик", 40f, 40f, 100, 100),
-    BAR("bar", "Полоска", 100f, 40f, 200, 84),
-    STRIP("strip", "Длинная полоска", 170f, 40f, 320, 84),
-    NARROW("narrow", "Столбик", 40f, 100f, 72, 200),
-    COLUMN("column", "Высокий столбик", 40f, 200f, 72, 330),
-    M("m", "Квадрат", 90f, 90f, 170, 170),
-    TALL("tall", "Высокий", 90f, 170f, 170, 330),
-    WIDE("wide", "Широкий", 170f, 90f, 330, 170),
-    L("l", "Большой", 200f, 200f, 330, 330);
+    S("s", "1×1", 40f, 40f, 100, 100),
+    BAR("bar", "2×1", 100f, 40f, 200, 84),
+    STRIP("strip", "4×1", 170f, 40f, 320, 84),
+    NARROW("narrow", "1×2", 40f, 100f, 72, 200),
+    COLUMN("column", "1×4", 40f, 200f, 72, 330),
+    M("m", "2×2", 90f, 90f, 170, 170),
+    TALL("tall", "2×4", 90f, 170f, 170, 330),
+    WIDE("wide", "4×2", 170f, 90f, 330, 170),
+    L("l", "4×4", 200f, 200f, 330, 330);
 
     val sizeF get() = SizeF(minW, minH)
 
@@ -190,6 +191,8 @@ data class WidgetConfig(
     val shape: FolderShape = FolderShape.GRID,
     /** Своя линия ([FolderShape.CUSTOM]): x0, y0, x1, y1 … в долях экрана — от «откуда» к «куда». */
     val line: List<Float> = emptyList(),
+    /** Своя линия для альбомной ориентации (рабочий стол планшета боком устроен иначе). */
+    val lineLand: List<Float> = emptyList(),
     /** Подложка и контур у папки-сетки. */
     val panel: Boolean = false,
     /** Затемнять и размывать рабочий стол, пока папка открыта. */
@@ -197,6 +200,13 @@ data class WidgetConfig(
     /** Подписи под значками в раскрытой папке. */
     val labels: Boolean = true,
 ) {
+    /** Своя линия для ориентации экрана; если для неё линии нет — раскладка «Дуга». */
+    fun lineFor(landscape: Boolean): List<Float> = if (landscape) lineLand else line
+
+    /** Своя линия, нарисованная в этой ориентации. */
+    fun withLine(line: List<Float>, landscape: Boolean): WidgetConfig =
+        if (landscape) copy(shape = FolderShape.CUSTOM, lineLand = line) else copy(shape = FolderShape.CUSTOM, line = line)
+
     /** Приложения раскрываются из папки, а не лежат на виджете. */
     val isFolder get() = folder != FolderMode.ICONS
 
@@ -245,14 +255,17 @@ object FolderLineStore {
     fun remove(context: Context, line: List<Float>) = save(context, all(context).filter { it != line })
 
     /** Линия, нарисованная поверх рабочего стола для настройки виджета: настройка заберёт её, когда вернётся на экран. */
-    fun setPending(context: Context, line: List<Float>) {
-        prefs(context).edit().putString("pending", json.encodeToString(line)).apply()
+    fun setPending(context: Context, line: List<Float>, landscape: Boolean) {
+        prefs(context).edit().putString("pending", json.encodeToString(line)).putBoolean("pending_land", landscape).apply()
     }
 
-    fun takePending(context: Context): List<Float>? {
-        val raw = prefs(context).getString("pending", null) ?: return null
-        prefs(context).edit().remove("pending").apply()
-        return runCatching { json.decodeFromString<List<Float>>(raw) }.getOrNull()
+    /** Линия и нарисована ли она в альбомной ориентации. */
+    fun takePending(context: Context): Pair<List<Float>, Boolean>? {
+        val p = prefs(context)
+        val raw = p.getString("pending", null) ?: return null
+        val land = p.getBoolean("pending_land", false)
+        p.edit().remove("pending").remove("pending_land").apply()
+        return runCatching { json.decodeFromString<List<Float>>(raw) }.getOrNull()?.let { it to land }
     }
 
     private fun save(context: Context, lines: List<List<Float>>) {

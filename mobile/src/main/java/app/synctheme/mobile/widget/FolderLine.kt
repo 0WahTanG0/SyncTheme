@@ -169,3 +169,151 @@ object FolderLines {
         }.toFloat()
     }
 }
+
+/**
+ * Линия в редакторе — с точками, за которые её можно поправить: плавная кривая через опорные
+ * точки (из рисунка пальцем) или ровная дуга от [Arc.a] до [Arc.b] (без изгиба — прямая).
+ */
+sealed interface EditableLine {
+    /** Точки линии на экране, через небольшие промежутки. */
+    fun points(): List<Offset>
+
+    /** Точки-ручки, за которые линию можно тянуть. */
+    fun handles(): List<Offset>
+
+    fun moveHandle(i: Int, to: Offset): EditableLine
+
+    /** Плавная кривая через опорные точки (сплайн Катмулла — Рома). */
+    data class Curve(val keys: List<Offset>) : EditableLine {
+        override fun points() = LineShapes.catmullRom(keys)
+        override fun handles() = keys
+        override fun moveHandle(i: Int, to: Offset) = Curve(keys.toMutableList().also { it[i] = to })
+
+        /** Ровнее: убирает опорную точку, без которой линия меняется меньше всего (концы остаются). */
+        fun smoother(): Curve {
+            if (keys.size <= 2) return this
+            val drop = (1 until keys.size - 1).minBy { LineShapes.distanceToSegment(keys[it], keys[it - 1], keys[it + 1]) }
+            return Curve(keys.filterIndexed { i, _ -> i != drop })
+        }
+    }
+
+    /** Дуга окружности от [a] до [b]; [bend] — насколько середина отходит от прямой, в долях её длины. */
+    data class Arc(val a: Offset, val b: Offset, val bend: Float) : EditableLine {
+        override fun points() = LineShapes.arc(a, b, bend)
+        override fun handles() = listOf(a, LineShapes.arcMiddle(a, b, bend), b)
+        override fun moveHandle(i: Int, to: Offset): Arc = when (i) {
+            0 -> copy(a = to)
+            2 -> copy(b = to)
+            else -> copy(bend = LineShapes.bendFor(a, b, to))
+        }
+    }
+}
+
+/** Геометрия линий редактора: упрощение рисунка, сплайн, дуга по трём точкам. */
+object LineShapes {
+    /** Не больше стольких опорных точек у кривой из рисунка: ровно, но изгибы на месте. */
+    private const val MAX_KEYS = 8
+
+    /** Рисунок пальцем → плавная кривая: дрожание руки уходит, изгибы остаются. */
+    fun curve(drawn: List<Offset>, dp: Float): EditableLine.Curve {
+        var eps = 8 * dp
+        var keys = simplify(drawn, eps)
+        while (keys.size > MAX_KEYS) {
+            eps *= 1.4f
+            keys = simplify(drawn, eps)
+        }
+        return EditableLine.Curve(keys)
+    }
+
+    /** Упрощение Рамера — Дугласа — Пекера: точки, без которых ломаная отходит не дальше [eps]. */
+    fun simplify(points: List<Offset>, eps: Float): List<Offset> {
+        if (points.size < 3) return points
+        var worst = 0
+        var dist = 0f
+        for (i in 1 until points.size - 1) {
+            val d = distanceToSegment(points[i], points.first(), points.last())
+            if (d > dist) {
+                dist = d
+                worst = i
+            }
+        }
+        if (dist <= eps) return listOf(points.first(), points.last())
+        return simplify(points.subList(0, worst + 1), eps).dropLast(1) + simplify(points.subList(worst, points.size), eps)
+    }
+
+    fun distanceToSegment(p: Offset, a: Offset, b: Offset): Float {
+        val ab = b - a
+        val len2 = ab.x * ab.x + ab.y * ab.y
+        if (len2 == 0f) return (p - a).getDistance()
+        val t = (((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / len2).coerceIn(0f, 1f)
+        return (p - (a + ab * t)).getDistance()
+    }
+
+    /** Центростремительный сплайн Катмулла — Рома через [keys]: без петель и выбросов на крутых поворотах. */
+    fun catmullRom(keys: List<Offset>, perSegment: Int = 16): List<Offset> {
+        if (keys.size < 3) return keys
+        val p = listOf(keys[0] * 2f - keys[1]) + keys + listOf(keys.last() * 2f - keys[keys.size - 2])
+        val out = ArrayList<Offset>()
+        for (i in 1 until p.size - 2) {
+            val (p0, p1, p2, p3) = listOf(p[i - 1], p[i], p[i + 1], p[i + 2])
+            fun knot(t: Float, a: Offset, b: Offset) = t + max(kotlin.math.sqrt((b - a).getDistance()), 1e-3f)
+            val t0 = 0f
+            val t1 = knot(t0, p0, p1)
+            val t2 = knot(t1, p1, p2)
+            val t3 = knot(t2, p2, p3)
+            for (k in 0 until perSegment) {
+                val t = t1 + (t2 - t1) * k / perSegment
+                val a1 = p0 * ((t1 - t) / (t1 - t0)) + p1 * ((t - t0) / (t1 - t0))
+                val a2 = p1 * ((t2 - t) / (t2 - t1)) + p2 * ((t - t1) / (t2 - t1))
+                val a3 = p2 * ((t3 - t) / (t3 - t2)) + p3 * ((t - t2) / (t3 - t2))
+                val b1 = a1 * ((t2 - t) / (t2 - t0)) + a2 * ((t - t0) / (t2 - t0))
+                val b2 = a2 * ((t3 - t) / (t3 - t1)) + a3 * ((t - t1) / (t3 - t1))
+                out += b1 * ((t2 - t) / (t2 - t1)) + b2 * ((t - t1) / (t2 - t1))
+            }
+        }
+        out += keys.last()
+        return out
+    }
+
+    /** Нормаль к отрезку a→b (единичная) и его длина. */
+    private fun normal(a: Offset, b: Offset): Pair<Offset, Float> {
+        val c = b - a
+        val len = c.getDistance()
+        return (if (len > 0f) Offset(-c.y / len, c.x / len) else Offset.Zero) to len
+    }
+
+    fun arcMiddle(a: Offset, b: Offset, bend: Float): Offset {
+        val (n, len) = normal(a, b)
+        return (a + b) / 2f + n * (bend * len)
+    }
+
+    /** Изгиб, при котором середина дуги — в точке [to] (насколько она отходит от прямой). */
+    fun bendFor(a: Offset, b: Offset, to: Offset): Float {
+        val (n, len) = normal(a, b)
+        if (len <= 0f) return 0f
+        val d = to - (a + b) / 2f
+        return ((d.x * n.x + d.y * n.y) / len).coerceIn(-0.9f, 0.9f)
+    }
+
+    /** Дуга окружности через a, середину с изгибом [bend] и b; почти без изгиба — прямая. */
+    fun arc(a: Offset, b: Offset, bend: Float, n: Int = 48): List<Offset> {
+        val (nrm, len) = normal(a, b)
+        if (len <= 0f || kotlin.math.abs(bend) < 0.01f) return List(n) { a + (b - a) * (it / (n - 1f)) }
+        val s = bend * len
+        val half = len / 2
+        val d = (s * s - half * half) / (2 * s)
+        val c = (a + b) / 2f + nrm * d
+        val r = kotlin.math.abs(s - d)
+        val m = (a + b) / 2f + nrm * s
+        fun angle(p: Offset) = kotlin.math.atan2(p.y - c.y, p.x - c.x)
+        val two = (2 * PI).toFloat()
+        fun wrap(x: Float) = ((x % two) + two) % two
+        val ta = angle(a)
+        val ccw = wrap(angle(b) - ta)
+        val sweep = if (wrap(angle(m) - ta) < ccw) ccw else ccw - two
+        return List(n) { k ->
+            val t = ta + sweep * k / (n - 1f)
+            c + Offset(r * cos(t), r * sin(t))
+        }
+    }
+}

@@ -15,6 +15,7 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
 import java.net.Inet4Address
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
@@ -40,7 +41,7 @@ data class ReceiverState(
  */
 object TabletReceiver {
     private const val TAG = "TabletReceiver"
-    private const val PAIRING_MS = 10 * 60_000L
+    const val PAIRING_MS = 10 * 60_000L
 
     private val _state = MutableStateFlow(ReceiverState())
     val state: StateFlow<ReceiverState> = _state.asStateFlow()
@@ -56,7 +57,7 @@ object TabletReceiver {
     fun start(context: Context) {
         if (server != null) return
         val app = context.applicationContext
-        val socket = ServerSocket(0)
+        val socket = bind()
         server = socket
         _state.value = _state.value.copy(running = true, address = address(socket.localPort), phone = TabletStore.phone(app)?.name)
         thread(name = "synctheme-tablet", isDaemon = true) {
@@ -76,6 +77,11 @@ object TabletReceiver {
         server = null
         _state.value = _state.value.copy(running = false, code = null)
     }
+
+    /** Первый свободный из постоянных портов; если все заняты — любой. */
+    private fun bind(): ServerSocket = TabletProtocol.PORTS.firstNotNullOfOrNull { port ->
+        runCatching { ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(port)) } }.getOrNull()
+    } ?: ServerSocket(0)
 
     /** Окно «Связать с телефоном»: новый код на 10 минут. */
     fun openPairing(): String {
@@ -133,7 +139,7 @@ object TabletReceiver {
     private fun pair(context: Context, payload: ByteArray, out: DataOutputStream) {
         val code = _state.value.code
         if (code == null || System.currentTimeMillis() > pairingUntil) {
-            throw IOException("На планшете откройте «Связать с телефоном» и введите код оттуда")
+            throw IOException("Код устарел — введите код, который сейчас на экране планшета («Настройки» → «Устройства»)")
         }
         val input = DataInputStream(ByteArrayInputStream(payload))
         val salt = ByteArray(16).also(input::readFully)
@@ -174,12 +180,19 @@ object TabletReceiver {
         repo.setDraft(theme)
         val targets = ApplyTargets.load(context).copy(watch = false, tablet = false)
         val report = runBlocking { ThemeApplier(context).apply(theme, targets) }
+        // Ничего не получилось — телефон должен узнать об этом как об ошибке, а не «готово».
+        if (report.done.isEmpty() && report.errors.isNotEmpty()) {
+            val text = "Планшет не смог поставить тему: ${report.errors.joinToString("; ")}"
+            _state.value = _state.value.copy(last = text)
+            throw IOException(text)
+        }
         val message = buildString {
             append("Тема «${theme.name}» с телефона")
             if (report.done.isNotEmpty()) append(": ${report.done.joinToString()}")
             if (report.errors.isNotEmpty()) append(". Ошибки — ${report.errors.joinToString("; ")}")
         }
         _state.value = _state.value.copy(last = message)
+        TabletSyncService.showLast(context, message)
         return message
     }
 

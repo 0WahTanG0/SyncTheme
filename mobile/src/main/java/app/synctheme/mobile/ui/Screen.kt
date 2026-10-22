@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,7 +24,20 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -61,11 +75,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.synctheme.mobile.data.ApplyTargets
+import app.synctheme.mobile.data.DeviceSet
+import app.synctheme.mobile.tablet.TabletPush
 import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.widget.WidgetConfigActivity
 
 /** Разделы нижнего меню. */
-enum class Tab(val title: String) { WALLPAPER("Обои"), WIDGETS("Виджеты"), WATCH("Часы"), MORE("Ещё") }
+enum class Tab(val title: String) { WALLPAPER("Обои"), WIDGETS("Виджеты"), WATCH("Часы"), MORE("Настройки") }
 
 /** Показывать ли часы в превью и миниатюрах (часы подключены). */
 val LocalShowWatch = androidx.compose.runtime.staticCompositionLocalOf { true }
@@ -104,6 +120,8 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     val targets by vm.targets.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val devices by vm.devices.collectAsStateWithLifecycle()
+    val tabletPreview by vm.tabletPreview.collectAsStateWithLifecycle()
+    val tabletPush by vm.tabletPush.collectAsStateWithLifecycle()
     // Без часов вкладка «Часы» не нужна.
     val tabs = Tab.entries.filter { it != Tab.WATCH || devices.watch }
     val context = LocalContext.current
@@ -153,46 +171,68 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     val header = remember(density) { CollapsingHeader(with(density) { 224.dp.toPx() }, with(density) { 96.dp.toPx() }) }
     LaunchedEffect(tab) { header.expand() }
 
+    // Превью устройств: что сейчас видно на экранах (на вкладке «Часы» — только часы).
+    val previews: @Composable (Dp) -> Unit = { height ->
+        when (tab) {
+            Tab.WATCH -> PreviewRow(null, watchPreview, null, height)
+            Tab.WALLPAPER -> PreviewRow(
+                if (lock) lockPreview else phonePreview, watchPreview.takeIf { devices.watch },
+                tabletPreview.takeIf { devices.tablet && !lock }, height, vm.selfTablet,
+            )
+            else -> PreviewRow(phonePreview, watchPreview.takeIf { devices.watch }, tabletPreview.takeIf { devices.tablet }, height, vm.selfTablet)
+        }
+    }
+    val settings: LazyListScope.() -> Unit = {
+        when (tab) {
+            Tab.WALLPAPER -> wallpaperTab(theme, actions, lock, { lock = it }) { colorTarget = it }
+            Tab.WIDGETS -> widgetsTab(theme, actions)
+            Tab.WATCH -> watchTab(theme, actions) { colorTarget = it }
+            Tab.MORE -> moreTab(theme, actions) { UpdateSection(vm) }
+        }
+    }
+    val applyStrip: @Composable () -> Unit = { ApplyStrip(targets, busy, theme != applied, devices, vm::setTargets, vm::apply) }
+    val headerRow: @Composable () -> Unit = { Header(connection, devices, tabletPush, onOpenInstaller) { tab = Tab.MORE } }
+
     AppTheme(theme.accentColor) {
         AppBackdrop {
-            Scaffold(
-                containerColor = Color.Transparent,
-                snackbarHost = { SnackbarHost(snackbar) },
-                bottomBar = {
-                    Column {
-                        if (tab != Tab.MORE) ApplyStrip(targets, busy, theme != applied, devices, vm::setTargets, vm::apply)
-                        BottomNav(tab, tabs) { tab = it }
-                    }
-                },
-            ) { padding ->
-                Column(
-                    Modifier.fillMaxSize().nestedScroll(header)
-                        .padding(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
-                ) {
-                    // Шапка и превью закреплены; превью сжимается при прокрутке, но изменения видны сразу.
-                    Column(Modifier.padding(horizontal = 16.dp)) {
-                        Header(connection, devices.watch, onOpenInstaller)
-                        if (tab != Tab.MORE) {
-                            val height = with(density) { header.height.toDp() }
-                            when (tab) {
-                                Tab.WATCH -> PreviewRow(null, watchPreview, height)
-                                Tab.WALLPAPER -> PreviewRow(if (lock) lockPreview else phonePreview, watchPreview, height, showWatch = devices.watch)
-                                else -> PreviewRow(phonePreview, watchPreview, height, showWatch = devices.watch)
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                // Альбомная ориентация (и широкий планшет): меню слева, превью и «Применить» — рядом с настройками.
+                val wide = maxWidth > maxHeight && maxWidth >= 600.dp
+                CompositionLocalProvider(LocalShowWatch provides devices.watch) {
+                    if (wide) {
+                        WideLayout(tab, tabs, { tab = it }, headerRow, previews, if (tab != Tab.MORE) applyStrip else null, settings)
+                    } else {
+                        Scaffold(
+                            containerColor = Color.Transparent,
+                            snackbarHost = { SnackbarHost(snackbar) },
+                            bottomBar = {
+                                Column {
+                                    if (tab != Tab.MORE) applyStrip()
+                                    BottomNav(tab, tabs) { tab = it }
+                                }
+                            },
+                        ) { padding ->
+                            // На планшете в портрете — колонка по центру, а не растянутые на всю ширину карточки.
+                            Column(
+                                Modifier.fillMaxSize().nestedScroll(header)
+                                    .padding(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())
+                                    .wrapContentWidth().widthIn(max = 720.dp),
+                            ) {
+                                // Шапка и превью закреплены; превью сжимается при прокрутке, но изменения видны сразу.
+                                Column(Modifier.padding(horizontal = 16.dp)) {
+                                    headerRow()
+                                    if (tab != Tab.MORE) previews(with(density) { header.height.toDp() })
+                                }
+                                LazyColumn(
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+                                    content = settings,
+                                )
                             }
                         }
                     }
-                    CompositionLocalProvider(LocalShowWatch provides devices.watch) { LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
-                    ) {
-                        when (tab) {
-                            Tab.WALLPAPER -> wallpaperTab(theme, actions, lock, { lock = it }) { colorTarget = it }
-                            Tab.WIDGETS -> widgetsTab(theme, actions)
-                            Tab.WATCH -> watchTab(theme, actions) { colorTarget = it }
-                            Tab.MORE -> moreTab(theme, actions) { UpdateSection(vm) }
-                        }
-                    } }
                 }
+                if (wide) SnackbarHost(snackbar, Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(8.dp).widthIn(max = 520.dp))
             }
         }
 
@@ -262,27 +302,52 @@ class ScreenActions(
     }
 }
 
+/** Шапка: название и состояние подключённых устройств (часы и планшет — если есть). */
 @Composable
-private fun Header(connection: WatchConnection, watch: Boolean, onOpenInstaller: () -> Unit) {
+private fun Header(
+    connection: WatchConnection,
+    devices: DeviceSet,
+    push: TabletPush?,
+    onOpenInstaller: () -> Unit,
+    onDevices: () -> Unit,
+) {
     val look = LocalLook.current
     Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         AppMark(look, 36.dp)
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) { AppTitle(look) }
-        // Статус часов — только если часы подключены в «Устройствах».
-        if (!watch) return@Row
-        val (dot, text) = when {
-            !connection.checked -> Color.Gray to "Ищу часы…"
-            connection.hasApp -> Color(0xFF39D86A) to "Часы на связи"
-            connection.hasWatch -> Color(0xFFFFCC00) to "Установить на часы"
-            else -> Color(0xFFFF3B30) to "Часы не найдены"
+        // Оба устройства — короткие подписи, чтобы поместились рядом.
+        val short = devices.watch && devices.tablet
+        if (devices.watch) {
+            val (dot, text) = when {
+                !connection.checked -> Color.Gray to "Ищу часы…"
+                connection.hasApp -> StatusOk to "Часы на связи"
+                connection.hasWatch -> StatusWait to "Установить на часы"
+                else -> StatusBad to "Часы не найдены"
+            }
+            StatusChip(dot, if (short) "Часы" else text) {
+                if (connection.hasWatch && !connection.hasApp) onOpenInstaller() else onDevices()
+            }
         }
-        StatusChip(dot, text) { if (connection.hasWatch && !connection.hasApp) onOpenInstaller() }
+        if (devices.tablet) {
+            if (short) Spacer(Modifier.width(6.dp))
+            val text = when {
+                push == null -> "Планшет"
+                push.ok -> if (short) "Планшет" else "Планшет ✓"
+                push.pending -> if (short) "Планшет" else "Планшет ждёт"
+                else -> if (short) "Планшет" else "Планшет: ошибка"
+            }
+            StatusChip(pushDot(push), text, onDevices)
+        }
     }
 }
 
+/**
+ * Превью подключённых устройств рядом: телефон, планшет (если подключён) и часы (если подключены).
+ * Без телефона (вкладка «Часы») часы крупнее.
+ */
 @Composable
-private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, height: Dp, showPhone: Boolean = true, showWatch: Boolean = true) {
+private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBitmap?, height: Dp, selfTablet: Boolean = false) {
     val look = LocalLook.current
     val outer = when (look.style) {
         AppStyle.GLASS -> RoundedCornerShape(28.dp)
@@ -294,16 +359,39 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, height: Dp, sho
         AppStyle.EXPRESSIVE -> Color.Transparent
         AppStyle.NEON -> look.accent.copy(alpha = 0.4f)
     }
-    // Без телефона (вкладка «Часы») часы крупнее.
-    val watchOnly = phone == null || !showPhone
-    val inner = height - 20.dp
-    Box(
+    val watchOnly = phone == null
+    val screenBorder = when (look.style) {
+        AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White
+        AppStyle.EXPRESSIVE -> Color.Transparent
+        AppStyle.NEON -> look.accent
+    }
+    BoxWithConstraints(
         Modifier.fillMaxWidth().padding(vertical = 6.dp).height(height)
             .glow(look, outer, 10.dp, 0.5f)
             .clip(outer).background(look.card).border(1.dp, frameBorder, outer),
     ) {
         if (look.style == AppStyle.EXPRESSIVE) {
             Box(Modifier.align(Alignment.TopEnd).offset(x = 40.dp, y = (-50).dp).size(190.dp).clip(FlowerShape).background(look.highlight))
+        }
+        val inner = height - 20.dp
+        // Ширина телефона задана высотой; планшет и часы уменьшаются, если все не помещаются в строку.
+        // Своё устройство: телефон в портрете или (приложение на планшете) планшет в альбомной ориентации.
+        val selfAspect = if (selfTablet) 1.6f else 540f / 1170f
+        val selfH = if (selfTablet) inner * 0.8f else inner
+        val phoneW = if (watchOnly) 0.dp else selfH * selfAspect
+        var tabletH = if (tablet != null) inner * (if (watch != null) 0.56f else 0.66f) else 0.dp
+        var watchD = when {
+            watch == null -> 0.dp
+            watchOnly -> inner
+            else -> minOf(inner * (if (tablet != null) 0.5f else 0.68f), 140.dp)
+        }
+        val count = listOf(!watchOnly, tablet != null, watch != null).count { it }
+        val room = maxWidth - 16.dp * (count + 1)
+        val need = phoneW + tabletH * 1.6f + watchD
+        if (need > room && tabletH + watchD > 0.dp) {
+            val k = ((room - phoneW) / (tabletH * 1.6f + watchD)).coerceIn(0.3f, 1f)
+            tabletH *= k
+            watchD *= k
         }
         Row(
             modifier = Modifier.fillMaxSize().padding(vertical = 10.dp),
@@ -312,36 +400,44 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, height: Dp, sho
         ) {
             if (!watchOnly) {
                 val phoneShape = RoundedCornerShape(if (look.style == AppStyle.EXPRESSIVE) 24.dp else 20.dp)
-                val phoneBorder = when (look.style) {
-                    AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White
-                    AppStyle.EXPRESSIVE -> Color.Transparent
-                    AppStyle.NEON -> look.accent
-                }
                 Box(
                     Modifier
-                        .height(inner)
-                        .aspectRatio(540f / 1170f)
+                        .height(selfH)
+                        .aspectRatio(selfAspect)
                         .glow(look, phoneShape, 12.dp, 0.7f)
                         .clip(phoneShape)
                         .background(Color.Black)
-                        .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, phoneBorder, phoneShape),
+                        .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, screenBorder, phoneShape),
                 ) {
                     phone?.let {
-                        Image(it, contentDescription = "Превью телефона", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        Image(it, contentDescription = if (selfTablet) "Превью планшета" else "Превью телефона", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     }
                 }
             }
-            if (!showWatch) return@Row
+            if (tablet != null) {
+                val tabletShape = RoundedCornerShape(if (look.style == AppStyle.EXPRESSIVE) 18.dp else 14.dp)
+                Box(
+                    Modifier
+                        .height(tabletH)
+                        .aspectRatio(1.6f)
+                        .glow(look, tabletShape, 12.dp, 0.7f)
+                        .clip(tabletShape)
+                        .background(Color.Black)
+                        .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, screenBorder, tabletShape),
+                ) {
+                    Image(tablet, contentDescription = "Превью планшета", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                }
+            }
+            if (watch == null && !watchOnly) return@Row
             // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
             val bezel = when (look.style) {
                 AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.16f) else Color.White
                 AppStyle.EXPRESSIVE -> look.text
                 AppStyle.NEON -> Color(0xFF0C0C12)
             }
-            val watchSize = if (watchOnly) inner else minOf(inner * 0.68f, 140.dp)
             Box(
                 Modifier
-                    .size(watchSize)
+                    .size(watchD)
                     .glow(look, CircleShape, 12.dp, 0.8f)
                     .clip(CircleShape)
                     .background(bezel)
@@ -355,6 +451,47 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, height: Dp, sho
                 }
             }
         }
+    }
+}
+
+/**
+ * Широкий экран (телефон боком, планшет): слева — меню, в середине — шапка, превью и «Применить»
+ * (превью во всю высоту), справа — настройки вкладки.
+ */
+@Composable
+private fun WideLayout(
+    tab: Tab,
+    tabs: List<Tab>,
+    onTab: (Tab) -> Unit,
+    header: @Composable () -> Unit,
+    previews: @Composable (Dp) -> Unit,
+    applyStrip: (@Composable () -> Unit)?,
+    settings: LazyListScope.() -> Unit,
+) {
+    val look = LocalLook.current
+    Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))) {
+        SideNav(tab, tabs, onTab)
+        Column(
+            Modifier.weight(0.45f).fillMaxHeight().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp),
+        ) {
+            header()
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                previews(maxHeight.coerceAtMost(520.dp) - 12.dp)
+            }
+            applyStrip?.let {
+                val shape = RoundedCornerShape(look.radius)
+                Box(Modifier.padding(bottom = 8.dp).clip(shape)) { it() }
+            }
+        }
+        LazyColumn(
+            modifier = Modifier.weight(0.55f).fillMaxHeight(),
+            contentPadding = PaddingValues(
+                start = 0.dp, end = 16.dp,
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp,
+            ),
+            content = settings,
+        )
     }
 }
 

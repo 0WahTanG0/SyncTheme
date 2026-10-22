@@ -13,8 +13,16 @@ import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.tablet.TabletClient
 import app.synctheme.mobile.tablet.TabletReceiver
+import app.synctheme.mobile.tablet.TabletProtocol
 import app.synctheme.mobile.tablet.TabletStore
+import app.synctheme.mobile.tablet.TabletUnreachable
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
+import android.os.Looper
+import app.synctheme.mobile.ui.MainViewModel
 import java.io.IOException
+import org.robolectric.Shadows.shadowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -47,7 +55,7 @@ class TabletSyncTest {
         assertTrue(port > 0)
 
         // Без открытого окна связывания и с неверным кодом связаться нельзя.
-        expectError("Связать с телефоном") { TabletClient.pair(app, "127.0.0.1", port, "123456") }
+        expectError("Код устарел") { TabletClient.pair(app, "127.0.0.1", port, "123456") }
         val code = TabletReceiver.openPairing()
         val wrong = if (code == "111111") "222222" else "111111"
         expectError("Неверный код") { TabletClient.pair(app, "127.0.0.1", port, wrong) }
@@ -74,6 +82,62 @@ class TabletSyncTest {
         // Планшет связали с другим телефоном — старый секрет не подходит.
         TabletStore.setPhone(app, TabletStore.phone(app)!!.copy(secret = ByteArray(32)))
         expectError("другим телефоном") { TabletClient.push(app, theme) }
+    }
+
+    /**
+     * Приём на планшете перезапустился (перезагрузка, система закрыла службу) — порт тот же, и телефон
+     * находит планшет по последнему адресу даже без поиска в сети. Планшет выключен — отправка
+     * откладывается и повторится сама.
+     */
+    @Test
+    fun survivesRestartAndRetriesWhenAway() = runBlocking {
+        WorkManagerTestInitHelper.initializeTestWorkManager(app)
+        TabletReceiver.closePairing()
+        TabletReceiver.start(app)
+        val port = TabletReceiver.port
+        assertTrue("постоянный порт", port in TabletProtocol.PORTS)
+        TabletClient.pair(app, "127.0.0.1", port, TabletReceiver.openPairing())
+        val theme = Presets.all[3].copy(name = "После перезапуска")
+
+        TabletReceiver.stop(app)
+        TabletReceiver.start(app)
+        assertEquals(port, TabletReceiver.port)
+        assertTrue(TabletClient.push(app, theme).contains("После перезапуска"))
+        assertEquals(true, TabletStore.push(app).value?.ok)
+
+        TabletReceiver.stop(app)
+        try {
+            TabletClient.push(app, theme)
+            fail("планшет выключен — ожидалась ошибка")
+        } catch (e: TabletUnreachable) {
+            assertTrue(e.message.orEmpty().contains("появится в сети"))
+        }
+        val status = TabletStore.push(app).value!!
+        assertFalse(status.ok)
+        assertTrue("повтор запланирован", status.pending)
+        val work = WorkManager.getInstance(app).getWorkInfosForUniqueWork("tablet_retry").get()
+        assertEquals(WorkInfo.State.ENQUEUED, work.single().state)
+    }
+
+    /** «Применить» на телефоне: тема уходит на связанный планшет, и он её ставит; состояние видно на телефоне. */
+    @Test
+    fun applyOnPhoneReachesTablet() {
+        TabletReceiver.closePairing()
+        TabletReceiver.start(app)
+        runBlocking { TabletClient.pair(app, "127.0.0.1", TabletReceiver.port, TabletReceiver.openPairing()) }
+        DeviceSettings.setWatch(app, false)
+        val vm = MainViewModel(app)
+        assertTrue("планшет среди устройств", vm.devices.value.tablet)
+        val theme = Presets.all[4]
+        vm.select(theme)
+        vm.apply()
+        val deadline = System.currentTimeMillis() + 90_000
+        while (TabletStore.push(app).value?.ok != true && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(100)
+        }
+        assertEquals("Тема «${theme.name}» на планшете", TabletStore.push(app).value?.text)
+        assertTrue(TabletReceiver.state.value.last.orEmpty().contains(theme.name))
     }
 
     /** По умолчанию — только телефон: часы и планшет выключены, «Применить» их не трогает. */

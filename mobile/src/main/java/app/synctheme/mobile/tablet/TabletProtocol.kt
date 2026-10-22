@@ -22,6 +22,12 @@ import javax.crypto.spec.SecretKeySpec
  */
 internal object TabletProtocol {
     const val SERVICE = "_synctheme._tcp"
+
+    /**
+     * Постоянные порты планшета: после перезапуска приёма он слушает тот же порт, и телефон
+     * находит его по последнему адресу, даже если поиск в сети (mDNS) роутер не пропускает.
+     */
+    val PORTS = 47231..47240
     private val MAGIC = "STHM".toByteArray()
     private const val VERSION = 1
 

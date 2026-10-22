@@ -500,8 +500,10 @@ fun FolderLineOverlay(
     ) {
         val screen = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         val from = origin?.let { Offset(it.exactCenterX(), it.exactCenterY()) } ?: Offset(screen.width / 2, screen.height * 0.82f)
-        val geo = remember(config.shape, config.line, apps.size, from, screen, config.labels) {
-            FolderLines.layout(config.shape, config.line, apps.size, from, screen, density.density, config.labels)
+        // Своя линия — та, что нарисована в этой ориентации экрана.
+        val line = config.lineFor(screen.width > screen.height)
+        val geo = remember(config.shape, line, apps.size, from, screen, config.labels) {
+            FolderLines.layout(config.shape, line, apps.size, from, screen, density.density, config.labels)
         }
         val px = { v: Float -> v * density.density }
         val cellW = px(CELL_W.toFloat())

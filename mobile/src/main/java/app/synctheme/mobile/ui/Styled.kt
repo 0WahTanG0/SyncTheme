@@ -335,7 +335,7 @@ fun AccentButton(
     }
 }
 
-/** Выбор оформления приложения на вкладке «Ещё». */
+/** Выбор оформления приложения на вкладке «Настройки». */
 @Composable
 fun AppearanceSection(accentColor: Int) {
     val context = LocalContext.current

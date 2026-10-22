@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -108,7 +110,7 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
 
     AppTheme(edited.accentColor) {
         AppBackdrop {
-            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(16.dp)) {
+            val header: @Composable () -> Unit = {
                 Text("Расположение · ${target.title}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = look.text)
                 Text(
                     when (mode) {
@@ -117,7 +119,9 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
                     },
                     style = MaterialTheme.typography.bodySmall, color = look.muted, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
                 )
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            }
+            val canvas: @Composable (Modifier) -> Unit = { modifier ->
+                BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
                     val aspect = frameW.toFloat() / frameH
                     val shape = if (target == ArrangeTarget.WATCH) CircleShape else RoundedCornerShape(22.dp)
                     Box(
@@ -140,6 +144,8 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
                         preview?.let { Image(it, contentDescription = "Расположение", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
                     }
                 }
+            }
+            val controls: @Composable () -> Unit = {
                 Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (canMoveClock) {
                         FilterChip(mode == ArrangeMode.CLOCK, { mode = ArrangeMode.CLOCK }, label = { Text(if (target == ArrangeTarget.HOME) "Часы" else "Время") })
@@ -149,7 +155,7 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     when (mode) {
                         ArrangeMode.CLOCK -> {
-                            TextButton(onClick = { edited = autoClock(edited, target) }) { Text("Само") }
+                            TextButton(onClick = { edited = autoClock(edited, target) }) { Text("Автоматически") }
                             val place = edited.wallClock?.place
                             if (target == ArrangeTarget.HOME && place != null) {
                                 TextButton(onClick = {
@@ -163,6 +169,8 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
                         ArrangeMode.PHOTO -> TextButton(onClick = { edited = setCrop(edited, target, PhotoCrop()) }) { Text("По центру") }
                     }
                 }
+            }
+            val buttons: @Composable () -> Unit = {
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onClose, modifier = Modifier.weight(1f)) { Text("Отмена") }
                     Button(onClick = {
@@ -170,6 +178,27 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
                         vm.update { result }
                         onClose()
                     }, modifier = Modifier.weight(1f)) { Text("Готово") }
+                }
+            }
+            BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(16.dp)) {
+                if (maxWidth > maxHeight && maxWidth >= 600.dp) {
+                    // Телефон боком: холст во всю высоту слева, всё остальное — справа.
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        canvas(Modifier.weight(0.5f).fillMaxHeight())
+                        Column(Modifier.weight(0.5f).fillMaxHeight()) {
+                            header()
+                            controls()
+                            Spacer(Modifier.weight(1f))
+                            buttons()
+                        }
+                    }
+                } else {
+                    Column(Modifier.fillMaxSize()) {
+                        header()
+                        canvas(Modifier.weight(1f).fillMaxWidth())
+                        controls()
+                        buttons()
+                    }
                 }
             }
         }

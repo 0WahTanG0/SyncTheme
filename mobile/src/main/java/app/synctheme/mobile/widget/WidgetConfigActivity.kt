@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -192,163 +195,190 @@ fun WidgetConfigScreen(
 
     // Линия, нарисованная поверх рабочего стола, приходит, когда настройка снова на экране.
     LifecycleResumeEffect(Unit) {
-        FolderLineStore.takePending(context)?.let { config = config.copy(shape = FolderShape.CUSTOM, line = it) }
+        FolderLineStore.takePending(context)?.let { (line, land) -> config = config.withLine(line, land) }
         onPauseOrDispose { }
     }
 
-    AppBackdrop {
-        Column(Modifier.statusBarsPadding().navigationBarsPadding()) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
-                IconButton(onClick = onCancel) { Icon(Icons.Default.Close, "Закрыть") }
-                Text("Виджет «${kind.title}»", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            }
-            Box(
-                Modifier.fillMaxWidth().height(350.dp).padding(horizontal = 16.dp).clip(RoundedCornerShape(look.radius)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(wallpaper, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                WidgetPreview(
-                    kind, config, theme, weather, size,
-                    Modifier.onGloballyPositioned { c ->
-                        val at = IntArray(2).also(view::getLocationOnScreen)
-                        val b = c.boundsInWindow()
-                        previewBounds = android.graphics.Rect(
-                            at[0] + b.left.toInt(), at[1] + b.top.toInt(), at[0] + b.right.toInt(), at[1] + b.bottom.toInt(),
-                        )
-                    },
+    val titleRow: @Composable () -> Unit = {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
+        IconButton(onClick = onCancel) { Icon(Icons.Default.Close, "Закрыть") }
+        Text("Виджет «${kind.title}»", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+    }
+    }
+    val preview: @Composable (Modifier) -> Unit = { modifier ->
+    Box(
+        modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(look.radius)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(wallpaper, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        WidgetPreview(
+            kind, config, theme, weather, size,
+            Modifier.onGloballyPositioned { c ->
+                val at = IntArray(2).also(view::getLocationOnScreen)
+                val b = c.boundsInWindow()
+                previewBounds = android.graphics.Rect(
+                    at[0] + b.left.toInt(), at[1] + b.top.toInt(), at[0] + b.right.toInt(), at[1] + b.bottom.toInt(),
                 )
-                if (kind == WidgetKind.APPS && config.folder == FolderMode.HIDDEN) {
-                    // Невидимый виджет: в превью — только пунктир, где он стоит.
-                    Box(Modifier.size(size.previewW.dp, size.previewH.dp).dashedBorder(Color.White.copy(alpha = 0.7f), 18.dp))
+            },
+        )
+        if (kind == WidgetKind.APPS && config.folder == FolderMode.HIDDEN) {
+            // Невидимый виджет: в превью — только пунктир, где он стоит.
+            Box(Modifier.size(size.previewW.dp, size.previewH.dp).dashedBorder(Color.White.copy(alpha = 0.7f), 18.dp))
+        }
+    }
+    }
+    val sizes: @Composable () -> Unit = {
+    ChipRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
+        WidgetSize.entries.forEach { s ->
+            FilterChip(size == s, { size = s }, label = { Text(s.title) })
+        }
+    }
+    Text(
+        "Так виджет выглядит при разных размерах: растяните его на рабочем столе — информации станет больше.",
+        style = MaterialTheme.typography.bodySmall, color = look.muted,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+    )
+    }
+    val settings: LazyListScope.() -> Unit = {
+    item {
+        Section("Стиль") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                kind.styles.forEach { s ->
+                    FilterChip(style == s.id, { config = config.copy(style = s.id) }, label = { Text(s.title) })
                 }
             }
-            ChipRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
-                WidgetSize.entries.forEach { s ->
-                    FilterChip(size == s, { size = s }, label = { Text(s.title) })
+            if (alignable) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WidgetAlign.entries.forEach { a ->
+                        FilterChip(config.align == a, { config = config.copy(align = a) }, label = { Text(a.title) })
+                    }
                 }
             }
-            Text(
-                "Так виджет выглядит при разных размерах: растяните его на рабочем столе — информации станет больше.",
-                style = MaterialTheme.typography.bodySmall, color = look.muted,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-            )
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            ) {
-                item {
-                    Section("Стиль") {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            kind.styles.forEach { s ->
-                                FilterChip(style == s.id, { config = config.copy(style = s.id) }, label = { Text(s.title) })
-                            }
-                        }
-                        if (alignable) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                WidgetAlign.entries.forEach { a ->
-                                    FilterChip(config.align == a, { config = config.copy(align = a) }, label = { Text(a.title) })
-                                }
-                            }
-                        }
-                        if (analog) {
-                            SwitchRow("Секундная стрелка", config.showSeconds) { config = config.copy(showSeconds = it) }
-                        }
-                    }
-                }
-                if (digital) {
-                    item {
-                        Section("Шрифт цифр") {
-                            DigitFontPicker(
-                                selected = config.font?.let { f -> DigitFont.entries.firstOrNull { it.name == f } },
-                                styleDefault = defaultDigitFont(style),
-                            ) { font -> config = config.copy(font = font?.name) }
-                        }
-                    }
-                }
-                if (kind == WidgetKind.APPS) {
-                    item {
-                        FolderSection(config, onChange = { config = it }, onDraw = { FolderDrawActivity.startFromSettings(context, config) }) {
-                            context.startActivity(FolderActivity.preview(context, config, previewBounds))
-                        }
-                    }
-                    item { AppsSection(config, onChange = { config = it }, onAdd = { picker = "apps" }) }
-                }
-                if (!(kind == WidgetKind.APPS && config.folder == FolderMode.HIDDEN)) item {
-                    Section(if (kind == WidgetKind.APPS && config.folder == FolderMode.ICON) "Подложка значка" else "Подложка") {
-                        LabeledSlider("Непрозрачность", config.opacity, 0f..1f, "${(config.opacity * 100).toInt()}%") {
-                            config = config.copy(opacity = it)
-                        }
-                    }
-                }
-                item {
-                    Section("Цвета") {
-                        val ownColors = config.textColor != null || config.accentColor != null
-                        SwitchRow("Цвета темы", !ownColors) { useTheme ->
-                            config = if (useTheme) config.copy(textColor = null, accentColor = null)
-                            else config.copy(textColor = theme.textColor, accentColor = theme.accentColor)
-                        }
-                        if (ownColors) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    ColorSwatch(config.textColor ?: theme.textColor, size = 44.dp) { colorEdit = "text" }
-                                    Text("Текст", style = MaterialTheme.typography.labelMedium)
-                                }
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    ColorSwatch(config.accentColor ?: theme.accentColor, size = 44.dp) { colorEdit = "accent" }
-                                    Text("Акцент", style = MaterialTheme.typography.labelMedium)
-                                }
-                            }
-                        }
-                        if (kind == WidgetKind.CLOCK) {
-                            val neon = style == "neon" || style == "analog_neon"
-                            SwitchRow("Небо по времени суток", config.sky, enabled = !neon) { config = config.copy(sky = it) }
-                            Text(
-                                if (neon) "У «Неона» своё свечение — небо в других стилях."
-                                else "Вместо подложки — небо: рассвет, день, закат, вечер и ночь сменяются сами.",
-                                style = MaterialTheme.typography.bodySmall, color = look.muted,
-                            )
-                        }
-                        if (kind == WidgetKind.WEATHER) {
-                            SwitchRow("Цветные иконки погоды", config.colorIcons) { config = config.copy(colorIcons = it) }
-                            SwitchRow("Фон по погоде", config.scene, enabled = style != "neon") { config = config.copy(scene = it) }
-                            Text(
-                                if (style == "neon") "У «Неона» своё свечение — фон по погоде в других стилях."
-                                else "Небо под текущую погоду: ясно, облачно, дождь, снег, гроза, туман — днём и ночью.",
-                                style = MaterialTheme.typography.bodySmall, color = look.muted,
-                            )
-                        }
-                    }
-                }
-                if (kind != WidgetKind.APPS) {
-                    item {
-                        Section("По нажатию") {
-                            val target = config.openApp?.let { AppCatalog.label(context, it) ?: it } ?: defaultTargetTitle(context, kind)
-                            Text("Открывается: $target", style = MaterialTheme.typography.bodyMedium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { picker = "open" }) { Text("Другое приложение") }
-                                if (config.openApp != null) {
-                                    TextButton(onClick = { config = config.copy(openApp = null) }) { Text("Стандартное") }
-                                }
-                            }
-                        }
-                    }
-                }
-                if (kind == WidgetKind.WEATHER) {
-                    item { Section("Город") { WeatherPlaceEditor { weather = it } } }
-                }
-                if (kind == WidgetKind.CALENDAR && !calendarAllowed) {
-                    item {
-                        Section("События") {
-                            Text("Чтобы показывать события, SyncTheme нужен доступ к календарю.", style = MaterialTheme.typography.bodyMedium)
-                            OutlinedButton(onClick = { calendarPermission.launch(Manifest.permission.READ_CALENDAR) }) {
-                                Text("Разрешить доступ к календарю")
-                            }
-                        }
-                    }
-                }
-                item { Spacer(Modifier.height(8.dp)) }
+            if (analog) {
+                SwitchRow("Секундная стрелка", config.showSeconds) { config = config.copy(showSeconds = it) }
             }
-            AccentButton("Готово", { onSave(config) }, Modifier.padding(16.dp))
+        }
+    }
+    if (digital) {
+        item {
+            Section("Шрифт цифр") {
+                DigitFontPicker(
+                    selected = config.font?.let { f -> DigitFont.entries.firstOrNull { it.name == f } },
+                    styleDefault = defaultDigitFont(style),
+                ) { font -> config = config.copy(font = font?.name) }
+            }
+        }
+    }
+    if (kind == WidgetKind.APPS) {
+        item {
+            FolderSection(config, onChange = { config = it }, onDraw = { FolderDrawActivity.startFromSettings(context, config) }) {
+                context.startActivity(FolderActivity.preview(context, config, previewBounds))
+            }
+        }
+        item { AppsSection(config, onChange = { config = it }, onAdd = { picker = "apps" }) }
+    }
+    if (!(kind == WidgetKind.APPS && config.folder == FolderMode.HIDDEN)) item {
+        Section(if (kind == WidgetKind.APPS && config.folder == FolderMode.ICON) "Подложка значка" else "Подложка") {
+            LabeledSlider("Непрозрачность", config.opacity, 0f..1f, "${(config.opacity * 100).toInt()}%") {
+                config = config.copy(opacity = it)
+            }
+        }
+    }
+    item {
+        Section("Цвета") {
+            val ownColors = config.textColor != null || config.accentColor != null
+            SwitchRow("Цвета темы", !ownColors) { useTheme ->
+                config = if (useTheme) config.copy(textColor = null, accentColor = null)
+                else config.copy(textColor = theme.textColor, accentColor = theme.accentColor)
+            }
+            if (ownColors) {
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        ColorSwatch(config.textColor ?: theme.textColor, size = 44.dp) { colorEdit = "text" }
+                        Text("Текст", style = MaterialTheme.typography.labelMedium)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        ColorSwatch(config.accentColor ?: theme.accentColor, size = 44.dp) { colorEdit = "accent" }
+                        Text("Акцент", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+            if (kind == WidgetKind.CLOCK) {
+                val neon = style == "neon" || style == "analog_neon"
+                SwitchRow("Небо по времени суток", config.sky, enabled = !neon) { config = config.copy(sky = it) }
+                Text(
+                    if (neon) "У «Неона» своё свечение — небо в других стилях."
+                    else "Вместо подложки — небо: рассвет, день, закат, вечер и ночь сменяются сами.",
+                    style = MaterialTheme.typography.bodySmall, color = look.muted,
+                )
+            }
+            if (kind == WidgetKind.WEATHER) {
+                SwitchRow("Цветные иконки погоды", config.colorIcons) { config = config.copy(colorIcons = it) }
+                SwitchRow("Фон по погоде", config.scene, enabled = style != "neon") { config = config.copy(scene = it) }
+                Text(
+                    if (style == "neon") "У «Неона» своё свечение — фон по погоде в других стилях."
+                    else "Небо под текущую погоду: ясно, облачно, дождь, снег, гроза, туман — днём и ночью.",
+                    style = MaterialTheme.typography.bodySmall, color = look.muted,
+                )
+            }
+        }
+    }
+    if (kind != WidgetKind.APPS) {
+        item {
+            Section("По нажатию") {
+                val target = config.openApp?.let { AppCatalog.label(context, it) ?: it } ?: defaultTargetTitle(context, kind)
+                Text("Открывается: $target", style = MaterialTheme.typography.bodyMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { picker = "open" }) { Text("Другое приложение") }
+                    if (config.openApp != null) {
+                        TextButton(onClick = { config = config.copy(openApp = null) }) { Text("Стандартное") }
+                    }
+                }
+            }
+        }
+    }
+    if (kind == WidgetKind.WEATHER) {
+        item { Section("Город") { WeatherPlaceEditor { weather = it } } }
+    }
+    if (kind == WidgetKind.CALENDAR && !calendarAllowed) {
+        item {
+            Section("События") {
+                Text("Чтобы показывать события, SyncTheme нужен доступ к календарю.", style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(onClick = { calendarPermission.launch(Manifest.permission.READ_CALENDAR) }) {
+                    Text("Разрешить доступ к календарю")
+                }
+            }
+        }
+    }
+    item { Spacer(Modifier.height(8.dp)) }
+
+    }
+    val done: @Composable () -> Unit = { AccentButton("Готово", { onSave(config) }, Modifier.padding(16.dp)) }
+
+    AppBackdrop {
+        BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            // Телефон боком: превью и размеры слева, настройки справа.
+            if (maxWidth > maxHeight && maxWidth >= 600.dp) {
+                Row(Modifier.fillMaxSize()) {
+                    Column(Modifier.weight(0.45f).fillMaxHeight()) {
+                        titleRow()
+                        preview(Modifier.weight(1f).fillMaxWidth())
+                        sizes()
+                    }
+                    Column(Modifier.weight(0.55f).fillMaxHeight()) {
+                        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), content = settings)
+                        done()
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    titleRow()
+                    preview(Modifier.fillMaxWidth().height(350.dp))
+                    sizes()
+                    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), content = settings)
+                    done()
+                }
+            }
         }
     }
 

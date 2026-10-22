@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,7 +71,8 @@ fun WatchInstallerScreen(vm: InstallerViewModel, accentColor: Int, onClose: () -
     AppTheme(accentColor) {
         AppBackdrop {
             LazyColumn(
-                modifier = Modifier.statusBarsPadding().navigationBarsPadding(),
+                // На широком экране (телефон боком, планшет) — колонка по центру, а не строки во всю ширину.
+                modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().wrapContentWidth().widthIn(max = 720.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 item {
@@ -99,13 +103,28 @@ fun WatchInstallerScreen(vm: InstallerViewModel, accentColor: Int, onClose: () -
 private fun PrepareStep() {
     val context = LocalContext.current
     var watch by remember { mutableStateOf(MyDevices.watch(context)) }
+    // Модель уже известна (часы нашлись по Bluetooth) — список не нужен, только «Другие часы».
+    var picking by remember { mutableStateOf(watch == null) }
     Section("1. Подготовьте часы") {
-        // Пункты меню у Galaxy Watch и Pixel Watch разные — инструкция под выбранные часы.
-        WatchPicker(watch) {
-            watch = it
-            MyDevices.setWatch(context, it)
-        }
+        Text(
+            "Это нужно один раз: SyncTheme нет в Google Play, а приложения не из Play Маркета Wear OS ставит только " +
+                "через «Отладку по Wi‑Fi». Дальше часы подключаются сами по Bluetooth — как планшет.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         val chosen = watch
+        if (picking || chosen == null) {
+            // Пункты меню у Galaxy Watch и Pixel Watch разные — инструкция под выбранные часы.
+            WatchPicker(watch) {
+                watch = it
+                picking = false
+                MyDevices.setWatch(context, it)
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Ваши часы: ${chosen.title}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                TextButton(onClick = { picking = true }) { Text("Другие") }
+            }
+        }
         if (chosen == null) {
             Text("Выберите свои часы — покажу, где что включить.", style = MaterialTheme.typography.bodyMedium)
         } else {

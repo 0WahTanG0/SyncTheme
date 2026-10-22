@@ -20,7 +20,10 @@ import app.synctheme.core.WallClock
 import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.data.DeviceSet
 import app.synctheme.mobile.data.DeviceSettings
+import app.synctheme.mobile.devices.MyDevices
+import app.synctheme.mobile.devices.Watch
 import app.synctheme.mobile.tablet.TabletClient
+import app.synctheme.mobile.tablet.TabletRetry
 import app.synctheme.mobile.tablet.TabletReceiver
 import app.synctheme.mobile.tablet.TabletStore
 import app.synctheme.mobile.tablet.TabletSyncService
@@ -96,6 +99,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Подключённые устройства: телефон всегда, часы и планшет — по желанию. */
     private val _devices = MutableStateFlow(DeviceSet(DeviceSettings.watch(app), TabletStore.tablet(app) != null))
     val devices: StateFlow<DeviceSet> = _devices.asStateFlow()
+
+    /** Приложение открыто на планшете: превью — его экран, а не телефона. */
+    val selfTablet = DeviceSettings.isTablet(app)
+
+    /** Планшет: превью его рабочего стола и как прошла последняя отправка. */
+    private val _tabletPreview = MutableStateFlow<ImageBitmap?>(null)
+    val tabletPreview: StateFlow<ImageBitmap?> = _tabletPreview.asStateFlow()
+    val tabletPush = TabletStore.push(app)
 
     /** Это планшет и он принимает тему с телефона. */
     private val _receiving = MutableStateFlow(TabletStore.receiving(app))
@@ -231,13 +242,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun installPermissionIntent() = updater.installPermissionIntent()
 
     private suspend fun renderPreviews(t: Theme) = withContext(Dispatchers.Default) {
-        val phone = ThemeRenderer.phonePreview(app, t, 540, 1170)
-        val lock = ThemeRenderer.lockPreview(app, t, 540, 1170)
+        // На планшете своё превью — планшет в альбомной ориентации.
+        val phone = if (selfTablet) ThemeRenderer.tabletPreview(app, t, 800, 500) else ThemeRenderer.phonePreview(app, t, 540, 1170)
+        val lock = if (selfTablet) ThemeRenderer.lockPreview(app, t, 800, 500) else ThemeRenderer.lockPreview(app, t, 540, 1170)
         val watch = ThemeRenderer.watchPreview(app, t, 450)
         _ambientPreview.value = ThemeRenderer.watchAmbientPreview(app, t, 240).asImageBitmap()
         _phonePreview.value = phone.asImageBitmap()
         _lockPreview.value = lock.asImageBitmap()
         _watchPreview.value = watch.asImageBitmap()
+        if (_devices.value.tablet) _tabletPreview.value = ThemeRenderer.tabletPreview(app, t, 800, 500).asImageBitmap()
     }
 
     fun update(transform: (Theme) -> Theme) = repo.setDraft(transform(theme.value))
@@ -473,14 +486,40 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (on) refreshWatch()
     }
 
+    /** «Добавить устройство» → часы: модель — по имени часов из Bluetooth, инструкция — под неё. */
+    fun connectWatch(name: String?) {
+        name?.let(Watch::of)?.let { MyDevices.setWatch(app, it) }
+        setWatchEnabled(true)
+        _messages.tryEmit(if (_connection.value.hasApp) "Часы подключены — циферблат обновится по «Применить»" else "Часы добавлены — осталось установить на них SyncTheme")
+    }
+
+    /** Отправить на планшет тему, которая сейчас применена на телефоне. */
+    fun sendToTablet() = viewModelScope.launch {
+        _busy.value = "Отправляю на планшет…"
+        try {
+            _messages.tryEmit(TabletClient.push(app, repo.applied.value))
+        } catch (e: Exception) {
+            _messages.tryEmit(e.message ?: e.javaClass.simpleName)
+        } finally {
+            _busy.value = null
+        }
+    }
+
     /** Телефон: связать планшет по коду с его экрана. */
     fun pairTablet(host: String, port: Int, code: String, service: String?, onDone: () -> Unit = {}) = viewModelScope.launch {
         _busy.value = "Связываюсь с планшетом…"
         try {
             val peer = TabletClient.pair(app, host, port, code, service)
             _devices.value = _devices.value.copy(tablet = true)
-            _messages.tryEmit("Планшет «${peer.name}» подключён — тема уйдёт на него по «Применить»")
+            renderPreviews(theme.value)
             onDone()
+            // Сразу ставим на планшет то, что уже стоит на телефоне, — не дожидаясь нового «Применить».
+            _busy.value = "Отправляю тему на «${peer.name}»…"
+            val sent = runCatching { TabletClient.push(app, repo.applied.value) }
+            _messages.tryEmit(
+                if (sent.isSuccess) "«${peer.name}» подключён, тема уже на нём. Дальше — по «Применить»"
+                else "«${peer.name}» подключён. ${sent.exceptionOrNull()?.message.orEmpty()}",
+            )
         } catch (e: Exception) {
             _messages.tryEmit("Не удалось связать: ${e.message ?: e.javaClass.simpleName}")
         } finally {
@@ -490,7 +529,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun unpairTablet() {
         TabletStore.setTablet(app, null)
+        TabletRetry.cancel(app)
         _devices.value = _devices.value.copy(tablet = false)
+        _tabletPreview.value = null
     }
 
     /** Планшет: принимать тему с телефона (в фоне, с тихим уведомлением). */

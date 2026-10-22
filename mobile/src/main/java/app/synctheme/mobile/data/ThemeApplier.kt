@@ -54,7 +54,10 @@ class ThemeApplier(private val context: Context) {
             }
         }
         if (targets.tablet) {
-            step("планшет", "Отправляю на планшет…") { TabletClient.push(context, t) }
+            step("планшет", "Отправляю на планшет…") {
+                val reply = TabletClient.push(context, t)
+                if ("Ошибки" in reply) throw java.io.IOException(reply.substringAfter("Ошибки — "))
+            }
         }
         return Report(done, errors, sent)
     }

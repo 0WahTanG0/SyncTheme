@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Планшет: попросить систему не усыплять приём темы (иначе в фоне его может закрыть экономия заряда). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Виджеты открывают приложения: будильник, календарь, батарею, погоду и выбранные в папке. -->
     <queries>

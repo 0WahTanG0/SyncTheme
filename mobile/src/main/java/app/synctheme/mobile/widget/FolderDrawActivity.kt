@@ -16,7 +16,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -88,13 +91,15 @@ class FolderDrawActivity : ComponentActivity() {
 
     private fun done(line: List<Float>?, widgetId: Int) {
         if (line != null) {
-            FolderLineStore.add(this, line)
+            // Линия — для той ориентации, в которой её нарисовали.
+            val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            if (!landscape) FolderLineStore.add(this, line)
             if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                 // Из раскрытой папки: линия сразу у виджета.
                 val config = WidgetUpdater.config(this, widgetId, WidgetKind.APPS)
-                WidgetConfigStore.set(this, widgetId, config.copy(shape = FolderShape.CUSTOM, line = line))
+                WidgetConfigStore.set(this, widgetId, config.withLine(line, landscape))
             } else {
-                FolderLineStore.setPending(this, line)
+                FolderLineStore.setPending(this, line, landscape)
             }
         }
         finish()
@@ -129,49 +134,116 @@ class FolderDrawActivity : ComponentActivity() {
     }
 }
 
+/** Чем рисовать линию: пальцем (сглаживается в плавную кривую), ровной дугой или прямой. */
+private enum class DrawTool(val title: String) { FREE("Пальцем"), ARC("Дуга"), LINE("Прямая") }
+
 /**
  * Прозрачный слой для рисования линии: за ним виден рабочий стол. Подсказка сверху и кнопки
- * снизу прячутся, пока палец рисует, чтобы не закрывать значки.
+ * снизу прячутся, пока палец рисует, чтобы не закрывать значки. Готовую линию можно поправить:
+ * потянуть за её точки, сделать ровнее; у дуги — изменить изгиб точкой посередине.
  */
 @Composable
 fun FolderDrawOverlay(config: WidgetConfig, theme: Theme, onCancel: () -> Unit, onDone: (List<Float>) -> Unit) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    var line by remember { mutableStateOf(config.line.takeIf { config.shape == FolderShape.CUSTOM }.orEmpty()) }
-    val drawing = remember { mutableStateListOf<Offset>() }
+    val dp = density.density
     val apps = remember(config.apps) { folderApps(context, config) }
     val accent = Color(config.accentColor ?: theme.accentColor)
+    var tool by remember { mutableStateOf(DrawTool.FREE) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val screen = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        // Сохранённая линия — снова кривая с точками, чтобы её можно было поправить.
+        var shape by remember(screen) {
+            mutableStateOf<EditableLine?>(
+                config.lineFor(screen.width > screen.height).takeIf { config.shape == FolderShape.CUSTOM }
+                    ?.let { FolderLines.points(it, screen) }?.takeIf { it.size >= 2 }?.let { LineShapes.curve(it, dp) },
+            )
+        }
+        val stroke = remember { mutableStateListOf<Offset>() }
+        var active by remember { mutableStateOf(false) }
+        val line = remember(shape, screen) { shape?.let { FolderLines.normalize(it.points(), screen) }.orEmpty() }
+        // Пока палец ведёт дугу или прямую — показываем её сразу ровной.
+        val live: List<Offset>? = when {
+            stroke.size < 2 -> null
+            tool == DrawTool.FREE -> stroke.toList()
+            else -> LineShapes.arc(stroke.first(), stroke.last(), if (tool == DrawTool.ARC) defaultBend(stroke.first(), stroke.last(), screen) else 0f)
+        }
         Box(
             Modifier
                 .fillMaxSize()
                 .semantics { contentDescription = "Холст линии" }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { drawing.clear(); drawing.add(it) },
-                        onDrag = { change, _ ->
-                            if ((change.position - drawing.last()).getDistance() > 3f) drawing.add(change.position)
-                        },
-                        onDragEnd = {
-                            FolderLines.normalize(drawing.toList(), screen).takeIf { it.size >= 4 }?.let { line = it }
-                            drawing.clear()
-                        },
-                        onDragCancel = { drawing.clear() },
-                    )
+                .pointerInput(tool, screen) {
+                    val grab = 28.dp.toPx()
+                    val minLength = 40.dp.toPx()
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        active = true
+                        val hit = shape?.handles()?.withIndex()
+                            ?.filter { (it.value - down.position).getDistance() < grab }
+                            ?.minByOrNull { (it.value - down.position).getDistance() }?.index
+                        if (hit != null) {
+                            // Тянем точку линии.
+                            drag(down.id) { change ->
+                                shape = shape?.moveHandle(hit, change.position)
+                                change.consume()
+                            }
+                        } else {
+                            stroke.clear()
+                            stroke.add(down.position)
+                            drag(down.id) { change ->
+                                if ((change.position - stroke.last()).getDistance() > 3f) stroke.add(change.position)
+                                change.consume()
+                            }
+                            val pts = stroke.toList()
+                            val made = when {
+                                tool == DrawTool.FREE -> pts.takeIf { Polyline(it).length > minLength }?.let { LineShapes.curve(it, dp) }
+                                (pts.last() - pts.first()).getDistance() < minLength -> null
+                                else -> EditableLine.Arc(pts.first(), pts.last(), if (tool == DrawTool.ARC) defaultBend(pts.first(), pts.last(), screen) else 0f)
+                            }
+                            if (made != null) shape = made
+                            stroke.clear()
+                        }
+                        active = false
+                    }
                 },
         ) {
-            LineCanvas(line, drawing, screen, apps, config.labels, accent, density.density)
+            LineCanvas(line, live, shape?.handles().orEmpty(), shape is EditableLine.Arc, screen, apps, config.labels, accent, dp)
         }
-        val idle = drawing.isEmpty()
+        val idle = !active
+        // Сверху — инструменты и подсказка, снизу — только «Отмена / Очистить / Готово»: линия у нижнего края не прячется.
         AnimatedVisibility(idle, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
-            Text(
-                if (line.isEmpty()) "Проведите пальцем линию: откуда раскрывается папка → куда лягут приложения. Изгибы — любые."
-                else "Так лягут приложения. Не нравится — проведите линию заново.",
-                color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.statusBarsPadding().padding(16.dp).widthIn(max = 420.dp)
-                    .clip(RoundedCornerShape(18.dp)).background(Color(0xCC111118)).padding(horizontal = 16.dp, vertical = 10.dp),
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.statusBarsPadding().padding(16.dp).widthIn(max = 460.dp)
+                    .clip(RoundedCornerShape(22.dp)).background(Color(0xCC111118)).padding(horizontal = 10.dp, vertical = 10.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    DrawTool.entries.forEach { t ->
+                        val on = t == tool
+                        Text(
+                            t.title, color = if (on) Color.Black else Color.White, fontSize = 14.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(if (on) accent else Color.White.copy(alpha = 0.12f))
+                                .clickable { tool = t }.padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
+                    }
+                    val curve = shape as? EditableLine.Curve
+                    val canSmooth = curve != null && curve.keys.size > 2
+                    TextButton(onClick = { shape = curve?.smoother() }, enabled = canSmooth) {
+                        Text("Ровнее", color = Color.White.copy(alpha = if (canSmooth) 1f else 0.4f))
+                    }
+                }
+                Text(
+                    when {
+                        shape != null -> "Так лягут приложения. Тяните точки, чтобы поправить линию, или проведите новую в свободном месте."
+                        tool == DrawTool.FREE -> "Проведите пальцем линию: откуда раскрывается папка → куда лягут приложения. Изгибы — любые, линия сама станет плавной."
+                        tool == DrawTool.ARC -> "Проведите от начала к концу — получится ровная дуга. Изгиб меняется точкой посередине."
+                        else -> "Проведите от начала к концу — получится прямая. Потяните её середину, чтобы выгнуть дугой."
+                    },
+                    color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                )
+            }
         }
         AnimatedVisibility(idle, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
             Row(
@@ -180,8 +252,8 @@ fun FolderDrawOverlay(config: WidgetConfig, theme: Theme, onCancel: () -> Unit, 
                     .clip(RoundedCornerShape(28.dp)).background(Color(0xCC111118)).padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
                 TextButton(onClick = onCancel) { Text("Отмена", color = Color.White) }
-                TextButton(onClick = { line = emptyList() }, enabled = line.isNotEmpty()) {
-                    Text("Очистить", color = Color.White.copy(alpha = if (line.isNotEmpty()) 1f else 0.4f))
+                TextButton(onClick = { shape = null }, enabled = shape != null) {
+                    Text("Очистить", color = Color.White.copy(alpha = if (shape != null) 1f else 0.4f))
                 }
                 Button(
                     onClick = { onDone(line) }, enabled = line.isNotEmpty(),
@@ -192,11 +264,30 @@ fun FolderDrawOverlay(config: WidgetConfig, theme: Theme, onCancel: () -> Unit, 
     }
 }
 
-/** Линия (или та, что рисуется сейчас) и значки папки в настоящем размере там, где они лягут. */
+/** Дуга по умолчанию выгибается к середине экрана — туда, где обычно свободно. */
+internal fun defaultBend(a: Offset, b: Offset, screen: Size): Float {
+    val mid = (a + b) / 2f
+    val c = b - a
+    val toCenter = Offset(screen.width / 2, screen.height / 2) - mid
+    val side = -c.y * toCenter.x + c.x * toCenter.y
+    return if (side >= 0f) 0.25f else -0.25f
+}
+
+/** Линия (или та, что рисуется сейчас), её точки-ручки и значки папки в настоящем размере там, где они лягут. */
 @Composable
-private fun LineCanvas(line: List<Float>, drawing: List<Offset>, screen: Size, apps: List<FolderApp>, labels: Boolean, accent: Color, dp: Float) {
+private fun LineCanvas(
+    line: List<Float>,
+    live: List<Offset>?,
+    handles: List<Offset>,
+    arc: Boolean,
+    screen: Size,
+    apps: List<FolderApp>,
+    labels: Boolean,
+    accent: Color,
+    dp: Float,
+) {
     Canvas(Modifier.fillMaxSize()) {
-        val pts = if (drawing.isNotEmpty()) drawing.toList() else FolderLines.points(line, screen)
+        val pts = live ?: FolderLines.points(line, screen)
         if (pts.size < 2) return@Canvas
         val path = Path().apply {
             moveTo(pts[0].x, pts[0].y)
@@ -204,10 +295,11 @@ private fun LineCanvas(line: List<Float>, drawing: List<Offset>, screen: Size, a
         }
         drawPath(path, Color.Black.copy(alpha = 0.35f), style = Stroke(9.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         drawPath(path, accent, style = Stroke(4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-        // Начало — «откуда» раскрывается папка.
-        drawCircle(Color.White, 10.dp.toPx(), pts.first())
-        drawCircle(accent, 7.dp.toPx(), pts.first())
-        if (drawing.isNotEmpty()) return@Canvas
+        if (live != null) {
+            drawCircle(Color.White, 10.dp.toPx(), pts.first())
+            drawCircle(accent, 7.dp.toPx(), pts.first())
+            return@Canvas
+        }
         val geo = FolderLines.layout(FolderShape.CUSTOM, line, apps.size, Offset.Zero, screen, dp, labels)
         geo.targets.forEachIndexed { i, c ->
             val size = geo.icon
@@ -220,6 +312,15 @@ private fun LineCanvas(line: List<Float>, drawing: List<Offset>, screen: Size, a
             } else {
                 drawCircle(Color.White.copy(alpha = 0.85f), size / 2, c)
             }
+        }
+        // Точки, за которые линию можно тянуть. Начало — «откуда» раскрывается папка — крупнее;
+        // у дуги середина — кольцо: ею меняется изгиб.
+        handles.forEachIndexed { i, h ->
+            val start = i == 0
+            drawCircle(Color.Black.copy(alpha = 0.35f), (if (start) 12 else 10).dp.toPx(), h)
+            drawCircle(Color.White, (if (start) 10 else 8).dp.toPx(), h)
+            if (arc && i == 1) drawCircle(accent, 8.dp.toPx(), h, style = Stroke(3.dp.toPx()))
+            else drawCircle(accent, (if (start) 7 else 5).dp.toPx(), h)
         }
     }
 }

@@ -25,6 +25,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.synctheme.mobile.data.WeatherData
@@ -84,21 +87,25 @@ fun WeatherPlaceEditor(onUpdated: (WeatherData?) -> Unit = {}) {
             val granted = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
             if (granted) useLocation() else permission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
         }) { Text("Моё местоположение") }
+        fun search() {
+            if (query.isNotBlank()) scope.launch {
+                status = "Ищу…"
+                results = runCatching { repo.search(query) }
+                    .onFailure { status = "Поиск не удался: ${it.message}" }
+                    .getOrDefault(emptyList())
+                if (results.isNotEmpty()) status = null else if (status == "Ищу…") status = "Ничего не найдено"
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // «Поиск» на клавиатуре — то же, что кнопка «Найти».
             OutlinedTextField(
                 value = query, onValueChange = { query = it }, singleLine = true,
                 label = { Text("Город") }, modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { search() }),
             )
             Spacer(Modifier.width(8.dp))
-            Button(onClick = {
-                if (query.isNotBlank()) scope.launch {
-                    status = "Ищу…"
-                    results = runCatching { repo.search(query) }
-                        .onFailure { status = "Поиск не удался: ${it.message}" }
-                        .getOrDefault(emptyList())
-                    if (results.isNotEmpty()) status = null else if (status == "Ищу…") status = "Ничего не найдено"
-                }
-            }) { Text("Найти") }
+            Button(onClick = ::search) { Text("Найти") }
         }
         results.forEach { r ->
             Text(

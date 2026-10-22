@@ -2,6 +2,9 @@ package app.synctheme.mobile.tablet
 
 import android.content.Context
 import android.util.Base64
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /** Устройство на другом конце связи: имя, общий секрет и где его видели в сети в последний раз. */
 data class Peer(val name: String, val secret: ByteArray, val service: String? = null, val host: String? = null, val port: Int = 0) {
@@ -10,6 +13,12 @@ data class Peer(val name: String, val secret: ByteArray, val service: String? = 
 
     override fun hashCode() = name.hashCode() * 31 + secret.contentHashCode()
 }
+
+/**
+ * Как прошла последняя отправка на планшет: [ok] — тема на нём; иначе [text] — что не так,
+ * а [pending] — телефон сам повторит, когда планшет появится в сети.
+ */
+data class TabletPush(val ok: Boolean, val text: String, val at: Long, val pending: Boolean = false)
 
 /** На телефоне — связанный планшет; на планшете — связанный телефон и включён ли приём. */
 object TabletStore {
@@ -38,7 +47,34 @@ object TabletStore {
 
     /** Телефон: планшет, которому уходит тема. */
     fun tablet(context: Context): Peer? = load(context, "tablet")
-    fun setTablet(context: Context, peer: Peer?) = save(context, "tablet", peer)
+    fun setTablet(context: Context, peer: Peer?) {
+        save(context, "tablet", peer)
+        if (peer == null) setPush(context, null)
+    }
+
+    private val push = MutableStateFlow<TabletPush?>(null)
+    @Volatile private var pushLoaded = false
+
+    /** Телефон: последняя отправка на планшет (для статуса на главном экране). */
+    fun push(context: Context): StateFlow<TabletPush?> {
+        if (!pushLoaded) {
+            pushLoaded = true
+            val p = prefs(context)
+            if (p.contains("push_at")) {
+                push.value = TabletPush(p.getBoolean("push_ok", false), p.getString("push_text", "").orEmpty(), p.getLong("push_at", 0), p.getBoolean("push_pending", false))
+            }
+        }
+        return push.asStateFlow()
+    }
+
+    fun setPush(context: Context, status: TabletPush?) {
+        pushLoaded = true
+        push.value = status
+        val e = prefs(context).edit()
+        if (status == null) listOf("push_ok", "push_text", "push_at", "push_pending").forEach(e::remove)
+        else e.putBoolean("push_ok", status.ok).putString("push_text", status.text).putLong("push_at", status.at).putBoolean("push_pending", status.pending)
+        e.apply()
+    }
 
     /** Планшет: телефон, от которого принимается тема. */
     fun phone(context: Context): Peer? = load(context, "phone")

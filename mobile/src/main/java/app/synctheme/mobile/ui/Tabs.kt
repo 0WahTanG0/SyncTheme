@@ -282,7 +282,7 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
     }
     item {
         val placed by a.vm.placed.collectAsStateWithLifecycle()
-        ExpandableSection("На экране", summary = if (placed.isEmpty()) "Виджетов SyncTheme пока нет" else "Виджетов: ${placed.size}", initiallyExpanded = placed.isNotEmpty()) {
+        ExpandableSection("Виджеты на рабочем столе", summary = if (placed.isEmpty()) "Виджетов SyncTheme пока нет" else "Виджетов: ${placed.size}", initiallyExpanded = placed.isNotEmpty()) {
             placed.forEach { w ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
@@ -307,8 +307,11 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
     }
     item {
         val context = LocalContext.current
-        val place = remember { WeatherRepository(context).place?.name }
-        ExpandableSection("Город для погоды", summary = place ?: "Не выбран") { WeatherPlaceEditor() }
+        // Итог в заголовке обновляется сразу, как только город выбран.
+        var place by remember { mutableStateOf(WeatherRepository(context).place?.name) }
+        ExpandableSection("Город для погоды", summary = place ?: "Не выбран") {
+            WeatherPlaceEditor { place = WeatherRepository(context).place?.name }
+        }
     }
 }
 
@@ -455,15 +458,13 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
     }
 }
 
-// ---------------------------------------------------------------- Ещё
+// ---------------------------------------------------------------- Настройки
 
 fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable () -> Unit) {
+    // Устройства — первыми: сюда приходят подключить часы, планшет или телефон.
+    item { DevicesSection(a.vm, a.openInstaller) }
     item { AppearanceSection(theme.accentColor) }
     item { updates() }
-    item {
-        val connection by a.vm.connection.collectAsStateWithLifecycle()
-        DevicesSection(a.vm, connection.appNodeName ?: connection.connectedNames.firstOrNull(), a.openInstaller)
-    }
     item {
         val context = LocalContext.current
         var licenses by remember { mutableStateOf<String?>(null) }
@@ -637,11 +638,16 @@ private fun WatchCard(
             }
             if (details && time != null) TimeAdvice(time, muted)
         }
-        // Кнопки переносятся целиком, а не по словам, если в строку не помещаются.
+        // Кнопки переносятся целиком, а не по словам, если в строку не помещаются. Пока на часах нет
+        // SyncTheme, кнопок для приложения на часах нет вовсе — только «Проверить связь».
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
-            FilledTonalButton(onClick = onOpen, enabled = connection.hasApp) { Text("Открыть на часах", maxLines = 1) }
-            OutlinedButton(onClick = onCheckTime, enabled = connection.hasApp && !checking) { Text("Проверить время", maxLines = 1) }
-            IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, contentDescription = "Обновить") }
+            if (connection.hasApp) {
+                FilledTonalButton(onClick = onOpen) { Text("Открыть на часах", maxLines = 1) }
+                OutlinedButton(onClick = onCheckTime, enabled = !checking) { Text("Проверить время", maxLines = 1) }
+                IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, contentDescription = "Проверить связь") }
+            } else {
+                TextButton(onClick = onRefresh) { Text("Проверить связь", maxLines = 1) }
+            }
         }
     }
 }

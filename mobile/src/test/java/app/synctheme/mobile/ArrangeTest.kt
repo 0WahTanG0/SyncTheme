@@ -110,6 +110,20 @@ class ArrangeTest {
         assertTrue("фото сдвинуто: ${t.background.focusX}", t.background.focusX < 0.5f)
     }
 
+    /** Телефон боком: холст расположения вписывается по высоте, кнопки не уезжают. */
+    @Test
+    @Config(qualifiers = "w915dp-h412dp-land-560dpi")
+    fun landscape() {
+        ThemeRepository.get(app).setDraft(theme())
+        val vm = MainViewModel(app)
+        compose.setContent { ArrangeScreen(vm, ArrangeTarget.HOME) {} }
+        waitPreview()
+        Thread.sleep(1500)
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage(File(out, "screen_arrange_land.png").absolutePath)
+        compose.onNodeWithText("Готово").assertExists()
+    }
+
     @Test
     fun movesWatchTime() {
         ThemeRepository.get(app).setDraft(theme())

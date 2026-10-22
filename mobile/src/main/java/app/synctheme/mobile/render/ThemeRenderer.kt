@@ -37,6 +37,7 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -430,14 +431,30 @@ object ThemeRenderer {
         return bmp
     }
 
-    private fun drawPreviewWidgets(canvas: Canvas, theme: Theme, top: Float, u: Float, surface: Paint) {
-        val date = RectF(6 * u, top, 47 * u, top + 41 * u)
+    /** Превью планшета (альбомная ориентация): обои, часы с датой, два виджета и док. */
+    fun tabletPreview(context: Context, theme: Theme, width: Int, height: Int): Bitmap {
+        val bmp = background(context, theme, width, height)
+        val canvas = Canvas(bmp)
+        val u = height / 100f
+        val surface = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Colors.widgetSurface(theme), theme.widgetOpacity) }
+        val clock = RectF(6 * u, 8 * u, 76 * u, 44 * u)
+        canvas.drawRoundRect(clock, 6 * u, 6 * u, surface)
+        canvas.textCentered("10:08", clock.centerX(), clock.centerY() - 3 * u, textPaint(theme.textColor, 20 * u, typeface(theme.fontWeight)))
+        canvas.textCentered(dateString("EEEE, d MMMM"), clock.centerX(), clock.bottom - 6 * u, textPaint(theme.accentColor, 4.2f * u))
+        drawPreviewWidgets(canvas, theme, 50 * u, u * 0.82f, surface, left = 6 * u)
+        val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Color.WHITE, 0.85f) }
+        for (i in 0 until 6) canvas.drawCircle(width / 2f + (i - 2.5f) * 17 * u, height - 10 * u, 5f * u, icon)
+        return bmp
+    }
+
+    private fun drawPreviewWidgets(canvas: Canvas, theme: Theme, top: Float, u: Float, surface: Paint, left: Float = 6 * u) {
+        val date = RectF(left, top, left + 41 * u, top + 41 * u)
         canvas.drawRoundRect(date, 7 * u, 7 * u, surface)
         canvas.textCentered(dateString("EEEE").uppercase(), date.centerX(), date.top + 8 * u, textPaint(theme.accentColor, 3.6f * u))
         canvas.textCentered(dateString("d"), date.centerX(), date.centerY() + 2 * u, textPaint(theme.textColor, 19 * u, typeface(FontWeight.LIGHT)))
         canvas.textCentered(dateString("LLLL"), date.centerX(), date.bottom - 7 * u, textPaint(theme.textColor, 3.6f * u))
 
-        val battery = RectF(53 * u, top, 94 * u, top + 41 * u)
+        val battery = RectF(left + 47 * u, top, left + 88 * u, top + 41 * u)
         canvas.drawRoundRect(battery, 7 * u, 7 * u, surface)
         val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2.2f * u; strokeCap = Paint.Cap.ROUND }
         val r = 15 * u
@@ -644,20 +661,22 @@ object ThemeRenderer {
     fun lockPreview(context: Context, theme: Theme, width: Int, height: Int): Bitmap {
         val bmp = lockBackground(context, theme, width, height)
         val canvas = Canvas(bmp)
-        val u = width / 100f
+        // Единица — от ширины телефона; на широком (планшет) экране — от высоты, часы по центру.
+        val u = min(width.toFloat(), height * 0.6f) / 100f
+        val cx = width / 2f
         val white = Color.WHITE
         val depth = if (theme.lockDepth) foreground(context, theme.lockScreenBackground(), theme.lockScreenDim(), width, height) else null
-        canvas.textCentered(dateString("EEE, d MMMM"), 50 * u, 22 * u, textPaint(white, 4.6f * u))
+        canvas.textCentered(dateString("EEE, d MMMM"), cx, 22 * u, textPaint(white, 4.6f * u))
         if (depth != null) {
-            canvas.textCentered("10:08", 50 * u, 46 * u, textPaint(white, 38 * u, typeface(FontWeight.BOLD)))
+            canvas.textCentered("10:08", cx, 46 * u, textPaint(white, 38 * u, typeface(FontWeight.BOLD)))
             canvas.drawBitmap(depth, 0f, 0f, null)
             depth.recycle()
         } else {
-            canvas.textCentered("10:08", 50 * u, 40 * u, textPaint(white, 26 * u, typeface(FontWeight.LIGHT)))
+            canvas.textCentered("10:08", cx, 40 * u, textPaint(white, 26 * u, typeface(FontWeight.LIGHT)))
         }
         val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Color.BLACK, 0.35f) }
-        canvas.drawCircle(14 * u, height - 14 * u, 7 * u, icon)
-        canvas.drawCircle(86 * u, height - 14 * u, 7 * u, icon)
+        canvas.drawCircle(cx - 36 * u, height - 14 * u, 7 * u, icon)
+        canvas.drawCircle(cx + 36 * u, height - 14 * u, 7 * u, icon)
         return bmp
     }
 }

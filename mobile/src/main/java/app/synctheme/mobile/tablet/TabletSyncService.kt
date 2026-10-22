@@ -17,39 +17,25 @@ import app.synctheme.mobile.ui.MainActivity
 
 /**
  * Планшет ждёт тему с телефона и в фоне: служба с тихим уведомлением держит [TabletReceiver].
- * Работает, только пока на планшете включён приём («Ещё» → «Устройства»).
+ * Работает, только пока на планшете включён приём («Настройки» → «Устройства»).
  */
 class TabletSyncService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onCreate() {
-        super.onCreate()
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL, "Приём темы с телефона", NotificationManager.IMPORTANCE_MIN).apply {
-                description = "SyncTheme на планшете ждёт тему с телефона"
-                setShowBadge(false)
-            },
-        )
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        val notification = Notification.Builder(this, CHANNEL)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
-            .setContentTitle("SyncTheme ждёт тему с телефона")
-            .setContentText("Нажмите «Применить» на телефоне — тема появится и здесь")
-            .setContentIntent(open)
-            .setOngoing(true)
-            .build()
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Каждый startForegroundService требует startForeground — вызываем при каждом запуске.
         runCatching {
+            val notification = notification(this, TabletReceiver.state.value.last)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             else startForeground(ID, notification)
             TabletReceiver.start(this)
         }.onFailure {
             Log.w("TabletSyncService", "Cannot start receiving", it)
             stopSelf()
+            return START_NOT_STICKY
         }
+        return START_STICKY
     }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
         TabletReceiver.stop(this)
@@ -59,6 +45,30 @@ class TabletSyncService : Service() {
     companion object {
         private const val CHANNEL = "tablet_sync"
         private const val ID = 7
+
+        private fun notification(context: Context, last: String?): Notification {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL, "Приём темы с телефона", NotificationManager.IMPORTANCE_MIN).apply {
+                    description = "SyncTheme ждёт тему с телефона"
+                    setShowBadge(false)
+                },
+            )
+            val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+            return Notification.Builder(context, CHANNEL)
+                .setSmallIcon(R.drawable.ic_launcher_monochrome)
+                .setContentTitle("SyncTheme ждёт тему с телефона")
+                .setContentText(last ?: "Нажмите «Применить» на телефоне — тема появится и здесь")
+                .setContentIntent(open)
+                .setOngoing(true)
+                .build()
+        }
+
+        /** В уведомлении — какая тема пришла последней. */
+        fun showLast(context: Context, text: String) {
+            if (!TabletStore.receiving(context)) return
+            runCatching { context.getSystemService(NotificationManager::class.java).notify(ID, notification(context, text)) }
+        }
 
         /** Включает или выключает приём — как выбрано в настройках. */
         fun ensure(context: Context) {

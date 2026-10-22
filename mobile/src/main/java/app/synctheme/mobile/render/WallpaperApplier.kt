@@ -2,6 +2,7 @@ package app.synctheme.mobile.render
 
 import android.app.WallpaperManager
 import android.content.Context
+import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.util.Compat
 import app.synctheme.core.Theme
 import app.synctheme.mobile.wallpaper.ClockWallpaper
@@ -11,8 +12,9 @@ import kotlinx.coroutines.withContext
 object WallpaperApplier {
     suspend fun apply(context: Context, theme: Theme, home: Boolean, lock: Boolean) = withContext(Dispatchers.Default) {
         if (!home && !lock) return@withContext
-        // Рисуем в портретной ориентации в реальном разрешении экрана (на S25+ до 1440x3120).
-        val (w, h) = Compat.screen(context)
+        // Телефон — портрет в реальном разрешении экрана (на S25+ до 1440x3120). Планшет поворачивают:
+        // квадрат по длинной стороне, и система вырезает из него и портрет, и альбомную ориентацию.
+        val (w, h) = Compat.screen(context).let { (w, h) -> if (DeviceSettings.isTablet(context)) h to h else w to h }
         val manager = WallpaperManager.getInstance(context)
         // Живые обои с часами перерисуются сами — картинку поверх них не ставим.
         val liveHome = theme.wallClock != null && ClockWallpaper.isActive(context)
