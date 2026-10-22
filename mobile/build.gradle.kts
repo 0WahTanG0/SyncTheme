@@ -14,8 +14,8 @@ android {
         applicationId = "app.synctheme"
         minSdk = 31
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.9.1"
+        versionCode = 13
+        versionName = "1.9.2"
         // Откуда приложение берёт обновления: релизы GitHub owner/repo (-PupdateRepo=... при сборке).
         resValue("string", "update_repo", providers.gradleProperty("updateRepo").getOrElse(""))
         // Galaxy S25+ и все современные телефоны — arm64; так APK заметно меньше.

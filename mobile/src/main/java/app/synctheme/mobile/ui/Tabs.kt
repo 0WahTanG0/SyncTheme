@@ -389,7 +389,8 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
             val photo = theme.watchBackground().type == BackgroundType.PHOTO
             SwitchRow("Эффект глубины", w.depth && photo, enabled = photo) { v -> a.vm.setWatchDepth(v) { t -> a.editWatchFace(t) } }
             Text(
-                if (photo) "Главный объект фото фона — человек, питомец, гора — встаёт поверх цифр, а время видно сквозь него."
+                if (photo) "Главный объект фото — человек, питомец, гора — стоит перед временем. Фото само сдвигается так, " +
+                    "чтобы объект остался со своей стороны и лишь слегка заходил на цифры; время видно сквозь него."
                 else "Эффект глубины работает с фото на фоне часов.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

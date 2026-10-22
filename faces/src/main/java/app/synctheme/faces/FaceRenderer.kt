@@ -82,6 +82,11 @@ object FaceRenderer {
         canvas.restore()
     }
 
+    /** Только время стиля (слой «время поверх объекта»), без фона и украшений, — чтобы знать, где оно. */
+    fun drawTime(canvas: Canvas, w: WatchSettings, state: FaceState, fonts: FaceFonts) {
+        Frame(canvas, WatchFaceXml.forLayer(w, Layer.TIME), state, fonts, Layer.TIME).style()
+    }
+
     private fun withAlpha(color: Int, alpha: Float): Int =
         (color and 0x00FFFFFF) or ((alpha.coerceIn(0f, 1f) * 255).toInt() shl 24)
 

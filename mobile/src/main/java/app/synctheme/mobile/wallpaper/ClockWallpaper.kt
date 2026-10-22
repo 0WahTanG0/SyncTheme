@@ -17,9 +17,11 @@ import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.SurfaceHolder
 import app.synctheme.core.Theme
+import app.synctheme.core.WatchFaceXml
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
+import app.synctheme.mobile.render.WallClockSpot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,8 +42,11 @@ object ClockWallpaper {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }
 
-/** Фон и слой глубины для текущей темы и размера — их не нужно рисовать каждую минуту. */
-private class Layers(val key: Any, val background: Bitmap, val foreground: Bitmap?)
+/**
+ * Фон, слой глубины и место часов для текущей темы и размера — их не нужно считать каждую минуту.
+ * width × height — размер, для которого всё посчитано.
+ */
+private class Layers(val key: Any, val background: Bitmap, val foreground: Bitmap?, val spot: WallClockSpot, val width: Int, val height: Int)
 
 /**
  * Обои с часами: фон темы, время шрифтом цифр и — с эффектом глубины — главный объект фото поверх цифр.
@@ -164,14 +169,16 @@ class ClockWallpaperService : WallpaperService() {
                     runCatching {
                         val background = if (lock) ThemeRenderer.lockBackground(ctx, theme, w, h)
                         else ThemeRenderer.background(ctx, theme, w, h)
-                        background to (if (!lock) foreground(ctx, theme, w, h) else null)
+                        val foreground = if (!lock) foreground(ctx, theme, w, h) else null
+                        // Место часов — после маски объекта: с глубиной часы встают напротив него.
+                        Layers(key, background, foreground, ThemeRenderer.wallClockSpot(ctx, theme, w, h), w, h)
                     }.onFailure { Log.e(TAG, "Wallpaper layers failed", it) }.getOrNull()
                 } ?: return@launch
                 layers?.let {
                     it.background.recycle()
                     it.foreground?.recycle()
                 }
-                layers = Layers(key, prepared.first, prepared.second)
+                layers = prepared
                 draw()
             }
         }
@@ -197,14 +204,20 @@ class ClockWallpaperService : WallpaperService() {
                 // На экране блокировки часы рисует сам телефон — свои не дублируем.
                 val locked = lockOnly || keyguard?.isKeyguardLocked == true
                 if (!locked) {
-                    ThemeRenderer.drawWallClock(this@ClockWallpaperService, canvas, repo.applied.value, canvas.width, canvas.height, System.currentTimeMillis())
+                    val theme = repo.applied.value
+                    val now = System.currentTimeMillis()
+                    // Часы считались для размера слоёв; если холст другого размера — масштабируем.
+                    canvas.save()
+                    canvas.scale(canvas.width / l.width.toFloat(), canvas.height / l.height.toFloat())
+                    ThemeRenderer.drawWallClock(this@ClockWallpaperService, canvas, theme, l.spot, now)
+                    canvas.restore()
                     l.foreground?.let { fg ->
                         canvas.drawBitmap(fg, null, dst, null)
                         // Время поверх объекта — полупрозрачное: объект впереди, но время читается.
-                        ThemeRenderer.drawWallClock(
-                            this@ClockWallpaperService, canvas, repo.applied.value, canvas.width, canvas.height,
-                            System.currentTimeMillis(), alpha = app.synctheme.core.WatchFaceXml.DEPTH_TIME_ALPHA,
-                        )
+                        canvas.save()
+                        canvas.scale(canvas.width / l.width.toFloat(), canvas.height / l.height.toFloat())
+                        ThemeRenderer.drawWallClock(this@ClockWallpaperService, canvas, theme, l.spot, now, alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
+                        canvas.restore()
                     }
                 }
             } finally {

@@ -25,12 +25,13 @@ import app.synctheme.mobile.wallpaper.ClockWallpaper
 
 fun wallClockSummary(theme: Theme): String {
     val wall = theme.wallClock ?: return "Выключены"
+    if (wall.depth && theme.background.type == BackgroundType.PHOTO) return "Вкл · рядом с объектом фото"
     val layout = when (wall.layout) {
         WallClockLayout.TOP -> "вверху"
         WallClockLayout.STACKED -> "столбиком"
         WallClockLayout.CENTER -> "по центру"
     }
-    return listOfNotNull("Вкл", layout, "глубина".takeIf { wall.depth }).joinToString(" · ")
+    return "Вкл · $layout"
 }
 
 /** Часы прямо на обоях рабочего стола (живые обои) и эффект глубины. */
@@ -49,17 +50,25 @@ fun WallClockContent(theme: Theme, vm: MainViewModel) {
         )
         return
     }
-    ChipRow {
-        listOf(WallClockLayout.TOP to "Вверху", WallClockLayout.STACKED to "Столбиком", WallClockLayout.CENTER to "По центру").forEach { (l, label) ->
-            FilterChip(wall.layout == l, { vm.setWallClock(wall.copy(layout = l)) }, label = { Text(label) })
-        }
-    }
-    SwitchRow("Эффект глубины", wall.depth && photo, enabled = photo) { on -> vm.setWallClock(wall.copy(depth = on)) }
+    val depth = wall.depth && photo
+    SwitchRow("Эффект глубины", depth, enabled = photo) { on -> vm.setWallClock(wall.copy(depth = on)) }
     Text(
-        if (photo) "Объект встаёт поверх цифр, а сами цифры видно сквозь него — время читается всегда."
-        else "Эффект глубины работает с фото — выберите фото в «Фон».",
+        when {
+            !photo -> "Эффект глубины работает с фото — выберите фото в «Фон»."
+            depth -> "Часы встают с противоположной от объекта стороны: объект справа — часы слева, слева — справа, " +
+                "снизу — сверху, сверху — снизу. Объект лишь слегка заходит на цифры, а их видно сквозь него."
+            else -> "Объект с фото встанет перед часами, а сами часы — рядом с ним."
+        },
         style = MaterialTheme.typography.bodySmall, color = muted,
     )
+    // С глубиной место часов выбирается по объекту; без неё — одна из раскладок.
+    if (!depth) {
+        ChipRow {
+            listOf(WallClockLayout.TOP to "Вверху", WallClockLayout.STACKED to "Столбиком", WallClockLayout.CENTER to "По центру").forEach { (l, label) ->
+                FilterChip(wall.layout == l, { vm.setWallClock(wall.copy(layout = l)) }, label = { Text(label) })
+            }
+        }
+    }
     SwitchRow("Дата над часами", wall.showDate) { on -> vm.setWallClock(wall.copy(showDate = on)) }
     Text("Шрифт", style = MaterialTheme.typography.labelMedium)
     DigitFontPicker(wall.font, ThemeRenderer.wallClockFont(theme.copy(wallClock = wall.copy(font = null)))) { f -> vm.setWallClock(wall.copy(font = f)) }

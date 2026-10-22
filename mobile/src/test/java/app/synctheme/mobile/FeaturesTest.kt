@@ -26,6 +26,7 @@ import app.synctheme.faces.FaceRenderer
 import app.synctheme.faces.FaceState
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.data.WeatherRepository
+import app.synctheme.mobile.render.ClockSide
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.watch.WatchFaceBuilder
@@ -90,18 +91,87 @@ class FeaturesTest {
         c.drawRoundRect(RectF(w * 0.27f, h * 0.46f, w * 0.73f, h * 1.05f), w * 0.2f, w * 0.2f, p)
     }
 
-    private fun photoTheme(): Theme = Presets.all[0].copy(
-        background = Background(BackgroundType.PHOTO, listOf(0xFF1A202C.toInt(), 0xFFDD6B20.toInt()), photoFile = photo),
+    private fun photoTheme(file: String = photo): Theme = Presets.all[0].copy(
+        background = Background(BackgroundType.PHOTO, listOf(0xFF1A202C.toInt(), 0xFFDD6B20.toInt()), photoFile = file),
         dim = 0.1f, accentColor = 0xFFFFD166.toInt(),
     )
 
-    /** Телефон: часы на обоях (три раскладки) и экран блокировки с «адаптивными часами». */
+    /**
+     * Эффект глубины: объект справа — часы слева, слева — справа, сверху — снизу, снизу — сверху,
+     * и объект закрывает лишь край цифр. На часах-циферблате фото сдвигается так, что объект
+     * остаётся со своей стороны от времени. Строки листа — положения объекта.
+     */
+    @Test
+    fun clockOppositeTheSubject() = runBlocking<Unit> {
+        // Распознаватель по цвету: объект — оранжевый силуэт.
+        SubjectMask.segmenter = { _, input ->
+            val px = IntArray(input.width * input.height)
+            input.getPixels(px, 0, input.width, 0, 0, input.width, input.height)
+            for (i in px.indices) {
+                val c = px[i]
+                val orange = Color.red(c) > 180 && Color.green(c) in 70..150 && Color.blue(c) < 90
+                px[i] = if (orange) Color.WHITE else Color.TRANSPARENT
+            }
+            Bitmap.createBitmap(px, input.width, input.height, Bitmap.Config.ARGB_8888)
+        }
+        val cases = listOf(
+            Triple("right", 0.74f to 0.5f, ClockSide.LEFT),
+            Triple("left", 0.26f to 0.5f, ClockSide.RIGHT),
+            Triple("top", 0.5f to 0.22f, ClockSide.BOTTOM),
+            Triple("bottom", 0.5f to 0.72f, ClockSide.TOP),
+        )
+        val pw = 270
+        val ph = 585
+        val face = 200
+        val styles = listOf(ClockStyle.DIGITAL, ClockStyle.BOLD, ClockStyle.ORBIT, ClockStyle.ANALOG)
+        val sheet = Bitmap.createBitmap(16 + (pw + 16) + styles.size * (face + 16), cases.size * (ph + 16) + 16, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(sheet)
+        canvas.drawColor(0xFF202024.toInt())
+        cases.forEachIndexed { r, (name, at, expected) ->
+            val file = "photo_$name.jpg"
+            val w = 1200
+            val h = 1600
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            val p = Paint(Paint.ANTI_ALIAS_FLAG)
+            p.shader = LinearGradient(0f, 0f, 0f, h.toFloat(), 0xFF2B6CB0.toInt(), 0xFF81E6D9.toInt(), Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+            p.shader = null
+            p.color = 0xFFDD6B20.toInt()
+            val (cx, cy) = at
+            c.drawCircle(cx * w, (cy - 0.1f) * h, w * 0.12f, p)
+            c.drawRoundRect(RectF((cx - 0.2f) * w, (cy - 0.02f) * h, (cx + 0.2f) * w, (cy + 0.22f) * h), w * 0.15f, w * 0.15f, p)
+            ThemeRepository.get(context).photoFile(file).outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+            SubjectMask.file(context, file).delete()
+            SubjectMask.ensure(context, file)
+
+            val theme = photoTheme(file).copy(wallClock = WallClock(depth = true))
+            val spot = ThemeRenderer.wallClockSpot(context, theme, 540, 1170)
+            assertEquals("$name: часы напротив объекта", expected, spot.side)
+            assertTrue("$name: объект закрывает ${spot.overlap} цифр", spot.overlap in 0.04f..0.25f)
+            val y = 16f + r * (ph + 16)
+            canvas.drawBitmap(ThemeRenderer.phonePreview(context, theme, 540, 1170), null, RectF(16f, y, 16f + pw, y + ph), null)
+            styles.forEachIndexed { i, style ->
+                val t = photoTheme(file).copy(clockStyle = style, watchDepth = true)
+                assertNotNull(ThemeRenderer.watchCrop(context, t))
+                canvas.drawBitmap(ThemeRenderer.watchPreview(context, t, face), 32f + pw + i * (face + 16), y + (ph - face) / 2f, null)
+            }
+        }
+        sheet.save("depth_positions.png")
+    }
+
+    /**
+     * Телефон: часы на обоях без глубины (две раскладки), с глубиной (место — по объекту)
+     * и экран блокировки с «адаптивными часами».
+     */
     @Test
     fun depthOnPhone() = runBlocking<Unit> {
         SubjectMask.ensure(context, photo)
         assertTrue(SubjectMask.exists(context, photo))
         val base = photoTheme()
-        val variants = listOf(WallClockLayout.TOP, WallClockLayout.STACKED, WallClockLayout.CENTER).map { base.copy(wallClock = WallClock(it, depth = true)) }
+        val variants = listOf(
+            WallClock(WallClockLayout.TOP, depth = false), WallClock(WallClockLayout.STACKED, depth = false), WallClock(depth = true),
+        ).map { base.copy(wallClock = it) }
         val pw = 270
         val ph = 585
         val sheet = Bitmap.createBitmap((variants.size + 1) * (pw + 16) + 16, ph + 32, Bitmap.Config.ARGB_8888)
