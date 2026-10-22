@@ -128,8 +128,9 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
         }
 
         item {
+            val saved by a.vm.saved.collectAsStateWithLifecycle()
             ExpandableSection("Сохранить как свою тему", summary = theme.name) {
-                NameRow(theme, onRename = { name -> a.vm.update { it.copy(name = name) } }, onSave = a.vm::saveCurrent)
+                NameRow(theme, saved.any { it.id == theme.id }, onRename = { name -> a.vm.update { it.copy(name = name) } }, onSave = a.vm::saveCurrent)
             }
         }
     } else {
@@ -201,9 +202,10 @@ private fun ThemeStrip(
 ) {
     val look = LocalLook.current
     Column(Modifier.padding(vertical = 6.dp)) {
-        Text(look.title("Темы"), style = look.sectionTitle, color = look.text)
+        Text(look.title("Мои темы"), style = look.sectionTitle, color = look.text)
         Text(
-            "Нажмите тему или «Фото» — обои, виджеты и циферблат подстроятся под цвета.",
+            if (saved.isEmpty()) "Своих тем пока нет. Нажмите «Фото» или настройте фон и цвета ниже, затем «Сохранить как свою тему» — тема появится здесь."
+            else "Нажмите тему или «Фото» — обои, виджеты и циферблат подстроятся под цвета.",
             style = MaterialTheme.typography.bodySmall, color = look.muted,
         )
         Spacer(Modifier.height(8.dp))
@@ -227,21 +229,21 @@ private fun ThemeStrip(
                     ) { Icon(Icons.Default.Close, contentDescription = "Удалить", modifier = Modifier.size(14.dp), tint = Color.White) }
                 }
             }
-            items(Presets.all, key = { it.id }) { t -> ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) }) }
         }
     }
 }
 
 @Composable
-private fun NameRow(theme: Theme, onRename: (String) -> Unit, onSave: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(value = theme.name, onValueChange = onRename, singleLine = true, label = { Text("Название") }, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(8.dp))
-        FilledTonalButton(onClick = onSave) {
+private fun NameRow(theme: Theme, isSaved: Boolean, onRename: (String) -> Unit, onSave: (replace: Boolean) -> Unit) {
+    OutlinedTextField(value = theme.name, onValueChange = onRename, singleLine = true, label = { Text("Название") }, modifier = Modifier.fillMaxWidth())
+    // Сохранение не стирает прежние темы: новая тема — рядом; заменить можно только явно.
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilledTonalButton(onClick = { onSave(false) }) {
             Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Сохранить")
+            Text(if (isSaved) "Сохранить как новую" else "Сохранить")
         }
+        if (isSaved) OutlinedButton(onClick = { onSave(true) }) { Text("Обновить эту тему") }
     }
 }
 
@@ -463,7 +465,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
 
 fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable () -> Unit) {
     // Устройства — первыми: сюда приходят подключить часы, планшет или телефон.
-    item { DevicesSection(a.vm, a.openInstaller) }
+    item { DevicesSection(a.vm, a.openInstaller, a.openTvInstaller) }
     item { AppearanceSection(theme.accentColor) }
     item { updates() }
     item {

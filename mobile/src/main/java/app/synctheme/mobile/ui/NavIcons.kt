@@ -112,4 +112,14 @@ object NavIcons {
             fill { moveTo(x, y - 2.4f); arcTo(2.4f, 2.4f, 0f, true, true, x, y + 2.4f); arcTo(2.4f, 2.4f, 0f, true, true, x, y - 2.4f); close() }
         }
     }
+
+    /** Телевизор: экран на ножке. */
+    val Tv = icon("Tv") {
+        stroke {
+            moveTo(4f, 4.5f); lineTo(20f, 4.5f); quadTo(22f, 4.5f, 22f, 6.5f); lineTo(22f, 15.5f)
+            quadTo(22f, 17.5f, 20f, 17.5f); lineTo(4f, 17.5f); quadTo(2f, 17.5f, 2f, 15.5f); lineTo(2f, 6.5f)
+            quadTo(2f, 4.5f, 4f, 4.5f); close()
+        }
+        stroke { moveTo(8f, 21f); lineTo(16f, 21f); moveTo(12f, 17.5f); lineTo(12f, 21f) }
+    }
 }

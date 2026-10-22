@@ -7,7 +7,7 @@ import app.synctheme.mobile.render.WallpaperApplier
 import app.synctheme.mobile.watch.WatchFaceBuilder
 import app.synctheme.mobile.watch.WatchStatusStore
 import app.synctheme.mobile.watch.WatchSync
-import app.synctheme.mobile.tablet.TabletClient
+import app.synctheme.mobile.link.LinkClient
 import app.synctheme.mobile.widget.WidgetUpdater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -55,9 +55,12 @@ class ThemeApplier(private val context: Context) {
         }
         if (targets.widgets) step("виджеты", "Обновляю виджеты…") { withContext(Dispatchers.Default) { WidgetUpdater.updateAll(context) } }
         if (targets.tablet) {
-            step("планшет", "Отправляю на планшет…") {
-                val reply = TabletClient.push(context, t)
-                if ("Ошибки" in reply) throw java.io.IOException(reply.substringAfter("Ошибки — "))
+            // Все устройства по Wi‑Fi (планшет, телевизор, телефон) — одновременно.
+            progress("Отправляю на устройства…")
+            LinkClient.pushAll(context, t).forEach { (peer, result) ->
+                result.onSuccess { reply ->
+                    if ("Ошибки" in reply) errors += "${peer.name}: ${reply.substringAfter("Ошибки — ")}" else done += peer.name
+                }.onFailure { errors += "${peer.name}: ${it.message ?: it.javaClass.simpleName}" }
             }
         }
         var sent = false

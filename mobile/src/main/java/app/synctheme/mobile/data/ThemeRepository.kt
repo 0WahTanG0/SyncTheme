@@ -52,13 +52,26 @@ class ThemeRepository private constructor(context: Context) {
         prefs.edit().putString("applied", theme.toJson()).apply()
     }
 
-    /** Сохраняет тему в «Мои темы» (по id; новая тема получает новый id). */
-    fun save(theme: Theme): Theme {
-        val stored = if (_saved.value.any { it.id == theme.id }) theme
-        else theme.copy(id = "my-" + UUID.randomUUID().toString().take(8))
-        _saved.value = listOf(stored) + _saved.value.filterNot { it.id == stored.id }
+    /**
+     * Сохраняет тему в «Мои темы». По умолчанию — новой темой рядом с остальными (прежние не трогаются);
+     * [replace] — поверх своей темы, из которой открыт черновик.
+     */
+    fun save(theme: Theme, replace: Boolean = false): Theme {
+        // Обновить можно только уже сохранённую тему; иначе — всегда новая запись рядом с прежними.
+        val replacing = replace && _saved.value.any { it.id == theme.id }
+        val stored = if (replacing) theme
+        else theme.copy(id = "my-" + UUID.randomUUID().toString().take(8), name = uniqueName(theme.name))
+        _saved.value = if (replacing) _saved.value.map { if (it.id == stored.id) stored else it } else listOf(stored) + _saved.value
         persistSaved()
         return stored
+    }
+
+    /** Имя новой темы: не совпадает с уже сохранёнными («Закат» → «Закат 2»). */
+    private fun uniqueName(name: String): String {
+        val base = name.trim().ifEmpty { "Моя тема" }
+        val taken = _saved.value.map { it.name }.toSet()
+        if (base !in taken) return base
+        return generateSequence(2) { it + 1 }.map { "$base $it" }.first { it !in taken }
     }
 
     fun delete(theme: Theme) {

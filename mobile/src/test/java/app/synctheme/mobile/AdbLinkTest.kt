@@ -55,7 +55,7 @@ class AdbLinkTest {
                 else -> io.reject()
             }
         }
-        val link = AdbLink.open("127.0.0.1", watch.port, null, phone.private, phoneCert) {}
+        val link = AdbLink.open("127.0.0.1", watch.port, null, phone.private, phoneCert, log = {})
         link.use {
             assertEquals("SM-L310", it.model)
             val info = it.run("shell:getprop ro.build.version.sdk; getprop ro.product.brand", 5_000)
@@ -72,7 +72,7 @@ class AdbLinkTest {
     @Test
     fun silentWatchTimesOut() {
         val watch = FakeWatch(trusted = phoneCert) { _, _ -> Thread.sleep(5_000) }
-        val link = AdbLink.open("127.0.0.1", watch.port, null, phone.private, phoneCert) {}
+        val link = AdbLink.open("127.0.0.1", watch.port, null, phone.private, phoneCert, log = {})
         val start = System.currentTimeMillis()
         try {
             link.run("shell:getprop ro.build.version.sdk", 1_000)
@@ -91,9 +91,93 @@ class AdbLinkTest {
         val other = keyPair()
         val watch = FakeWatch(trusted = cert(other, "other")) { _, io -> io.reply("") }
         try {
-            AdbLink.open("127.0.0.1", watch.port, null, phone.private, phoneCert) {}.close()
+            AdbLink.open("127.0.0.1", watch.port, null, phone.private, phoneCert, log = {}).close()
             fail("ожидался запрос сопряжения")
         } catch (_: AdbPairingRequiredException) {
+        }
+    }
+
+    /**
+     * Телевизор без «Отладки по Wi‑Fi» («Отладка по сети», порт 5555): ключ телефона ему незнаком —
+     * телефон отправляет свой открытый ключ, на экране «Разрешить отладку?». В следующий раз
+     * хватает подписи, и спрашивать не нужно.
+     */
+    @Test
+    fun tvConfirmsKeyOnScreenOnce() {
+        val tv = FakeTv(phone)
+        var asked = 0
+        AdbLink.open("127.0.0.1", tv.port, null, phone.private, phoneCert, {}) { asked++ }.use {
+            assertEquals("Tuvio TV", it.model)
+        }
+        assertEquals("спросили один раз", 1, asked)
+        assertTrue("телевизор запомнил ключ", tv.trusted)
+        AdbLink.open("127.0.0.1", tv.port, null, phone.private, phoneCert, {}) { asked++ }.close()
+        assertEquals("второй раз — без вопроса", 1, asked)
+    }
+
+    /** Телевизор «слушает» ключ adb: подпись токена — PKCS#1 v1.5 поверх SHA-1, ключ — в формате adbkey.pub. */
+    private class FakeTv(private val phone: KeyPair) {
+        private val server = ServerSocket(0)
+        val port = server.localPort
+        @Volatile var trusted = false
+
+        init {
+            thread(isDaemon = true) {
+                while (true) {
+                    val socket = runCatching { server.accept() }.getOrNull() ?: break
+                    runCatching { socket.use(::serve) }
+                }
+            }
+        }
+
+        private fun serve(socket: Socket) {
+            val input = DataInputStream(socket.getInputStream())
+            val output = socket.getOutputStream()
+            fun send(command: Int, arg0: Int, arg1: Int, data: ByteArray = ByteArray(0)) {
+                val header = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
+                    .putInt(command).putInt(arg0).putInt(arg1).putInt(data.size).putInt(0).putInt(command.inv())
+                output.write(header.array() + data)
+                output.flush()
+            }
+            fun read(): Packet {
+                val b = ByteBuffer.wrap(ByteArray(24).also { input.readFully(it) }).order(ByteOrder.LITTLE_ENDIAN)
+                val command = b.int
+                val arg0 = b.int
+                val arg1 = b.int
+                return Packet(command, arg0, arg1, ByteArray(b.int).also { input.readFully(it) })
+            }
+            check(read().command == CNXN)
+            val token = ByteArray(20).also { SecureRandom().nextBytes(it) }
+            send(AUTH, 1, 0, token)
+            val signature = read()
+            check(signature.command == AUTH && signature.arg0 == 2)
+            val signed = trusted && java.security.Signature.getInstance("NONEwithRSA").run {
+                initVerify(phone.public)
+                update(SHA1_INFO + token)
+                verify(signature.payload)
+            }
+            if (!signed) {
+                send(AUTH, 1, 0, ByteArray(20).also { SecureRandom().nextBytes(it) })
+                val key = read()
+                check(key.command == AUTH && key.arg0 == 3)
+                val text = String(key.payload, Charsets.UTF_8).trimEnd('\u0000')
+                val raw = ByteBuffer.wrap(java.util.Base64.getDecoder().decode(text.substringBefore(' '))).order(ByteOrder.LITTLE_ENDIAN)
+                assertEquals(64, raw.int)
+                val n0inv = raw.int
+                fun le() = BigInteger(1, ByteArray(256).also { raw.get(it) }.reversedArray())
+                val n = le()
+                val rr = le()
+                val pub = phone.public as java.security.interfaces.RSAPublicKey
+                assertEquals(pub.modulus, n)
+                assertEquals(BigInteger.ONE.shiftLeft(4096).mod(n), rr)
+                assertEquals(-1, n0inv * n.toInt())
+                assertEquals(pub.publicExponent.toInt(), raw.int)
+                assertTrue(text.contains(" SyncTheme@"))
+                // Пользователь нажал «OK» пультом.
+                Thread.sleep(200)
+                trusted = true
+            }
+            send(CNXN, 0x01000001, 256 * 1024, "device::ro.product.name=tv;ro.product.model=Tuvio TV;features=shell_v2\u0000".toByteArray())
         }
     }
 
@@ -201,6 +285,8 @@ class AdbLinkTest {
         const val OKAY = 0x59414b4f
         const val WRTE = 0x45545257
         const val CLSE = 0x45534c43
+        const val AUTH = 0x48545541
+        val SHA1_INFO = byteArrayOf(0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14)
 
         fun keyPair(): KeyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
 

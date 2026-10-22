@@ -7,12 +7,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.synctheme.mobile.data.SharedImage
+import app.synctheme.mobile.install.InstallTarget
 import app.synctheme.mobile.install.InstallerViewModel
 import app.synctheme.mobile.install.WatchInstallerScreen
 
@@ -27,19 +29,38 @@ class MainActivity : ComponentActivity() {
         // Картинку прислали через «Поделиться» (Pinterest, браузер…): ставим её фоном в черновик.
         if (savedInstanceState == null && SharedImage.accepts(intent)) viewModel.importShared(intent)
         setContent {
-            var showInstaller by rememberSaveable { mutableStateOf(false) }
+            // Открытый установщик: на часы или на телевизор (имя InstallTarget), null — главный экран.
+            var installer by rememberSaveable { mutableStateOf<String?>(null) }
             val theme by viewModel.theme.collectAsStateWithLifecycle()
-            if (showInstaller) {
+            val target = installer?.let { runCatching { InstallTarget.valueOf(it) }.getOrNull() }
+            if (target != null) {
+                // После перезапуска процесса модель новая — напоминаем ей, что ставим.
+                LaunchedEffect(target) { installerViewModel.setTarget(target) }
                 val close: () -> Unit = {
-                    showInstaller = false
+                    installer = null
                     viewModel.refreshWatch()
                 }
                 BackHandler(onBack = close)
-                WatchInstallerScreen(installerViewModel, theme.accentColor, onClose = close)
+                WatchInstallerScreen(
+                    installerViewModel, theme.accentColor, onClose = close,
+                    onLinkTv = { host, port, name ->
+                        close()
+                        viewModel.linkDevice(host, port, name, null)
+                    },
+                )
             } else {
-                SyncThemeScreen(viewModel, initialTab, onOpenInstaller = { showInstaller = true })
+                SyncThemeScreen(
+                    viewModel, initialTab,
+                    onOpenInstaller = { open(InstallTarget.WATCH) { installer = it } },
+                    onOpenTvInstaller = { open(InstallTarget.TV) { installer = it } },
+                )
             }
         }
+    }
+
+    private fun open(target: InstallTarget, show: (String) -> Unit) {
+        installerViewModel.setTarget(target)
+        show(target.name)
     }
 
     override fun onNewIntent(intent: Intent) {

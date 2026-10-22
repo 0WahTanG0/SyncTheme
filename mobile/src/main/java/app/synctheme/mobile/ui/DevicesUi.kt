@@ -26,16 +26,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -48,12 +47,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,13 +61,14 @@ import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.devices.PhoneInfo
 import app.synctheme.mobile.devices.Watch
 import app.synctheme.mobile.install.AdbLink
-import app.synctheme.mobile.install.AdbService
-import app.synctheme.mobile.tablet.TabletClient
-import app.synctheme.mobile.tablet.TabletPush
-import app.synctheme.mobile.tablet.TabletReceiver
-import app.synctheme.mobile.tablet.TabletStore
+import app.synctheme.mobile.link.DeviceKind
+import app.synctheme.mobile.link.FoundDevice
+import app.synctheme.mobile.link.LinkClient
+import app.synctheme.mobile.link.LinkPush
+import app.synctheme.mobile.link.LinkReceiver
+import app.synctheme.mobile.link.LinkStore
+import app.synctheme.mobile.link.Peer
 import java.text.DateFormat
-import kotlinx.coroutines.delay
 import java.util.Date
 
 /** Список для выбора: строки с радиокнопкой. */
@@ -97,27 +98,33 @@ val StatusOk = Color(0xFF39D86A)
 val StatusWait = Color(0xFFFFCC00)
 val StatusBad = Color(0xFFFF3B30)
 
+/** Значок устройства по его типу. */
+fun DeviceKind.icon(): ImageVector = when (this) {
+    DeviceKind.PHONE -> NavIcons.Phone
+    DeviceKind.TABLET -> NavIcons.Tablet
+    DeviceKind.TV -> NavIcons.Tv
+}
+
 /**
- * «Устройства»: это устройство и подключённые к нему часы и планшет — каждое строкой со своим
- * состоянием, а новое — одной кнопкой «Добавить устройство». По умолчанию — только телефон.
+ * «Устройства»: это устройство и подключённые к нему часы, планшеты, телевизоры и телефоны — каждое
+ * строкой со своим состоянием, а новое — одной кнопкой «Добавить устройство». По умолчанию — только телефон.
  */
 @Composable
-fun DevicesSection(vm: MainViewModel, onOpenInstaller: () -> Unit) {
+fun DevicesSection(vm: MainViewModel, onOpenInstaller: () -> Unit, onOpenTvInstaller: () -> Unit = {}) {
     val context = LocalContext.current
     val devices by vm.devices.collectAsStateWithLifecycle()
     val connection by vm.connection.collectAsStateWithLifecycle()
-    val push by vm.tabletPush.collectAsStateWithLifecycle()
+    val push by vm.linkPush.collectAsStateWithLifecycle()
     val info = remember { PhoneInfo.detect() }
-    val isTablet = remember { DeviceSettings.isTablet(context) }
+    val kind = remember { DeviceSettings.kind(context) }
     var adding by rememberSaveable { mutableStateOf(false) }
     Section("Устройства") {
         DeviceRow(
-            if (isTablet) NavIcons.Tablet else NavIcons.Phone,
-            DeviceSettings.name(context),
-            (if (isTablet) "Этот планшет" else "Этот телефон") + " · Android ${Build.VERSION.RELEASE}" +
-                (info.oneUi?.let { " · One UI ${PhoneInfo.format(it)}" } ?: ""),
+            kind.icon(), DeviceSettings.name(context),
+            "Это устройство · Android ${Build.VERSION.RELEASE}" + (info.oneUi?.let { " · One UI ${PhoneInfo.format(it)}" } ?: ""),
         )
-        if (isTablet) {
+        // Планшет и телевизор принимают тему с телефона — это их главная роль.
+        if (kind != DeviceKind.PHONE) {
             ReceiverBlock(vm)
             return@Section
         }
@@ -130,22 +137,31 @@ fun DevicesSection(vm: MainViewModel, onOpenInstaller: () -> Unit) {
                 TextButton(onClick = { vm.setWatchEnabled(false) }) { Text("Отключить", maxLines = 1) }
             }
         }
-        if (devices.tablet) {
-            val name = remember(devices) { TabletStore.tablet(context)?.name ?: "Планшет" }
-            DeviceRow(NavIcons.Tablet, name, pushText(push), pushDot(push)) {
-                FilledTonalButton(onClick = vm::sendToTablet) { Text("Отправить тему", maxLines = 1) }
-                TextButton(onClick = vm::unpairTablet) { Text("Отключить", maxLines = 1) }
-            }
-        }
-        AccentButton("Добавить устройство", { adding = true }, quiet = devices.watch || devices.tablet, height = 48.dp)
-        if (!devices.watch && !devices.tablet) {
+        devices.peers.forEach { peer -> PeerRow(vm, peer, push[peer.id]) }
+        AccentButton("Добавить устройство", { adding = true }, quiet = devices.watch || devices.peers.isNotEmpty(), height = 48.dp)
+        if (!devices.watch && devices.peers.isEmpty()) {
             Text(
-                "Часы на Wear OS, планшет или другой телефон на Android — одна тема на всех, по одной кнопке «Применить».",
+                "Часы, планшет, телевизор с Google TV или другой телефон — одна тема на всех, по одной кнопке «Применить».",
                 style = MaterialTheme.typography.bodySmall, color = LocalLook.current.muted,
             )
         }
+        // Этот телефон тоже может получать тему — с другого телефона.
+        var receive by rememberSaveable { mutableStateOf(LinkStore.receiving(context)) }
+        OtherDevice(NavIcons.Phone, "Получать тему с другого телефона", receive, { receive = !receive }) { ReceiverBlock(vm) }
     }
-    if (adding) AddDeviceDialog(vm, onOpenInstaller) { adding = false }
+    if (adding) AddDeviceDialog(vm, onOpenInstaller, onOpenTvInstaller) { adding = false }
+}
+
+/** Строка устройства по Wi‑Fi: состояние, получает ли тему, отправить сейчас, отключить. */
+@Composable
+private fun PeerRow(vm: MainViewModel, peer: Peer, push: LinkPush?) {
+    DeviceRow(
+        peer.kind.icon(), peer.name, if (peer.enabled) pushText(push) else "Тему не получает", if (peer.enabled) pushDot(push) else Color.Gray,
+        trailing = { Switch(checked = peer.enabled, onCheckedChange = { vm.setPeerEnabled(peer.id, it) }) },
+    ) {
+        if (peer.enabled) FilledTonalButton(onClick = { vm.sendTo(peer.id) }) { Text("Отправить тему", maxLines = 1) }
+        TextButton(onClick = { vm.unlink(peer.id) }) { Text("Отключить", maxLines = 1) }
+    }
 }
 
 /** Состояние часов одной строкой и цвет точки. */
@@ -164,6 +180,7 @@ private fun DeviceRow(
     title: String,
     subtitle: String,
     dot: Color? = null,
+    trailing: (@Composable () -> Unit)? = null,
     actions: (@Composable () -> Unit)? = null,
 ) {
     val look = LocalLook.current
@@ -183,20 +200,24 @@ private fun DeviceRow(
                     Text(subtitle, style = MaterialTheme.typography.bodySmall, color = look.muted)
                 }
             }
+            if (trailing != null) {
+                Spacer(Modifier.width(8.dp))
+                trailing()
+            }
         }
         if (actions != null) {
-            FlowRow(Modifier.padding(start = 52.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { actions() }
+            FlowRow(Modifier.padding(start = 52.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) { actions() }
         }
     }
 }
 
-fun pushText(push: TabletPush?): String = when {
+fun pushText(push: LinkPush?): String = when {
     push == null -> "Тема уйдёт на него по «Применить»"
     push.ok -> "${push.text} · ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(push.at))}"
     else -> push.text
 }
 
-fun pushDot(push: TabletPush?): Color = when {
+fun pushDot(push: LinkPush?): Color = when {
     push == null -> Color.Gray
     push.ok -> StatusOk
     push.pending -> StatusWait
@@ -204,35 +225,33 @@ fun pushDot(push: TabletPush?): Color = when {
 }
 
 /**
- * «Добавить устройство»: что нашлось рядом — часы по Bluetooth, планшеты и телефоны в той же
+ * «Добавить устройство»: что нашлось рядом — часы по Bluetooth, планшеты, телевизоры и телефоны в той же
  * сети Wi‑Fi — и как подключить то, чего в списке нет.
  */
 @Composable
-private fun AddDeviceDialog(vm: MainViewModel, onOpenInstaller: () -> Unit, onDismiss: () -> Unit) {
+private fun AddDeviceDialog(vm: MainViewModel, onOpenInstaller: () -> Unit, onOpenTvInstaller: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val look = LocalLook.current
     val devices by vm.devices.collectAsStateWithLifecycle()
     val connection by vm.connection.collectAsStateWithLifecycle()
-    val found by remember { TabletClient.discover(context) }.collectAsState(emptyList())
-    val paired = remember(devices) { TabletStore.tablet(context) }
-    var pairing by remember { mutableStateOf<AdbService?>(null) }
+    val found by remember { LinkClient.discover(context) }.collectAsState(emptyList())
     var other by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { vm.refreshWatch() }
 
-    pairing?.let { target ->
-        CodeDialog(vm, target, onBack = { pairing = null }, onDone = onDismiss)
-        return
+    fun link(device: FoundDevice) {
+        vm.linkDevice(device.service.host, device.service.port, device.name, device.service.name)
+        onDismiss()
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Добавить устройство") },
         text = {
-            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.heightIn(max = 540.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(10.dp))
-                    Text("Ищу рядом: часы — по Bluetooth, планшеты и телефоны — в вашей сети Wi‑Fi", style = MaterialTheme.typography.bodySmall, color = look.muted)
+                    Text("Ищу рядом: часы — по Bluetooth, планшеты, телевизоры и телефоны — в вашей сети Wi‑Fi", style = MaterialTheme.typography.bodySmall, color = look.muted)
                 }
                 // Часы, подключённые к телефону по Bluetooth (Galaxy Wearable, Pixel Watch).
                 if (!devices.watch) {
@@ -251,12 +270,11 @@ private fun AddDeviceDialog(vm: MainViewModel, onOpenInstaller: () -> Unit, onDi
                         }
                     }
                 }
-                // Планшеты и телефоны с включённым «Принимать тему с телефона».
-                found.forEach { service ->
-                    val name = service.name.removePrefix("SyncTheme · ")
-                    val isPaired = paired?.let { TabletClient.baseName(it.service.orEmpty()) == service.name || it.name == name } == true
-                    DeviceRow(NavIcons.Tablet, name, if (isPaired) "Уже подключён" else "В вашей сети Wi‑Fi", if (isPaired) StatusOk else null) {
-                        FilledTonalButton(onClick = { pairing = service }) { Text(if (isPaired) "Связать заново" else "Подключить", maxLines = 1) }
+                // Устройства с включённым «Принимать тему с телефона».
+                found.forEach { device ->
+                    val linked = devices.peers.any { p -> device.id?.let { it == p.id } ?: (p.name == device.name) }
+                    DeviceRow(device.kind.icon(), device.name, if (linked) "Уже подключён" else "${device.kind.title} в вашей сети Wi‑Fi", if (linked) StatusOk else null) {
+                        FilledTonalButton(onClick = { link(device) }) { Text(if (linked) "Подключить заново" else "Подключить", maxLines = 1) }
                     }
                 }
                 val nothing = (devices.watch || connection.connectedNames.isEmpty()) && found.isEmpty()
@@ -277,13 +295,31 @@ private fun AddDeviceDialog(vm: MainViewModel, onOpenInstaller: () -> Unit, onDi
                         }) { Text("Установить на часы по Wi‑Fi") }
                     }
                 }
+                OtherDevice(NavIcons.Tv, "Телевизор с Google TV", other == "tv", { other = if (other == "tv") null else "tv" }) {
+                    Text(
+                        "Телевизоры и приставки с Google TV или Android TV. Телефон сам поставит на телевизор SyncTheme и включит " +
+                            "заставку с темой — нужно один раз включить на телевизоре отладку в «Для разработчиков».",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(onClick = {
+                        onDismiss()
+                        onOpenTvInstaller()
+                    }) { Text("Установить на телевизор") }
+                    Text(
+                        "Если SyncTheme на телевизоре уже есть — откройте его там: телевизор появится в списке выше.",
+                        style = MaterialTheme.typography.bodySmall, color = look.muted,
+                    )
+                }
                 OtherDevice(NavIcons.Tablet, "Планшет или другой телефон", other == "tablet", { other = if (other == "tablet") null else "tablet" }) {
                     Text(
                         "Установите на него SyncTheme (тот же файл, что и на телефон), откройте «Настройки» → «Устройства» и включите " +
-                            "«Принимать тему с телефона». Устройства должны быть в одной сети Wi‑Fi — тогда он появится в списке выше.",
+                            "«Принимать тему с телефона». Устройства должны быть в одной сети Wi‑Fi — тогда оно появится в списке выше.",
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    ManualAddress { pairing = it }
+                    ManualAddress { host, port ->
+                        vm.linkDevice(host, port, host, null)
+                        onDismiss()
+                    }
                 }
             }
         },
@@ -309,7 +345,7 @@ private fun OtherDevice(icon: ImageVector, title: String, open: Boolean, onToggl
 
 /** Адрес вручную — если роутер не пропускает поиск устройств. */
 @Composable
-private fun ManualAddress(onAddress: (AdbService) -> Unit) {
+private fun ManualAddress(onAddress: (host: String, port: Int) -> Unit) {
     var manual by remember { mutableStateOf("") }
     val host = manual.substringBeforeLast(':', "")
     val port = manual.substringAfterLast(':', "").toIntOrNull()
@@ -318,44 +354,62 @@ private fun ManualAddress(onAddress: (AdbService) -> Unit) {
         label = { Text("Адрес с его экрана") }, placeholder = { Text("192.168.1.20:47231") },
         modifier = Modifier.fillMaxWidth(),
     )
-    TextButton(onClick = { onAddress(AdbService("", host, port ?: 0)) }, enabled = host.isNotBlank() && port != null) { Text("Дальше") }
+    TextButton(onClick = { if (port != null) onAddress(host, port) }, enabled = host.isNotBlank() && port != null) { Text("Подключить") }
 }
 
-/** Код с экрана планшета — шесть цифр; с ними телефон и планшет договариваются о ключе. */
+/**
+ * Телефон подключает устройство: пока на устройстве не нажали «Подключить» — код сверки
+ * (на устройстве он такой же). Виден на любом экране: телевизор подключается и сразу после установки.
+ */
 @Composable
-private fun CodeDialog(vm: MainViewModel, target: AdbService, onBack: () -> Unit, onDone: () -> Unit) {
-    var code by remember { mutableStateOf("") }
-    val busy by vm.busy.collectAsStateWithLifecycle()
-    val name = target.name.removePrefix("SyncTheme · ").ifBlank { target.host }
+fun LinkingDialog(vm: MainViewModel) {
+    val linking by vm.linking.collectAsStateWithLifecycle()
+    val l = linking ?: return
     AlertDialog(
-        onDismissRequest = onBack,
-        title = { Text("Код с «$name»") },
+        onDismissRequest = {},
+        title = { Text("Подключение «${l.device}»") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Код из шести цифр — на его экране: «Настройки» → «Устройства», включено «Принимать тему с телефона». " +
-                        "Если он уже связан с другим телефоном — нажмите там «Связать с другим телефоном».",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                OutlinedTextField(
-                    value = code, onValueChange = { code = it.filter(Char::isDigit).take(6) }, singleLine = true,
-                    label = { Text("Код") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                busy?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = LocalLook.current.muted) }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val code = l.code
+                if (code == null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Связываюсь…", style = MaterialTheme.typography.bodyMedium)
+                    }
+                } else {
+                    Text("На «${l.device}» появился запрос. Проверьте, что код там такой же, и нажмите «Подключить»:", style = MaterialTheme.typography.bodyMedium)
+                    Text(code.chunked(3).joinToString(" "), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = LocalLook.current.primary)
+                }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = { vm.pairTablet(target.host, target.port, code, target.name.takeIf { it.isNotBlank() }, onDone) },
-                enabled = code.length == 6 && busy == null,
-            ) { Text("Связать") }
-        },
-        dismissButton = { TextButton(onClick = onBack) { Text("Назад") } },
+        confirmButton = { TextButton(onClick = vm::cancelLinking) { Text("Отмена") } },
     )
 }
 
-/** Планшет: принимать тему с телефона; пока не связан — сразу показывает код для телефона. */
+/** Устройство: телефон просит подключиться — «Подключить» или «Отклонить» (код должен совпасть с телефоном). */
+@Composable
+fun LinkRequestDialog() {
+    val state by LinkReceiver.state.collectAsStateWithLifecycle()
+    val request = state.request ?: return
+    // На телевизоре фокус сразу на «Подключить» — одно нажатие на пульте.
+    val approve = remember { FocusRequester() }
+    LaunchedEffect(request) { runCatching { approve.requestFocus() } }
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("Подключить телефон «${request.phone}»?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Тема с этого телефона будет приходить сюда сама. Код на телефоне должен быть таким же:", style = MaterialTheme.typography.bodyMedium)
+                Text(request.code.chunked(3).joinToString(" "), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = LocalLook.current.primary)
+            }
+        },
+        confirmButton = { TextButton(onClick = { LinkReceiver.answer(true) }, modifier = Modifier.focusRequester(approve)) { Text("Подключить") } },
+        dismissButton = { TextButton(onClick = { LinkReceiver.answer(false) }) { Text("Отклонить") } },
+    )
+}
+
+/** Устройство: принимать тему с телефона. Подключается с телефона — здесь только подтвердить. */
 @SuppressLint("BatteryLife")
 @Composable
 private fun ReceiverBlock(vm: MainViewModel) {
@@ -363,7 +417,7 @@ private fun ReceiverBlock(vm: MainViewModel) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val receiving by vm.receiving.collectAsStateWithLifecycle()
     val state by vm.receiver.collectAsStateWithLifecycle()
-    // Уведомление о приёме в фоне — тихое; без разрешения служба тоже работает, просто без него.
+    // Уведомление о приёме в фоне и о запросе подключения; без разрешения приём тоже работает.
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var unrestricted by remember { mutableStateOf(isUnrestricted(context)) }
     val battery = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { unrestricted = isUnrestricted(context) }
@@ -373,42 +427,27 @@ private fun ReceiverBlock(vm: MainViewModel) {
     }
     if (!receiving) {
         Text(
-            "Тема с телефона — и на этом планшете: обои, экран блокировки и виджеты обновятся сами, когда на телефоне нажмут «Применить».",
+            "Тема с телефона — и здесь: обои, экран блокировки и виджеты обновятся сами, когда на телефоне нажмут «Применить».",
             style = MaterialTheme.typography.bodySmall, color = muted,
         )
         return
     }
-    // Не связан с телефоном — код сразу на экране, без лишнего нажатия; истёк — новый (или окно закрывается).
-    LaunchedEffect(state.phone) { if (state.phone == null && state.code == null) TabletReceiver.openPairing() }
-    LaunchedEffect(state.code) {
-        if (state.code == null) return@LaunchedEffect
-        delay(TabletReceiver.PAIRING_MS)
-        if (state.phone == null) TabletReceiver.openPairing() else TabletReceiver.closePairing()
-    }
     Text(
-        state.phone?.let { "Связан с телефоном «$it» ✓" } ?: "Пока не связан с телефоном",
+        state.phone?.let { "Подключён к телефону «$it» ✓" }
+            ?: "Ждёт подключения. На телефоне: «Настройки» → «Устройства» → «Добавить устройство» → «${DeviceSettings.name(context)}», затем подтвердите здесь.",
         style = MaterialTheme.typography.bodyMedium,
     )
     state.last?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = muted) }
-    val code = state.code
-    if (code == null) {
-        OutlinedButton(onClick = { TabletReceiver.openPairing() }) { Text("Связать с другим телефоном") }
-    } else {
-        Text("На телефоне: «Настройки» → «Устройства» → «Добавить устройство», выберите этот планшет и введите код:", style = MaterialTheme.typography.bodySmall)
-        Text(code.chunked(3).joinToString(" "), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = LocalLook.current.primary)
-        state.address?.let { Text("Если телефон не найдёт планшет — адрес: $it", style = MaterialTheme.typography.bodySmall, color = muted) }
-        Text("Код действует 10 минут.", style = MaterialTheme.typography.bodySmall, color = muted)
-        if (remember { AdbLink.vpnActive(context) }) {
-            Text(
-                "На планшете включён VPN. Если телефон не может подключиться, выключите VPN или разрешите в нём локальную сеть.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
-            )
-        }
-        if (state.phone != null) TextButton(onClick = TabletReceiver::closePairing) { Text("Отмена") }
+    state.address?.let { Text("Если телефон не найдёт это устройство — адрес: $it", style = MaterialTheme.typography.bodySmall, color = muted) }
+    if (remember { AdbLink.vpnActive(context) }) {
+        Text(
+            "Здесь включён VPN. Если телефон не может подключиться, выключите VPN или разрешите в нём локальную сеть.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+        )
     }
     if (!unrestricted) {
         Text(
-            "Чтобы планшет принимал тему и с выключенным экраном, разрешите SyncTheme работать в фоне без ограничений.",
+            "Чтобы тема приходила и с выключенным экраном, разрешите SyncTheme работать в фоне без ограничений.",
             style = MaterialTheme.typography.bodySmall, color = muted,
         )
         FilledTonalButton(onClick = {

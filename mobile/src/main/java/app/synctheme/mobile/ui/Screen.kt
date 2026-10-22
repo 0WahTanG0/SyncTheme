@@ -76,7 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.data.DeviceSet
-import app.synctheme.mobile.tablet.TabletPush
+import app.synctheme.mobile.link.LinkPush
 import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.widget.WidgetConfigActivity
 
@@ -104,13 +104,14 @@ fun SyncThemeScreen(
     initialTab: Tab = Tab.WALLPAPER,
     onOpenInstaller: () -> Unit = {},
     initialLock: Boolean = false,
+    onOpenTvInstaller: () -> Unit = {},
     expandSections: Boolean = false,
 ) = androidx.compose.runtime.CompositionLocalProvider(LocalExpandAll provides expandSections) {
-    SyncThemeContent(vm, initialTab, onOpenInstaller, initialLock)
+    SyncThemeContent(vm, initialTab, onOpenInstaller, initialLock, onOpenTvInstaller)
 }
 
 @Composable
-private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller: () -> Unit, initialLock: Boolean) {
+private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller: () -> Unit, initialLock: Boolean, onOpenTvInstaller: () -> Unit) {
     val theme by vm.theme.collectAsStateWithLifecycle()
     val applied by vm.applied.collectAsStateWithLifecycle()
     val phonePreview by vm.phonePreview.collectAsStateWithLifecycle()
@@ -121,7 +122,8 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     val busy by vm.busy.collectAsStateWithLifecycle()
     val devices by vm.devices.collectAsStateWithLifecycle()
     val tabletPreview by vm.tabletPreview.collectAsStateWithLifecycle()
-    val tabletPush by vm.tabletPush.collectAsStateWithLifecycle()
+    val tvPreview by vm.tvPreview.collectAsStateWithLifecycle()
+    val linkPush by vm.linkPush.collectAsStateWithLifecycle()
     // Без часов вкладка «Часы» не нужна.
     val tabs = Tab.entries.filter { it != Tab.WATCH || devices.watch }
     val context = LocalContext.current
@@ -149,6 +151,7 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
                 photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
             openInstaller = onOpenInstaller,
+            openTvInstaller = onOpenTvInstaller,
             arrange = { arrange = it },
             configureWidget = { id ->
                 context.startActivity(
@@ -174,12 +177,12 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     // Превью устройств: что сейчас видно на экранах (на вкладке «Часы» — только часы).
     val previews: @Composable (Dp) -> Unit = { height ->
         when (tab) {
-            Tab.WATCH -> PreviewRow(null, watchPreview, null, height)
+            Tab.WATCH -> PreviewRow(null, watchPreview, null, null, height)
             Tab.WALLPAPER -> PreviewRow(
                 if (lock) lockPreview else phonePreview, watchPreview.takeIf { devices.watch },
-                tabletPreview.takeIf { devices.tablet && !lock }, height, vm.selfTablet,
+                tabletPreview.takeIf { !lock }, tvPreview.takeIf { !lock }, height, vm.selfTablet,
             )
-            else -> PreviewRow(phonePreview, watchPreview.takeIf { devices.watch }, tabletPreview.takeIf { devices.tablet }, height, vm.selfTablet)
+            else -> PreviewRow(phonePreview, watchPreview.takeIf { devices.watch }, tabletPreview, tvPreview, height, vm.selfTablet)
         }
     }
     val settings: LazyListScope.() -> Unit = {
@@ -190,8 +193,8 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
             Tab.MORE -> moreTab(theme, actions) { UpdateSection(vm) }
         }
     }
-    val applyStrip: @Composable () -> Unit = { ApplyStrip(targets, busy, theme != applied, devices, vm::setTargets, vm::apply) }
-    val headerRow: @Composable () -> Unit = { Header(connection, devices, tabletPush, onOpenInstaller) { tab = Tab.MORE } }
+    val applyStrip: @Composable () -> Unit = { ApplyStrip(targets, busy, theme != applied, devices, vm::setTargets, vm::setPeerEnabled, vm::apply) }
+    val headerRow: @Composable () -> Unit = { Header(connection, devices, linkPush, onOpenInstaller) { tab = Tab.MORE } }
 
     AppTheme(theme.accentColor) {
         AppBackdrop {
@@ -233,6 +236,10 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
                     }
                 }
                 if (wide) SnackbarHost(snackbar, Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(8.dp).widthIn(max = 520.dp))
+                // Запросы на подключение видны на любом экране: этот телефон подключает устройство
+                // или сам принимает тему с другого телефона.
+                LinkingDialog(vm)
+                LinkRequestDialog()
             }
         }
 
@@ -275,6 +282,8 @@ class ScreenActions(
     val vm: MainViewModel,
     val pickPhoto: (BgTarget) -> Unit,
     val openInstaller: () -> Unit,
+    /** Установка SyncTheme на телевизор с телефона. */
+    val openTvInstaller: () -> Unit = {},
     val configureWidget: (Int) -> Unit,
     /** Редактор расположения: подвинуть часы (время) и фото. */
     val arrange: (ArrangeTarget) -> Unit = {},
@@ -302,12 +311,12 @@ class ScreenActions(
     }
 }
 
-/** Шапка: название и состояние подключённых устройств (часы и планшет — если есть). */
+/** Шапка: название и состояние подключённых устройств (часы и устройства по Wi‑Fi — если есть). */
 @Composable
 private fun Header(
     connection: WatchConnection,
     devices: DeviceSet,
-    push: TabletPush?,
+    push: Map<String, LinkPush>,
     onOpenInstaller: () -> Unit,
     onDevices: () -> Unit,
 ) {
@@ -316,38 +325,44 @@ private fun Header(
         AppMark(look, 36.dp)
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) { AppTitle(look) }
-        // Оба устройства — короткие подписи, чтобы поместились рядом.
-        val short = devices.watch && devices.tablet
-        if (devices.watch) {
-            val (dot, text) = when {
-                !connection.checked -> Color.Gray to "Ищу часы…"
-                connection.hasApp -> StatusOk to "Часы на связи"
-                connection.hasWatch -> StatusWait to "Установить на часы"
-                else -> StatusBad to "Часы не найдены"
+        val peers = devices.peers.filter { it.enabled }
+        val (watchDot, watchText) = when {
+            !connection.checked -> Color.Gray to "Ищу часы…"
+            connection.hasApp -> StatusOk to "Часы на связи"
+            connection.hasWatch -> StatusWait to "Установить на часы"
+            else -> StatusBad to "Часы не найдены"
+        }
+        // Точка — худшее состояние среди устройств: ошибка, затем ожидание, затем «всё на месте».
+        val states = peers.map { push[it.id] }
+        val peersDot = when {
+            states.any { it != null && !it.ok && !it.pending } -> StatusBad
+            states.any { it?.pending == true } -> StatusWait
+            states.all { it?.ok == true } -> StatusOk
+            else -> Color.Gray
+        }
+        when {
+            // Часы и другие устройства вместе — одна плашка «Устройства · N», иначе не помещается название.
+            devices.watch && peers.isNotEmpty() -> {
+                val dot = listOf(StatusBad, StatusWait, StatusOk).firstOrNull { it == watchDot || it == peersDot } ?: Color.Gray
+                StatusChip(dot, "Устройства · ${peers.size + 1}") {
+                    if (connection.hasWatch && !connection.hasApp) onOpenInstaller() else onDevices()
+                }
             }
-            StatusChip(dot, if (short) "Часы" else text) {
+            devices.watch -> StatusChip(watchDot, watchText) {
                 if (connection.hasWatch && !connection.hasApp) onOpenInstaller() else onDevices()
             }
-        }
-        if (devices.tablet) {
-            if (short) Spacer(Modifier.width(6.dp))
-            val text = when {
-                push == null -> "Планшет"
-                push.ok -> if (short) "Планшет" else "Планшет ✓"
-                push.pending -> if (short) "Планшет" else "Планшет ждёт"
-                else -> if (short) "Планшет" else "Планшет: ошибка"
-            }
-            StatusChip(pushDot(push), text, onDevices)
+            // Одно устройство — его тип; несколько — сколько их.
+            peers.isNotEmpty() -> StatusChip(peersDot, if (peers.size == 1) peers.single().kind.title else "Устройства · ${peers.size}", onDevices)
         }
     }
 }
 
 /**
- * Превью подключённых устройств рядом: телефон, планшет (если подключён) и часы (если подключены).
- * Без телефона (вкладка «Часы») часы крупнее.
+ * Превью подключённых устройств рядом: телефон, планшет и телевизор (если подключены) и часы.
+ * Без телефона (вкладка «Часы») часы крупнее. Если всё не помещается в строку, остальные уменьшаются.
  */
 @Composable
-private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBitmap?, height: Dp, selfTablet: Boolean = false) {
+private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBitmap?, tv: ImageBitmap?, height: Dp, selfTablet: Boolean = false) {
     val look = LocalLook.current
     val outer = when (look.style) {
         AppStyle.GLASS -> RoundedCornerShape(28.dp)
@@ -374,24 +389,39 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBi
             Box(Modifier.align(Alignment.TopEnd).offset(x = 40.dp, y = (-50).dp).size(190.dp).clip(FlowerShape).background(look.highlight))
         }
         val inner = height - 20.dp
-        // Ширина телефона задана высотой; планшет и часы уменьшаются, если все не помещаются в строку.
         // Своё устройство: телефон в портрете или (приложение на планшете) планшет в альбомной ориентации.
         val selfAspect = if (selfTablet) 1.6f else 540f / 1170f
         val selfH = if (selfTablet) inner * 0.8f else inner
         val phoneW = if (watchOnly) 0.dp else selfH * selfAspect
-        var tabletH = if (tablet != null) inner * (if (watch != null) 0.56f else 0.66f) else 0.dp
+        val many = listOfNotNull(tablet, tv, watch).size > 1
+        var tabletH = if (tablet != null) inner * (if (many) 0.5f else 0.66f) else 0.dp
+        var tvH = if (tv != null) inner * (if (many) 0.48f else 0.62f) else 0.dp
         var watchD = when {
             watch == null -> 0.dp
             watchOnly -> inner
-            else -> minOf(inner * (if (tablet != null) 0.5f else 0.68f), 140.dp)
+            else -> minOf(inner * (if (many) 0.5f else 0.68f), 140.dp)
         }
-        val count = listOf(!watchOnly, tablet != null, watch != null).count { it }
-        val room = maxWidth - 16.dp * (count + 1)
-        val need = phoneW + tabletH * 1.6f + watchD
-        if (need > room && tabletH + watchD > 0.dp) {
-            val k = ((room - phoneW) / (tabletH * 1.6f + watchD)).coerceIn(0.3f, 1f)
+        val count = listOf(!watchOnly, tablet != null, tv != null, watch != null).count { it }
+        val room = maxWidth - 12.dp * (count + 1)
+        val others = tabletH * 1.6f + tvH * (16f / 9f) + watchD
+        if (phoneW + others > room && others > 0.dp) {
+            val k = ((room - phoneW) / others).coerceIn(0.25f, 1f)
             tabletH *= k
+            tvH *= k
             watchD *= k
+        }
+        @Composable
+        fun Screen(image: ImageBitmap?, h: Dp, aspect: Float, radius: Dp, description: String) {
+            val shape = RoundedCornerShape(radius)
+            Box(
+                Modifier.height(h).aspectRatio(aspect)
+                    .glow(look, shape, 12.dp, 0.7f)
+                    .clip(shape)
+                    .background(Color.Black)
+                    .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, screenBorder, shape),
+            ) {
+                image?.let { Image(it, contentDescription = description, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+            }
         }
         Row(
             modifier = Modifier.fillMaxSize().padding(vertical = 10.dp),
@@ -399,35 +429,10 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBi
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (!watchOnly) {
-                val phoneShape = RoundedCornerShape(if (look.style == AppStyle.EXPRESSIVE) 24.dp else 20.dp)
-                Box(
-                    Modifier
-                        .height(selfH)
-                        .aspectRatio(selfAspect)
-                        .glow(look, phoneShape, 12.dp, 0.7f)
-                        .clip(phoneShape)
-                        .background(Color.Black)
-                        .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, screenBorder, phoneShape),
-                ) {
-                    phone?.let {
-                        Image(it, contentDescription = if (selfTablet) "Превью планшета" else "Превью телефона", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    }
-                }
+                Screen(phone, selfH, selfAspect, if (look.style == AppStyle.EXPRESSIVE) 24.dp else 20.dp, if (selfTablet) "Превью планшета" else "Превью телефона")
             }
-            if (tablet != null) {
-                val tabletShape = RoundedCornerShape(if (look.style == AppStyle.EXPRESSIVE) 18.dp else 14.dp)
-                Box(
-                    Modifier
-                        .height(tabletH)
-                        .aspectRatio(1.6f)
-                        .glow(look, tabletShape, 12.dp, 0.7f)
-                        .clip(tabletShape)
-                        .background(Color.Black)
-                        .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, screenBorder, tabletShape),
-                ) {
-                    Image(tablet, contentDescription = "Превью планшета", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                }
-            }
+            if (tablet != null) Screen(tablet, tabletH, 1.6f, if (look.style == AppStyle.EXPRESSIVE) 18.dp else 14.dp, "Превью планшета")
+            if (tv != null) Screen(tv, tvH, 16f / 9f, 6.dp, "Превью телевизора")
             if (watch == null && !watchOnly) return@Row
             // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
             val bezel = when (look.style) {

@@ -13,8 +13,8 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-/** Найденная в сети служба ADB часов. */
-data class AdbService(val name: String, val host: String, val port: Int)
+/** Найденная в сети служба (ADB часов или SyncTheme на устройстве); [attributes] — её TXT-запись. */
+data class AdbService(val name: String, val host: String, val port: Int, val attributes: Map<String, String> = emptyMap())
 
 /**
  * Ищет часы с включённой «Отладкой по Wi‑Fi» через mDNS (как это делает Android Studio):
@@ -24,6 +24,9 @@ data class AdbService(val name: String, val host: String, val port: Int)
 object AdbDiscovery {
     const val PAIRING = "_adb-tls-pairing._tcp"
     const val CONNECT = "_adb-tls-connect._tcp"
+
+    /** Google TV и Android TV объявляют себя для пульта в приложении Google TV — так находится адрес телевизора. */
+    const val TV = "_androidtvremote2._tcp"
 
     fun services(context: Context, type: String): Flow<List<AdbService>> = callbackFlow {
         val nsd = context.getSystemService(NsdManager::class.java)
@@ -38,12 +41,13 @@ object AdbDiscovery {
             trySend(found.values.sortedBy { it.host })
         }
 
-        fun resolved(name: String, addresses: List<InetAddress>, port: Int) {
+        fun resolved(name: String, addresses: List<InetAddress>, port: Int, attributes: Map<String, ByteArray?>?) {
             val address = addresses.firstOrNull { it is Inet4Address } ?: addresses.firstOrNull() ?: return
             val host = address.hostAddress ?: return
             // Свой телефон (если на нём тоже включена отладка) не показываем.
             if (host in ownAddresses || port <= 0) return
-            found[name] = AdbService(name, host, port)
+            val txt = attributes.orEmpty().mapNotNull { (k, v) -> v?.let { k to String(it, Charsets.UTF_8) } }.toMap()
+            found[name] = AdbService(name, host, port, txt)
             publish()
         }
 
@@ -62,7 +66,7 @@ object AdbDiscovery {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     val callback = object : NsdManager.ServiceInfoCallback {
                         override fun onServiceUpdated(updated: NsdServiceInfo) =
-                            resolved(updated.serviceName, updated.hostAddresses, updated.port)
+                            resolved(updated.serviceName, updated.hostAddresses, updated.port, updated.attributes)
                         override fun onServiceLost() {
                             found.remove(info.serviceName)
                             publish()
@@ -80,7 +84,7 @@ object AdbDiscovery {
                             override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) = Unit
                             override fun onServiceResolved(info: NsdServiceInfo) {
                                 @Suppress("DEPRECATION")
-                                resolved(info.serviceName, listOfNotNull(info.host), info.port)
+                                resolved(info.serviceName, listOfNotNull(info.host), info.port, info.attributes)
                             }
                         })
                     }

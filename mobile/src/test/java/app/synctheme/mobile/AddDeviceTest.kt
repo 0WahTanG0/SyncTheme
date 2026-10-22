@@ -13,7 +13,7 @@ import androidx.test.core.app.ApplicationProvider
 import app.synctheme.core.Presets
 import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.data.ThemeRepository
-import app.synctheme.mobile.tablet.TabletStore
+import app.synctheme.mobile.link.LinkStore
 import app.synctheme.mobile.ui.AppMode
 import app.synctheme.mobile.ui.AppStyle
 import app.synctheme.mobile.ui.Appearance
@@ -46,7 +46,7 @@ class AddDeviceTest {
         AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
         ThemeRepository.get(app).setDraft(Presets.all[0])
         DeviceSettings.setWatch(app, false)
-        TabletStore.setTablet(app, null)
+        LinkStore.reload()
         val vm = MainViewModel(app)
         compose.setContent { SyncThemeScreen(vm, Tab.MORE) }
         compose.onNodeWithText("Добавить устройство").performScrollTo()

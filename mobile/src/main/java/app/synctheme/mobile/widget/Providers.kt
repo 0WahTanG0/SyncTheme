@@ -62,13 +62,16 @@ object WidgetUpdater {
         WidgetKind.APPS to listOf(AppsWidget::class.java),
     )
 
+    /** null — на устройстве нет виджетов (телевизоры с Google TV / Android TV). */
+    private fun manager(context: Context): AppWidgetManager? = runCatching { AppWidgetManager.getInstance(context) }.getOrNull()
+
     fun ids(context: Context, kind: WidgetKind): IntArray {
-        val manager = AppWidgetManager.getInstance(context)
+        val manager = manager(context) ?: return IntArray(0)
         return providers.getValue(kind).flatMap { manager.getAppWidgetIds(ComponentName(context, it)).toList() }.toIntArray()
     }
 
     fun kindOf(context: Context, id: Int): WidgetKind? {
-        val cls = AppWidgetManager.getInstance(context).getAppWidgetInfo(id)?.provider?.className ?: return null
+        val cls = manager(context)?.getAppWidgetInfo(id)?.provider?.className ?: return null
         return providers.entries.firstOrNull { e -> e.value.any { it.name == cls } }?.key
     }
 
@@ -81,7 +84,7 @@ object WidgetUpdater {
     fun updateAll(context: Context) = WidgetKind.entries.forEach { update(context, it) }
 
     fun update(context: Context, kind: WidgetKind) {
-        val manager = AppWidgetManager.getInstance(context)
+        val manager = manager(context) ?: return
         ids(context, kind).forEach { updateOne(context, manager, it, kind) }
     }
 
@@ -117,7 +120,7 @@ object WidgetUpdater {
      * (система подставит EXTRA_APPWIDGET_ID в intent).
      */
     fun requestPin(context: Context, kind: WidgetKind): Boolean {
-        val manager = AppWidgetManager.getInstance(context)
+        val manager = manager(context) ?: return false
         if (!manager.isRequestPinAppWidgetSupported) return false
         val configure = PendingIntent.getActivity(
             context, kind.ordinal,

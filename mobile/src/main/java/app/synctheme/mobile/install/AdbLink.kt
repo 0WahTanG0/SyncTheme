@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.os.Build
 import io.github.muntashirakon.adb.AdbPairingRequiredException
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
@@ -11,6 +12,7 @@ import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.math.BigInteger
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -21,6 +23,9 @@ import java.nio.ByteOrder
 import java.security.PrivateKey
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import java.security.interfaces.RSAPublicKey
+import java.util.Base64
+import javax.crypto.Cipher
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLException
@@ -35,7 +40,8 @@ import org.conscrypt.Conscrypt
  * каждое чтение. В libadb ожидание ответа на команду не ограничено, а ответ, пришедший раньше, чем
  * его начали ждать, теряется — тогда установка висит на «читаю сведения о часах». Здесь такого нет:
  * пакеты читаются по порядку в том же потоке, который отправил команду. Сопряжение по коду (SPAKE2)
- * по-прежнему делает libadb.
+ * по-прежнему делает libadb. Телевизоры без «Отладки по Wi‑Fi» принимаются по старой схеме:
+ * подпись ключом телефона и запрос «Разрешить отладку?» на экране.
  */
 internal class AdbLink private constructor(private val plain: Socket, private val log: (String) -> Unit) : Closeable {
     private var socket: Socket = plain
@@ -53,7 +59,7 @@ internal class AdbLink private constructor(private val plain: Socket, private va
 
     private class Packet(val command: Int, val arg0: Int, val arg1: Int, val payload: ByteArray)
 
-    private fun handshake(host: String, port: Int, key: PrivateKey, cert: X509Certificate) {
+    private fun handshake(host: String, port: Int, key: PrivateKey, cert: X509Certificate, onConfirm: () -> Unit) {
         input = plain.getInputStream()
         output = plain.getOutputStream()
         send(A_CNXN, VERSION, MAX_DATA, "host::\u0000".toByteArray())
@@ -75,6 +81,21 @@ internal class AdbLink private constructor(private val plain: Socket, private va
                 throw AdbPairingRequiredException("Часы не узнали телефон (${e.message})")
             }
             log("TLS: ${tls.session.protocol}")
+        } else if (p.command == A_AUTH && p.arg0 == AUTH_TOKEN) {
+            // Без TLS («Отладка по сети» на телевизоре): подпись ключом, который устройство уже знает…
+            send(A_AUTH, AUTH_SIGNATURE, 0, sign(key, p.payload))
+            p = receive(HANDSHAKE_MS)
+            if (p.command == A_AUTH) {
+                // …или новый ключ: на экране появится «Разрешить отладку?», ждём нажатия «OK».
+                log("Жду подтверждения отладки на устройстве")
+                onConfirm()
+                send(A_AUTH, AUTH_RSAPUBLICKEY, 0, publicKey(cert.publicKey as RSAPublicKey))
+                p = try {
+                    receive(CONFIRM_MS)
+                } catch (e: SocketTimeoutException) {
+                    throw InstallException("На экране не подтвердили «Разрешить отладку?» — нажмите «OK» (лучше с галочкой «Всегда») и повторите.")
+                }
+            }
         }
         when (p.command) {
             A_CNXN -> Unit
@@ -192,13 +213,53 @@ internal class AdbLink private constructor(private val plain: Socket, private va
         private const val HEADER = 24
         private const val CONNECT_MS = 5_000
         private const val HANDSHAKE_MS = 15_000
+        private const val CONFIRM_MS = 90_000
+        private const val AUTH_TOKEN = 1
+        private const val AUTH_SIGNATURE = 2
+        private const val AUTH_RSAPUBLICKEY = 3
+
+        /** Начало DigestInfo для SHA-1: adbd проверяет подпись токена как RSA_sign(NID_sha1). */
+        private val SHA1_INFO = byteArrayOf(0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14)
+
+        /** Подпись токена adbd: PKCS#1 v1.5 поверх SHA-1 DigestInfo, сам токен — уже «хеш». */
+        internal fun sign(key: PrivateKey, token: ByteArray): ByteArray {
+            val size = 256
+            val block = ByteArray(size) { 0xFF.toByte() }
+            block[0] = 0
+            block[1] = 1
+            val tail = SHA1_INFO + token
+            block[size - tail.size - 1] = 0
+            tail.copyInto(block, size - tail.size)
+            return Cipher.getInstance("RSA/ECB/NoPadding").run {
+                init(Cipher.ENCRYPT_MODE, key)
+                doFinal(block)
+            }
+        }
+
+        /** Открытый ключ в формате adb (как ~/.android/adbkey.pub): так устройство покажет и запомнит его. */
+        internal fun publicKey(key: RSAPublicKey): ByteArray {
+            val n = key.modulus
+            val r32 = BigInteger.ONE.shiftLeft(32)
+            val n0inv = n.mod(r32).modInverse(r32).negate().mod(r32).toInt()
+            val rr = BigInteger.ONE.shiftLeft(4096).mod(n)
+            fun le(x: BigInteger): ByteArray {
+                val be = x.toByteArray()
+                return ByteArray(256) { i -> be.getOrElse(be.size - 1 - i) { 0 } }
+            }
+            val raw = ByteBuffer.allocate(4 + 4 + 256 + 256 + 4).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(64).putInt(n0inv).put(le(n)).put(le(rr)).putInt(key.publicExponent.toInt()).array()
+            return (Base64.getEncoder().encodeToString(raw) + " SyncTheme@${Build.MODEL.orEmpty().replace(' ', '_')}\u0000").toByteArray()
+        }
         private val EMPTY = ByteArray(0)
 
         private fun name(command: Int) =
             String(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(command).array(), Charsets.US_ASCII)
 
         /** Подключается к часам и проходит TLS-рукопожатие с ключом, который часы запомнили при сопряжении. */
-        fun open(host: String, port: Int, network: Network?, key: PrivateKey, cert: X509Certificate, log: (String) -> Unit): AdbLink {
+        fun open(
+            host: String, port: Int, network: Network?, key: PrivateKey, cert: X509Certificate, log: (String) -> Unit,
+            onConfirm: () -> Unit = {},
+        ): AdbLink {
             val socket = Socket()
             if (network != null) {
                 runCatching { network.bindSocket(socket) }
@@ -214,7 +275,7 @@ internal class AdbLink private constructor(private val plain: Socket, private va
             }
             val link = AdbLink(socket, log)
             try {
-                link.handshake(host, port, key, cert)
+                link.handshake(host, port, key, cert, onConfirm)
             } catch (e: SocketTimeoutException) {
                 link.close()
                 throw WatchUnreachableException("Часы не завершили подключение за ${HANDSHAKE_MS / 1000} с")

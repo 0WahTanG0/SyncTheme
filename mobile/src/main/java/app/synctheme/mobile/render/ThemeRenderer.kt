@@ -23,6 +23,8 @@ import app.synctheme.core.DialStyle
 import app.synctheme.core.DigitFont
 import app.synctheme.core.FontWeight
 import app.synctheme.core.Theme
+import app.synctheme.core.WallClock
+import app.synctheme.core.WallClockLayout
 import app.synctheme.core.TimeShift
 import app.synctheme.core.WatchSettings
 import app.synctheme.core.WatchFaceXml
@@ -445,6 +447,57 @@ object ThemeRenderer {
         val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Color.WHITE, 0.85f) }
         for (i in 0 until 6) canvas.drawCircle(width / 2f + (i - 2.5f) * 17 * u, height - 10 * u, 5f * u, icon)
         return bmp
+    }
+
+    // ---------- Телевизор: заставка и её превью ----------
+
+    /** Тема для телевизора: часы на обоях — как на телефоне, а если их там нет — по центру с датой. */
+    private fun tvTheme(theme: Theme): Theme =
+        theme.copy(wallClock = (theme.wallClock ?: WallClock(WallClockLayout.CENTER, depth = false)).copy(place = null))
+
+    /**
+     * Часы на экране ТВ: время крупно чуть выше середины, дата под ним. [dx], [dy] — медленный сдвиг
+     * против выгорания экрана (заставка висит часами).
+     */
+    fun tvClockSpot(theme: Theme, width: Int, height: Int, dx: Float = 0f, dy: Float = 0f): WallClockSpot {
+        val font = wallClockFont(tvTheme(theme))
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val size = WatchFaceXml.fit(font, "00:00", (w * 0.44f).toInt(), (h * 0.26f).toInt())
+        val cy = h * 0.44f + dy
+        return WallClockSpot(
+            listOf(WallClockSpot.Line(WallClockSpot.Part.TIME, w / 2 + dx, cy, size)),
+            WallClockSpot.DateLabel(w / 2 + dx, cy + size * 0.66f, h * 0.045f, "EEEE, d MMMM", Paint.Align.CENTER),
+        )
+    }
+
+    /** Часы и дата поверх уже нарисованных обоев; [foreground] — объект с фото перед цифрами (эффект глубины). */
+    fun drawTvClock(
+        context: Context, canvas: Canvas, theme: Theme, width: Int, height: Int, millis: Long,
+        dx: Float = 0f, dy: Float = 0f, foreground: Bitmap? = null,
+    ) {
+        val t = tvTheme(theme)
+        val spot = tvClockSpot(t, width, height, dx, dy)
+        drawWallClock(context, canvas, t, spot, millis)
+        if (foreground != null) {
+            canvas.drawBitmap(foreground, 0f, 0f, null)
+            drawWallClock(context, canvas, t, spot, millis, alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
+        }
+    }
+
+    /** Обои телевизора и, с эффектом глубины, объект с фото отдельным слоем. */
+    fun tvLayers(context: Context, theme: Theme, width: Int, height: Int): Pair<Bitmap, Bitmap?> {
+        val bg = background(context, theme, width, height)
+        val fg = if (theme.wallClock?.depth == true) foreground(context, theme.background, theme.dim, width, height) else null
+        return bg to fg
+    }
+
+    /** Кадр заставки телевизора целиком (превью). */
+    fun tvFrame(context: Context, theme: Theme, width: Int, height: Int, millis: Long = previewMillis()): Bitmap {
+        val (bg, fg) = tvLayers(context, theme, width, height)
+        drawTvClock(context, Canvas(bg), theme, width, height, millis, foreground = fg)
+        fg?.recycle()
+        return bg
     }
 
     private fun drawPreviewWidgets(canvas: Canvas, theme: Theme, top: Float, u: Float, surface: Paint, left: Float = 6 * u) {

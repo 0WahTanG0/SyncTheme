@@ -22,11 +22,11 @@ import app.synctheme.mobile.data.DeviceSet
 import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.devices.MyDevices
 import app.synctheme.mobile.devices.Watch
-import app.synctheme.mobile.tablet.TabletClient
-import app.synctheme.mobile.tablet.TabletRetry
-import app.synctheme.mobile.tablet.TabletReceiver
-import app.synctheme.mobile.tablet.TabletStore
-import app.synctheme.mobile.tablet.TabletSyncService
+import app.synctheme.mobile.link.LinkClient
+import app.synctheme.mobile.link.LinkRetry
+import app.synctheme.mobile.link.LinkReceiver
+import app.synctheme.mobile.link.LinkStore
+import app.synctheme.mobile.link.LinkService
 import app.synctheme.mobile.data.NotAnImageException
 import app.synctheme.mobile.data.SharedImage
 import app.synctheme.mobile.data.ThemeApplier
@@ -51,7 +51,13 @@ import app.synctheme.mobile.widget.PlacedWidget
 import app.synctheme.mobile.widget.WidgetKind
 import app.synctheme.mobile.widget.WidgetScheduler
 import app.synctheme.mobile.widget.WidgetUpdater
+import app.synctheme.mobile.link.DeviceKind
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,6 +71,9 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Идёт подключение устройства: [code] — код сверки (одинаковый на телефоне и устройстве), когда он уже есть. */
+data class Linking(val device: String, val code: String? = null)
 
 class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val repo = ThemeRepository.get(app)
@@ -96,22 +105,29 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _targets = MutableStateFlow(ApplyTargets.load(app))
     val targets: StateFlow<ApplyTargets> = _targets.asStateFlow()
 
-    /** Подключённые устройства: телефон всегда, часы и планшет — по желанию. */
-    private val _devices = MutableStateFlow(DeviceSet(DeviceSettings.watch(app), TabletStore.tablet(app) != null))
-    val devices: StateFlow<DeviceSet> = _devices.asStateFlow()
+    /** Подключённые устройства: телефон всегда, часы и устройства по Wi‑Fi (планшет, ТВ, телефон) — по желанию. */
+    private val _watchOn = MutableStateFlow(DeviceSettings.watch(app))
+    val devices: StateFlow<DeviceSet> = combine(_watchOn, LinkStore.observePeers(app)) { w, p -> DeviceSet(w, p) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, DeviceSet(_watchOn.value, LinkStore.peers(app)))
 
     /** Приложение открыто на планшете: превью — его экран, а не телефона. */
     val selfTablet = DeviceSettings.isTablet(app)
 
-    /** Планшет: превью его рабочего стола и как прошла последняя отправка. */
+    /** Превью экранов подключённых планшета и телевизора; как прошла последняя отправка на каждое устройство. */
     private val _tabletPreview = MutableStateFlow<ImageBitmap?>(null)
     val tabletPreview: StateFlow<ImageBitmap?> = _tabletPreview.asStateFlow()
-    val tabletPush = TabletStore.push(app)
+    private val _tvPreview = MutableStateFlow<ImageBitmap?>(null)
+    val tvPreview: StateFlow<ImageBitmap?> = _tvPreview.asStateFlow()
+    val linkPush = LinkStore.push(app)
 
-    /** Это планшет и он принимает тему с телефона. */
-    private val _receiving = MutableStateFlow(TabletStore.receiving(app))
+    /** Подключение устройства: к какому и код сверки, пока на нём не нажали «Подключить». */
+    private val _linking = MutableStateFlow<Linking?>(null)
+    val linking: StateFlow<Linking?> = _linking.asStateFlow()
+
+    /** Это устройство принимает тему с телефона. */
+    private val _receiving = MutableStateFlow(LinkStore.receiving(app))
     val receiving: StateFlow<Boolean> = _receiving.asStateFlow()
-    val receiver = TabletReceiver.state
+    val receiver = LinkReceiver.state
 
     /** Текст текущей операции или null, если ничего не выполняется. */
     private val _busy = MutableStateFlow<String?>(null)
@@ -151,7 +167,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     init {
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
-            combine(theme, masks) { t, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
+            // Подключили или отключили планшет либо телевизор — нужны (или больше не нужны) их превью.
+            val kinds = devices.map { d -> d.peers.map { it.kind }.toSet() }.distinctUntilChanged()
+            combine(theme, masks, kinds) { t, _, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
         }
         // Сменили фото, а глубина уже включена, — сразу ищем объект на новом фото (каждое фото — один раз).
         viewModelScope.launch {
@@ -178,13 +196,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         // Пока тему настраивают, циферблат собирается заранее: «Применить» сразу отправит его на часы.
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
-            combine(theme, _devices, _targets, masks) { t, d, tg, _ -> t.takeIf { d.watch && tg.watch } }
+            combine(theme, devices, _targets, masks) { t, d, tg, _ -> t.takeIf { d.watch && tg.watch } }
                 .filterNotNull()
                 .debounce(1_200)
                 .collectLatest { WatchFaceBuilder(app).prebuild(it) }
         }
-        if (_devices.value.watch) refreshWatch()
-        TabletSyncService.ensure(app)
+        if (devices.value.watch) refreshWatch()
+        LinkService.ensure(app)
         // Виджеты перерисовываются в фоне: на старте приложения это не должно тормозить экран.
         viewModelScope.launch(Dispatchers.Default) {
             WidgetUpdater.updateAll(app)
@@ -258,7 +276,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _phonePreview.value = phone.asImageBitmap()
         _lockPreview.value = lock.asImageBitmap()
         _watchPreview.value = watch.asImageBitmap()
-        if (_devices.value.tablet) _tabletPreview.value = ThemeRenderer.tabletPreview(app, t, 800, 500).asImageBitmap()
+        val kinds = devices.value.peers.map { it.kind }
+        _tabletPreview.value = if (DeviceKind.TABLET in kinds) ThemeRenderer.tabletPreview(app, t, 800, 500).asImageBitmap() else null
+        _tvPreview.value = if (DeviceKind.TV in kinds) ThemeRenderer.tvFrame(app, t, 960, 540).asImageBitmap() else null
     }
 
     fun update(transform: (Theme) -> Theme) = repo.setDraft(transform(theme.value))
@@ -382,17 +402,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         refreshPlaced()
     }
 
-    fun saveCurrent() {
-        val stored = repo.save(theme.value)
+    /** Сохранить черновик новой темой или ([replace]) поверх своей темы, из которой он открыт. */
+    fun saveCurrent(replace: Boolean = false) {
+        val stored = repo.save(theme.value, replace)
         repo.setDraft(stored)
-        _messages.tryEmit("Тема «${stored.name}» сохранена")
+        _messages.tryEmit(if (replace) "Тема «${stored.name}» обновлена" else "Тема «${stored.name}» сохранена")
     }
 
     fun delete(t: Theme) = repo.delete(t)
 
     /** Применяет тему ко всем выбранным местам; ошибка в одном шаге не мешает остальным. */
     fun apply() = viewModelScope.launch {
-        val targets = _targets.value.on(_devices.value)
+        val targets = _targets.value.on(devices.value)
         val report = try {
             ThemeApplier(app).apply(theme.value, targets) { _busy.value = it }
         } catch (e: Exception) {
@@ -490,7 +511,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Часы подключены — появляются вкладка «Часы», статус и циферблат в «Применить». */
     fun setWatchEnabled(on: Boolean) {
         DeviceSettings.setWatch(app, on)
-        _devices.value = _devices.value.copy(watch = on)
+        _watchOn.value = on
         if (on) refreshWatch()
     }
 
@@ -501,52 +522,72 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _messages.tryEmit(if (_connection.value.hasApp) "Часы подключены — циферблат обновится по «Применить»" else "Часы добавлены — осталось установить на них SyncTheme")
     }
 
-    /** Отправить на планшет тему, которая сейчас применена на телефоне. */
-    fun sendToTablet() = viewModelScope.launch {
-        _busy.value = "Отправляю на планшет…"
+    /** Отправить на устройство тему, которая сейчас применена на телефоне. */
+    fun sendTo(id: String) = viewModelScope.launch {
+        val peer = LinkStore.peer(app, id) ?: return@launch
+        _busy.value = "Отправляю на «${peer.name}»…"
         try {
-            _messages.tryEmit(TabletClient.push(app, repo.applied.value))
+            _messages.tryEmit(LinkClient.push(app, repo.applied.value, peer))
         } catch (e: Exception) {
-            _messages.tryEmit(e.message ?: e.javaClass.simpleName)
+            _messages.tryEmit("${peer.name}: ${e.message ?: e.javaClass.simpleName}")
         } finally {
             _busy.value = null
         }
     }
 
-    /** Телефон: связать планшет по коду с его экрана. */
-    fun pairTablet(host: String, port: Int, code: String, service: String?, onDone: () -> Unit = {}) = viewModelScope.launch {
-        _busy.value = "Связываюсь с планшетом…"
-        try {
-            val peer = TabletClient.pair(app, host, port, code, service)
-            _devices.value = _devices.value.copy(tablet = true)
-            renderPreviews(theme.value)
-            onDone()
-            // Сразу ставим на планшет то, что уже стоит на телефоне, — не дожидаясь нового «Применить».
-            _busy.value = "Отправляю тему на «${peer.name}»…"
-            val sent = runCatching { TabletClient.push(app, repo.applied.value) }
-            _messages.tryEmit(
-                if (sent.isSuccess) "«${peer.name}» подключён, тема уже на нём. Дальше — по «Применить»"
-                else "«${peer.name}» подключён. ${sent.exceptionOrNull()?.message.orEmpty()}",
-            )
-        } catch (e: Exception) {
-            _messages.tryEmit("Не удалось связать: ${e.message ?: e.javaClass.simpleName}")
-        } finally {
-            _busy.value = null
+    private var linkJob: Job? = null
+
+    /**
+     * Подключить устройство из найденных в сети (или по адресу): телефон и устройство показывают
+     * одинаковый код, на устройстве нажимают «Подключить». Сразу после — на него уходит текущая тема.
+     */
+    fun linkDevice(host: String, port: Int, name: String, service: String?) {
+        linkJob?.cancel()
+        linkJob = viewModelScope.launch {
+            _linking.value = Linking(name)
+            try {
+                val peer = LinkClient.link(app, host, port, service) { code, device -> _linking.value = Linking(device, code) }
+                _linking.value = null
+                renderPreviews(theme.value)
+                _busy.value = "Отправляю тему на «${peer.name}»…"
+                val sent = runCatching { LinkClient.push(app, repo.applied.value, peer) }
+                _messages.tryEmit(
+                    if (sent.isSuccess) "«${peer.name}» подключён, тема уже на нём. Дальше — по «Применить»"
+                    else "«${peer.name}» подключён. ${sent.exceptionOrNull()?.message.orEmpty()}",
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _messages.tryEmit("Не удалось подключить: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                _linking.value = null
+                _busy.value = null
+            }
         }
     }
 
-    fun unpairTablet() {
-        TabletStore.setTablet(app, null)
-        TabletRetry.cancel(app)
-        _devices.value = _devices.value.copy(tablet = false)
-        _tabletPreview.value = null
+    /** Закрыть ожидание подключения (на устройстве так и не нажали «Подключить»). */
+    fun cancelLinking() {
+        linkJob?.cancel()
+        _linking.value = null
     }
 
-    /** Планшет: принимать тему с телефона (в фоне, с тихим уведомлением). */
+    fun unlink(id: String) {
+        LinkStore.removePeer(app, id)
+        if (LinkStore.peers(app).isEmpty()) LinkRetry.cancel(app)
+        viewModelScope.launch { renderPreviews(theme.value) }
+    }
+
+    /** Получает ли устройство тему по «Применить». */
+    fun setPeerEnabled(id: String, on: Boolean) {
+        LinkStore.peer(app, id)?.let { LinkStore.updatePeer(app, it.copy(enabled = on)) }
+    }
+
+    /** Устройство: принимать тему с телефона (в фоне, с тихим уведомлением). */
     fun setReceiving(on: Boolean) {
-        TabletStore.setReceiving(app, on)
+        LinkStore.setReceiving(app, on)
         _receiving.value = on
-        TabletSyncService.ensure(app)
+        LinkService.ensure(app)
     }
 
     private val _timeCheck = MutableStateFlow<TimeCheckResult?>(null)

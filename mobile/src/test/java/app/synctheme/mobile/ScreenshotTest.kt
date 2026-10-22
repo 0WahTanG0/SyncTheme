@@ -11,10 +11,14 @@ import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.devices.MyDevices
 import app.synctheme.mobile.devices.Watch
 import app.synctheme.mobile.data.ThemeRepository
-import app.synctheme.mobile.tablet.TabletReceiver
-import app.synctheme.mobile.tablet.Peer
-import app.synctheme.mobile.tablet.TabletPush
-import app.synctheme.mobile.tablet.TabletStore
+import app.synctheme.mobile.link.DeviceKind
+import app.synctheme.mobile.link.LinkClient
+import app.synctheme.mobile.link.LinkProtocol
+import app.synctheme.mobile.link.LinkReceiver
+import app.synctheme.mobile.link.Peer
+import app.synctheme.mobile.link.LinkPush
+import app.synctheme.mobile.link.LinkStore
+import app.synctheme.mobile.install.InstallTarget
 import app.synctheme.mobile.install.InstallerViewModel
 import app.synctheme.mobile.install.WatchInstallerScreen
 import app.synctheme.mobile.ui.MainViewModel
@@ -25,6 +29,9 @@ import app.synctheme.mobile.ui.Appearance
 import app.synctheme.mobile.ui.AppearanceStore
 import app.synctheme.mobile.ui.SyncThemeScreen
 import app.synctheme.mobile.ui.Tab
+import app.synctheme.mobile.tv.TvScreen
+import androidx.compose.ui.graphics.asImageBitmap
+import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.widget.WidgetConfig
 import app.synctheme.mobile.widget.WidgetConfigScreen
 import app.synctheme.mobile.widget.WidgetKind
@@ -34,7 +41,13 @@ import app.synctheme.core.WallClock
 import app.synctheme.core.WallClockLayout
 import app.synctheme.core.DialStyle
 import com.github.takahirom.roborazzi.captureRoboImage
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.io.File
+import java.net.ServerSocket
+import kotlin.concurrent.thread
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -53,6 +66,7 @@ class ScreenshotTest {
         appearance: Appearance = Appearance(AppStyle.GLASS, AppMode.DARK),
         lock: Boolean = false,
         expand: Boolean = false,
+        withVm: (MainViewModel) -> Unit = {},
         prepare: (Application) -> Unit = {},
     ) {
         val app = ApplicationProvider.getApplicationContext<Application>()
@@ -60,9 +74,10 @@ class ScreenshotTest {
         ThemeRepository.get(app).setDraft(Presets.all[0])
         // По умолчанию — только телефон; вкладка «Часы» есть, когда часы включены.
         DeviceSettings.setWatch(app, tab == Tab.WATCH)
-        TabletStore.setTablet(app, null)
+        LinkStore.reload()
         prepare(app)
         val vm = MainViewModel(app)
+        withVm(vm)
         if (tab == Tab.WATCH) vm.wantStylePreviews()
         // Превью рендерятся в фоне после debounce на главном потоке — даём им время.
         repeat(6) {
@@ -146,32 +161,116 @@ class ScreenshotTest {
         DeviceSettings.setWatch(app, true)
     }
 
-    /** Планшет: приём темы с телефона и код связывания. */
+    /** Планшет: ждёт тему с телефона. */
     @Test
     @Config(qualifiers = "w800dp-h1280dp-xhdpi")
-    fun tabletReceiver() {
-        screen("screen_tablet", Tab.MORE, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
-            TabletStore.setReceiving(app, true)
-            TabletReceiver.openPairing()
-        }
-        TabletReceiver.closePairing()
+    fun tabletReceiver() = screen("screen_tablet", Tab.MORE, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
+        LinkStore.setReceiving(app, true)
     }
 
-    /** Подключены часы и планшет — все три устройства рядом в превью, состояние — в шапке. */
+    /** Телефон просит подключиться: на планшете — «Подключить / Отклонить» и код сверки. */
     @Test
+    @Config(qualifiers = "w800dp-h1280dp-xhdpi")
+    fun linkRequestOnTablet() {
+        try {
+            screen("screen_link_request", Tab.MORE, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
+                LinkStore.setReceiving(app, true)
+                LinkReceiver.start(app)
+                val port = LinkReceiver.port
+                thread(isDaemon = true) { runCatching { runBlocking { LinkClient.link(app, "127.0.0.1", port, null) { _, _ -> } } } }
+                val deadline = System.currentTimeMillis() + 10_000
+                while (LinkReceiver.state.value.request == null && System.currentTimeMillis() < deadline) Thread.sleep(20)
+            }
+        } finally {
+            LinkReceiver.answer(false)
+            LinkReceiver.stop(ApplicationProvider.getApplicationContext())
+        }
+    }
+
+    /** Телефон подключает телевизор: тот же код, что на экране телевизора, и ожидание «Подключить». */
+    @Test
+    fun linkingDialog() {
+        val server = fakeDevice("Tuvio 4K TV", DeviceKind.TV)
+        try {
+            screen("screen_linking", Tab.MORE, Appearance(AppStyle.EXPRESSIVE, AppMode.DARK), withVm = { vm ->
+                vm.linkDevice("127.0.0.1", server.localPort, "Tuvio 4K TV", null)
+            })
+        } finally {
+            server.close()
+        }
+    }
+
+    /** Подключены часы, планшет и телевизор — все рядом в превью, состояние — в шапке. */
+    @Test
+    @Config(qualifiers = "w412dp-h1200dp-560dpi")
     fun allDevices() = screen("screen_devices", Tab.WIDGETS, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
         DeviceSettings.setWatch(app, true)
-        TabletStore.setTablet(app, Peer("Galaxy Tab S9 FE", ByteArray(32), host = "192.168.1.20", port = 47231))
-        TabletStore.setPush(app, TabletPush(true, "Тема «Аврора» на планшете", System.currentTimeMillis()))
+        LinkStore.savePeer(app, Peer("tab1", "Galaxy Tab S9 FE", DeviceKind.TABLET, ByteArray(32), host = "192.168.1.20", port = 47231))
+        LinkStore.savePeer(app, Peer("tv1", "Tuvio 4K TV", DeviceKind.TV, ByteArray(32), host = "192.168.1.40", port = 47231))
+        LinkStore.setPush(app, "tab1", LinkPush(true, "Тема «Аврора» на месте", System.currentTimeMillis()))
+        LinkStore.setPush(app, "tv1", LinkPush(true, "Тема «Аврора» на месте", System.currentTimeMillis()))
     }
 
-    /** «Ещё» → «Устройства» с подключёнными часами и планшетом. */
+    /** «Ещё» → «Устройства»: часы, планшет и телевизор, один пока не ответил. */
     @Test
     @Config(qualifiers = "w412dp-h2000dp-560dpi")
     fun devicesList() = screen("screen_devices_list", Tab.MORE, Appearance(AppStyle.EXPRESSIVE, AppMode.LIGHT)) { app ->
         DeviceSettings.setWatch(app, true)
-        TabletStore.setTablet(app, Peer("Galaxy Tab S9 FE", ByteArray(32), host = "192.168.1.20", port = 47231))
-        TabletStore.setPush(app, TabletPush(false, "Планшет не ответил — тема уйдёт на него, когда он появится в сети", System.currentTimeMillis(), pending = true))
+        LinkStore.savePeer(app, Peer("tab1", "Galaxy Tab S9 FE", DeviceKind.TABLET, ByteArray(32), host = "192.168.1.20", port = 47231))
+        LinkStore.savePeer(app, Peer("tv1", "Tuvio 4K TV", DeviceKind.TV, ByteArray(32), host = "192.168.1.40", port = 47231))
+        LinkStore.setPush(app, "tab1", LinkPush(false, "Не ответил — тема уйдёт, когда он появится в сети", System.currentTimeMillis(), pending = true))
+        LinkStore.setPush(app, "tv1", LinkPush(true, "Тема «Аврора» на месте", System.currentTimeMillis()))
+    }
+
+    /** Телевизор: экран SyncTheme для пульта и сама заставка в 1080p. */
+    @Test
+    @Config(qualifiers = "w960dp-h540dp-land-xhdpi")
+    fun tvScreens() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
+        ThemeRepository.get(app).setApplied(Presets.all[0])
+        LinkStore.setReceiving(app, true)
+        LinkStore.setPhone(app, Peer("phone", "Galaxy S25+", DeviceKind.PHONE, ByteArray(32)))
+        LinkReceiver.start(app)
+        val dir = System.getProperty("previewsDir")!!
+        val preview = ThemeRenderer.tvFrame(app, Presets.all[0], 960, 540).asImageBitmap()
+        try {
+            captureRoboImage(File(dir, "screen_tv.png").absolutePath) { TvScreen(preview) }
+        } finally {
+            LinkReceiver.stop(app)
+        }
+        val frame = ThemeRenderer.tvFrame(app, Presets.all[0], 1920, 1080)
+        File(dir, "tv_screensaver.png").outputStream().use { frame.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    /**
+     * Устройство, которое ответило на «подключиться» своим ключом и ждёт нажатия «Подключить» —
+     * чтобы снять экран телефона в это время.
+     */
+    private fun fakeDevice(name: String, kind: DeviceKind): ServerSocket {
+        val server = ServerSocket(0)
+        thread(isDaemon = true) {
+            runCatching {
+                server.accept().use { socket ->
+                    val input = DataInputStream(socket.getInputStream().buffered())
+                    val out = DataOutputStream(socket.getOutputStream().buffered())
+                    LinkProtocol.read(input)
+                    val own = LinkProtocol.keyPair().public.encoded
+                    LinkProtocol.write(out, LinkProtocol.KEY, ByteArrayOutputStream().also { b ->
+                        DataOutputStream(b).apply {
+                            writeInt(own.size)
+                            write(own)
+                            writeUTF(name)
+                            writeUTF(kind.name)
+                            writeUTF("fake-$name")
+                        }
+                    }.toByteArray())
+                    // Ждём, пока тест не закроет сервер.
+                    runCatching { input.read() }
+                }
+            }
+        }
+        return server
     }
 
     /** Телефон боком: меню слева, превью и «Применить» — рядом с настройками. */
@@ -255,6 +354,20 @@ class ScreenshotTest {
         // Без поиска в сети: его индикатор крутится бесконечно, и снимок не дождался бы покоя.
         vm.setManual(true)
         val out = File(System.getProperty("previewsDir")!!, "screen_installer_detected.png")
+        captureRoboImage(out.absolutePath) { WatchInstallerScreen(vm, Presets.all[0].accentColor, onClose = {}) }
+    }
+
+    /** Установка на телевизор: шаги для Google TV, адрес введён вручную. */
+    @Test
+    @Config(qualifiers = "w412dp-h2000dp-560dpi")
+    fun installerTv() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
+        val vm = InstallerViewModel(app)
+        vm.setTarget(InstallTarget.TV)
+        vm.setManual(true)
+        vm.edit(host = "192.168.1.40")
+        val out = File(System.getProperty("previewsDir")!!, "screen_installer_tv.png")
         captureRoboImage(out.absolutePath) { WatchInstallerScreen(vm, Presets.all[0].accentColor, onClose = {}) }
     }
 

@@ -125,6 +125,7 @@ fun ApplyStrip(
     dirty: Boolean,
     devices: DeviceSet,
     onTargets: (ApplyTargets) -> Unit,
+    onPeer: (id: String, on: Boolean) -> Unit,
     onApply: () -> Unit,
 ) {
     val look = LocalLook.current
@@ -136,7 +137,7 @@ fun ApplyStrip(
             return@Column
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TargetsButton(targets, devices, onTargets)
+            TargetsButton(targets, devices, onTargets, onPeer)
             val any = targets.on(devices).any
             AccentButton(
                 if (!any) "Выберите, куда" else if (dirty) "Применить" else "Применено",
@@ -150,9 +151,9 @@ fun ApplyStrip(
     }
 }
 
-/** Куда применять: значки выбранных мест (часы и планшет — если подключены), по нажатию — меню с галочками. */
+/** Куда применять: значки выбранных мест (часы и устройства — если подключены), по нажатию — меню с галочками. */
 @Composable
-private fun TargetsButton(targets: ApplyTargets, devices: DeviceSet, onTargets: (ApplyTargets) -> Unit) {
+private fun TargetsButton(targets: ApplyTargets, devices: DeviceSet, onTargets: (ApplyTargets) -> Unit, onPeer: (String, Boolean) -> Unit) {
     val look = LocalLook.current
     var open by remember { mutableStateOf(false) }
     val items = listOfNotNull(
@@ -160,8 +161,9 @@ private fun TargetsButton(targets: ApplyTargets, devices: DeviceSet, onTargets: 
         Triple(NavIcons.Lock, "Экран блокировки", targets.lockWallpaper) to { on: Boolean -> targets.copy(lockWallpaper = on) },
         Triple(NavIcons.Widgets, "Виджеты", targets.widgets) to { on: Boolean -> targets.copy(widgets = on) },
         if (devices.watch) Triple(NavIcons.Watch, "Циферблат часов", targets.watch) to { on: Boolean -> targets.copy(watch = on) } else null,
-        if (devices.tablet) Triple(NavIcons.Tablet, "Планшет", targets.tablet) to { on: Boolean -> targets.copy(tablet = on) } else null,
     )
+    // Каждое устройство по Wi‑Fi — своей галочкой: например, тема на планшет, но не на телевизор.
+    val peers = devices.peers.map { p -> Triple(p.kind.icon(), p.name, p.enabled) to { on: Boolean -> onPeer(p.id, on) } }
     val shape = RoundedCornerShape(24.dp)
     Box {
         Row(
@@ -171,7 +173,7 @@ private fun TargetsButton(targets: ApplyTargets, devices: DeviceSet, onTargets: 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            items.forEach { (item, _) ->
+            (items.map { it.first } + peers.map { it.first }).forEach { item ->
                 Icon(item.first, null, tint = if (item.third) look.text else look.muted.copy(alpha = 0.3f), modifier = Modifier.size(18.dp))
             }
         }
@@ -183,6 +185,14 @@ private fun TargetsButton(targets: ApplyTargets, devices: DeviceSet, onTargets: 
                     leadingIcon = { Icon(item.first, null, modifier = Modifier.size(20.dp)) },
                     trailingIcon = { Checkbox(checked = item.third, onCheckedChange = null) },
                     onClick = { onTargets(change(!item.third)) },
+                )
+            }
+            peers.forEach { (item, change) ->
+                DropdownMenuItem(
+                    text = { Text(item.second, maxLines = 1) },
+                    leadingIcon = { Icon(item.first, null, modifier = Modifier.size(20.dp)) },
+                    trailingIcon = { Checkbox(checked = item.third, onCheckedChange = null) },
+                    onClick = { change(!item.third) },
                 )
             }
         }

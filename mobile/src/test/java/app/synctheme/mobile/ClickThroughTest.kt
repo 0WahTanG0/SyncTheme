@@ -15,8 +15,9 @@ import androidx.test.core.app.ApplicationProvider
 import app.synctheme.core.Presets
 import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.data.ThemeRepository
-import app.synctheme.mobile.tablet.Peer
-import app.synctheme.mobile.tablet.TabletStore
+import app.synctheme.mobile.link.Peer
+import app.synctheme.mobile.link.DeviceKind
+import app.synctheme.mobile.link.LinkStore
 import app.synctheme.mobile.ui.AppMode
 import app.synctheme.mobile.ui.AppStyle
 import app.synctheme.mobile.ui.Appearance
@@ -25,6 +26,7 @@ import app.synctheme.mobile.ui.MainViewModel
 import app.synctheme.mobile.ui.SyncThemeScreen
 import app.synctheme.mobile.ui.Tab
 import app.synctheme.mobile.ui.AppTheme
+import app.synctheme.mobile.install.InstallTarget
 import app.synctheme.mobile.install.InstallerViewModel
 import app.synctheme.mobile.install.WatchInstallerScreen
 import app.synctheme.mobile.widget.FolderMode
@@ -118,13 +120,17 @@ class ClickThroughTest {
         AppearanceStore.set(app, Appearance(AppStyle.NEON, AppMode.DARK))
         val installer = InstallerViewModel(app)
         clickEach("установка на часы") { WatchInstallerScreen(installer, Presets.all[0].accentColor, onClose = {}) }
+        val tv = InstallerViewModel(app).apply { setTarget(InstallTarget.TV) }
+        clickEach("установка на телевизор") { WatchInstallerScreen(tv, Presets.all[0].accentColor, onClose = {}) }
     }
 
     private fun clickAll(tab: Tab) {
         AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
         ThemeRepository.get(app).setDraft(Presets.all[1])
         DeviceSettings.setWatch(app, true)
-        TabletStore.setTablet(app, Peer("Galaxy Tab S9 FE", ByteArray(32), host = "127.0.0.1", port = 1))
+        LinkStore.reload()
+        LinkStore.savePeer(app, Peer("tab1", "Galaxy Tab S9 FE", DeviceKind.TABLET, ByteArray(32), host = "127.0.0.1", port = 1))
+        LinkStore.savePeer(app, Peer("tv1", "Tuvio 4K TV", DeviceKind.TV, ByteArray(32), host = "127.0.0.1", port = 1))
         val vm = MainViewModel(app)
         var round by mutableIntStateOf(0)
         compose.mainClock.autoAdvance = false

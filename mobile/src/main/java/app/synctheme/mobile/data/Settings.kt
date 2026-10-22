@@ -38,10 +38,13 @@ data class ApplyTargets(
 }
 
 /**
- * Какие устройства у пользователя: телефон есть всегда, часы и планшет подключаются по желанию.
- * [tablet] — к телефону привязан планшет, которому уходит тема.
+ * Какие устройства у пользователя: телефон есть всегда, часы и устройства по Wi‑Fi (планшет,
+ * телевизор, другой телефон) подключаются по желанию.
  */
-data class DeviceSet(val watch: Boolean = false, val tablet: Boolean = false)
+data class DeviceSet(val watch: Boolean = false, val peers: List<app.synctheme.mobile.link.Peer> = emptyList()) {
+    /** Хоть одно устройство по Wi‑Fi получает тему по «Применить». */
+    val tablet: Boolean get() = peers.any { it.enabled }
+}
 
 object DeviceSettings {
     private fun prefs(context: Context) = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -59,6 +62,18 @@ object DeviceSettings {
     }
 
     fun setWatch(context: Context, on: Boolean) = prefs(context).edit().putBoolean("dev_watch", on).apply()
+
+    /** Телевизор (Android TV / Google TV): тема идёт в заставку, управление — пультом. */
+    fun isTv(context: Context): Boolean =
+        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+            (context.getSystemService(android.app.UiModeManager::class.java)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION)
+
+    /** Тип этого устройства — так его видит телефон в «Добавить устройство». */
+    fun kind(context: Context): app.synctheme.mobile.link.DeviceKind = when {
+        isTv(context) -> app.synctheme.mobile.link.DeviceKind.TV
+        isTablet(context) -> app.synctheme.mobile.link.DeviceKind.TABLET
+        else -> app.synctheme.mobile.link.DeviceKind.PHONE
+    }
 
     /** Планшет (или большой складной экран): ему достаётся роль «получать тему с телефона». */
     fun isTablet(context: Context): Boolean = context.resources.configuration.smallestScreenWidthDp >= 600 ||
