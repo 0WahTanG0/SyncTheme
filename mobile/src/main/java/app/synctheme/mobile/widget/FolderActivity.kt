@@ -51,9 +51,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -63,6 +65,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,9 +86,9 @@ import kotlin.math.sin
 import kotlinx.serialization.json.Json
 
 /**
- * Папка «Приложений»: раскрывается поверх рабочего стола из того места, где стоит виджет,
- * выбранной анимацией ([FolderAnim]). Нажатие на приложение открывает его, мимо папки или
- * «Назад» — сворачивает папку обратно в виджет.
+ * Папка «Приложений»: раскрывается поверх рабочего стола из того места, где стоит виджет
+ * (или из начала своей линии), выбранной анимацией ([FolderAnim]) — сеткой или вдоль линии
+ * ([FolderShape]). Нажатие на приложение открывает его, мимо или «Назад» — сворачивает папку обратно.
  */
 class FolderActivity : ComponentActivity() {
     private var closing by mutableStateOf(false)
@@ -97,7 +100,7 @@ class FolderActivity : ComponentActivity() {
             ?: WidgetUpdater.config(this, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0), WidgetKind.APPS)
         val theme = ThemeRepository.get(this).applied.value
         val origin = intent.sourceBounds
-        val blur = blurBehind()
+        val blur = config.dim && blurBehind()
         onBackPressedDispatcher.addCallback(this) { closing = true }
         setContent {
             FolderScreen(
@@ -160,13 +163,13 @@ fun folderApps(context: Context, config: WidgetConfig): List<FolderApp> {
     }
 }
 
-/** Открытие — у каждой анимации своё, закрытие — одно быстрое для всех. */
-private fun openSpec(anim: FolderAnim): AnimationSpec<Float> = when (anim) {
-    FolderAnim.REVEAL -> tween(460, easing = FastOutSlowInEasing)
-    FolderAnim.SPRING -> spring(dampingRatio = 0.58f, stiffness = 240f)
-    FolderAnim.FAN -> tween(620, easing = LinearOutSlowInEasing)
-    FolderAnim.CASCADE -> tween(640, easing = LinearOutSlowInEasing)
-    FolderAnim.SPIRAL -> tween(700, easing = FastOutSlowInEasing)
+/** Открытие — у каждой анимации своё (по линии — чуть дольше: значкам дальше лететь), закрытие — одно быстрое для всех. */
+private fun openSpec(anim: FolderAnim, line: Boolean): AnimationSpec<Float> = when (anim) {
+    FolderAnim.REVEAL -> tween(if (line) 560 else 460, easing = FastOutSlowInEasing)
+    FolderAnim.SPRING -> if (line) tween(720, easing = LinearOutSlowInEasing) else spring(dampingRatio = 0.58f, stiffness = 240f)
+    FolderAnim.FAN -> tween(if (line) 700 else 620, easing = LinearOutSlowInEasing)
+    FolderAnim.CASCADE -> tween(if (line) 820 else 640, easing = LinearOutSlowInEasing)
+    FolderAnim.SPIRAL -> tween(if (line) 780 else 700, easing = FastOutSlowInEasing)
 }
 
 @Composable
@@ -185,13 +188,14 @@ fun FolderScreen(
     val progress = remember { Animatable(0f) }
     LaunchedEffect(closing) {
         if (!closing) {
-            progress.animateTo(1f, openSpec(config.animation))
+            progress.animateTo(1f, openSpec(config.animation, config.shape != FolderShape.GRID))
         } else {
             progress.animateTo(0f, tween(260, easing = FastOutLinearInEasing))
             onClosed()
         }
     }
-    FolderOverlay(config, theme, apps, origin, progress.value, blurred, onOpen, onDismiss)
+    if (config.shape == FolderShape.GRID) FolderOverlay(config, theme, apps, origin, progress.value, blurred, onOpen, onDismiss)
+    else FolderLineOverlay(config, theme, apps, origin, progress.value, blurred, onOpen, onDismiss)
 }
 
 /** Сетка папки: до 4 приложений — 2 в ряд, до 9 — по 3, больше — по 4. */
@@ -268,7 +272,7 @@ fun FolderOverlay(
     val q = clamp01(p)
     BoxWithConstraints(
         Modifier.fillMaxSize()
-            .drawBehind { drawRect(Color.Black.copy(alpha = (if (blurred) 0.28f else 0.5f) * q)) }
+            .then(if (config.dim) Modifier.drawBehind { drawRect(Color.Black.copy(alpha = (if (blurred) 0.28f else 0.5f) * q)) } else Modifier)
             .pointerInput(Unit) { detectTapGestures { onDismiss() } },
     ) {
         val px = { v: Float -> with(density) { v.dp.toPx() } }
@@ -332,17 +336,21 @@ fun FolderOverlay(
                         clipPath(Path().apply { addOval(androidx.compose.ui.geometry.Rect(o, r)) }) { this@drawWithContent.drawContent() }
                     } else Modifier,
                 )
-                .then(if (look.glow) Modifier.shadow(18.dp, shape, ambientColor = look.accent, spotColor = look.accent) else Modifier)
-                .clip(shape)
-                .background(look.background)
-                .then(look.border?.let { Modifier.border(if (look.glow) 1.5.dp else 1.dp, it, shape) } ?: Modifier)
+                .then(
+                    if (!config.panel) Modifier
+                    else Modifier
+                        .then(if (look.glow) Modifier.shadow(18.dp, shape, ambientColor = look.accent, spotColor = look.accent) else Modifier)
+                        .clip(shape)
+                        .background(look.background)
+                        .then(look.border?.let { Modifier.border(if (look.glow) 1.5.dp else 1.dp, it, shape) } ?: Modifier),
+                )
                 .pointerInput(Unit) { detectTapGestures { } } // нажатие по папке её не закрывает
                 .padding(PAD.dp),
         ) {
             if (title.isNotEmpty()) {
                 Text(
                     title, color = look.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                    overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                    overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, style = if (config.panel) TextStyle.Default else Shadowed,
                     modifier = Modifier.width((cols * CELL_W).dp).height(TITLE_H.dp).graphicsLayer { alpha = clamp01((p - 0.3f) / 0.5f) },
                 )
             }
@@ -353,7 +361,7 @@ fun FolderOverlay(
                         val app = apps.getOrNull(i) ?: continue
                         val center = cellCenter(i)
                         FolderCell(
-                            app, look,
+                            app, look, config.labels, shadow = !config.panel,
                             Modifier.graphicsLayer { itemTransform(config.animation, i, n, p, center, o, panelCenter, maxDist, px) },
                         ) {
                             val x = (left + center.x).roundToInt()
@@ -423,8 +431,14 @@ private fun androidx.compose.ui.graphics.GraphicsLayerScope.itemTransform(
     }
 }
 
+/** Подписи без подложки — с тенью, чтобы читались на любых обоях. */
+private val Shadowed = TextStyle(shadow = Shadow(Color.Black.copy(alpha = 0.65f), Offset(0f, 1.5f), 6f))
+
 @Composable
-private fun FolderCell(app: FolderApp, look: FolderLook, modifier: Modifier, onClick: () -> Unit) {
+private fun FolderCell(
+    app: FolderApp, look: FolderLook, labels: Boolean, shadow: Boolean, modifier: Modifier,
+    iconDp: Float = ICON.toFloat(), onClick: () -> Unit,
+) {
     Column(
         modifier
             .width(CELL_W.dp)
@@ -435,13 +449,108 @@ private fun FolderCell(app: FolderApp, look: FolderLook, modifier: Modifier, onC
     ) {
         Spacer(Modifier.height(6.dp))
         if (app.icon != null) {
-            Image(app.icon, null, modifier = Modifier.size(ICON.dp))
+            Image(app.icon, null, modifier = Modifier.size(iconDp.dp))
         } else {
-            Box(Modifier.size(ICON.dp).clip(CircleShape).background(look.text.copy(alpha = 0.2f)))
+            Box(Modifier.size(iconDp.dp).clip(CircleShape).background(look.text.copy(alpha = 0.2f)))
         }
-        Text(
-            app.label, color = look.text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
-        )
+        if (labels) {
+            Text(
+                app.label, color = look.text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center, style = if (shadow) Shadowed else TextStyle.Default,
+                modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Папка вдоль линии: значки вылетают из виджета (или из начала своей линии) и ложатся вдоль неё,
+ * без подложки. [p] — как у сетки: 0 — свёрнута, 1 — раскрыта.
+ */
+@Composable
+fun FolderLineOverlay(
+    config: WidgetConfig,
+    theme: Theme,
+    apps: List<FolderApp>,
+    origin: Rect?,
+    p: Float,
+    blurred: Boolean = false,
+    onOpen: (String, Rect) -> Unit = { _, _ -> },
+    onDismiss: () -> Unit = {},
+) {
+    val look = remember(config, theme) { FolderLook(config, theme) }
+    val density = LocalDensity.current
+    val q = clamp01(p)
+    BoxWithConstraints(
+        Modifier.fillMaxSize()
+            .then(if (config.dim) Modifier.drawBehind { drawRect(Color.Black.copy(alpha = (if (blurred) 0.28f else 0.5f) * q)) } else Modifier)
+            .pointerInput(Unit) { detectTapGestures { onDismiss() } },
+    ) {
+        val screen = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        val from = origin?.let { Offset(it.exactCenterX(), it.exactCenterY()) } ?: Offset(screen.width / 2, screen.height * 0.82f)
+        val geo = remember(config.shape, config.line, apps.size, from, screen, config.labels) {
+            FolderLines.layout(config.shape, config.line, apps.size, from, screen, density.density, config.labels)
+        }
+        val px = { v: Float -> v * density.density }
+        val cellW = px(CELL_W.toFloat())
+        val iconDp = geo.icon / density.density
+        apps.forEachIndexed { i, app ->
+            val n = apps.size
+            FolderCell(
+                app, look, geo.labels, shadow = true, iconDp = iconDp,
+                modifier = Modifier
+                    .offset {
+                        val pos = lineTransform(config.animation, i, n, p, geo, px).position
+                        IntOffset((pos.x - cellW / 2).roundToInt(), (pos.y - px(6f) - geo.icon / 2).roundToInt())
+                    }
+                    .graphicsLayer {
+                        val t = lineTransform(config.animation, i, n, p, geo, px)
+                        alpha = t.alpha
+                        scaleX = t.scale; scaleY = t.scale
+                        rotationZ = t.rotation
+                        // Поворот и масштаб — вокруг самого значка, а не всей клетки с подписью.
+                        transformOrigin = TransformOrigin(0.5f, (px(6f) + geo.icon / 2) / px(CELL_H.toFloat()))
+                    },
+            ) {
+                val c = geo.targets[i]
+                val half = (geo.icon / 2).roundToInt()
+                onOpen(app.component, Rect(c.x.roundToInt() - half, c.y.roundToInt() - half, c.x.roundToInt() + half, c.y.roundToInt() + half))
+            }
+        }
+    }
+}
+
+private class LineState(val position: Offset, val scale: Float, val rotation: Float, val alpha: Float)
+
+/** Значок i вдоль линии: у каждой анимации свой полёт от начала линии к его месту. */
+private fun lineTransform(anim: FolderAnim, i: Int, n: Int, p: Float, geo: FolderLine, px: (Float) -> Float): LineState = when (anim) {
+    FolderAnim.REVEAL -> {
+        // Проявляются на своих местах по очереди, от начала линии к концу.
+        val t = stagger(i, n, p, 0.6f)
+        LineState(geo.targets[i], lerp(0.3f, 1f, easeOutBack(t)), 0f, clamp01(t * 3f))
+    }
+    FolderAnim.SPRING -> {
+        // Летят по линии и чуть проскакивают своё место, возвращаясь назад.
+        val t = stagger(i, n, p, 0.35f)
+        LineState(geo.track(i, easeOutBack(t)), lerp(0.5f, 1f, clamp01(t * 1.5f)), 0f, clamp01(t * 4f))
+    }
+    FolderAnim.FAN -> {
+        // Катятся по линии, вращаясь.
+        val t = stagger(i, n, p, 0.45f)
+        val e = easeOutCubic(t)
+        LineState(geo.track(i, e), lerp(0.3f, 1f, e), (1 - e) * -360f, clamp01(t * 3f))
+    }
+    FolderAnim.CASCADE -> {
+        // Друг за другом, как вагончики: каждый дожидается, пока уедет предыдущий.
+        val t = stagger(i, n, p, 0.7f)
+        LineState(geo.track(i, easeOutCubic(t)), 1f, 0f, clamp01(t * 5f))
+    }
+    FolderAnim.SPIRAL -> {
+        // Летят по линии, кружась вокруг неё и сходясь к своему месту.
+        val t = stagger(i, n, p, 0.3f)
+        val e = easeOutCubic(t)
+        val r = (1 - e) * px(36f)
+        val a = (1 - e) * PI.toFloat() * 3 + i
+        LineState(geo.track(i, e) + Offset(r * cos(a), r * sin(a)), lerp(0.2f, 1f, e), (1 - e) * -270f, clamp01(t * 2.5f))
     }
 }

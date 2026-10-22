@@ -107,9 +107,9 @@ class WidgetConfigActivity : ComponentActivity() {
         }
         val theme = ThemeRepository.get(this).applied.value
         val stored = WidgetUpdater.config(this, id, kind)
-        // Новые «Приложения» — сразу папкой: на рабочем столе спокойный значок.
+        // Новые «Приложения» — сразу папкой: на рабочем столе спокойный значок, приложения ложатся дугой.
         val initial = if (kind == WidgetKind.APPS && stored.apps.isEmpty()) {
-            stored.copy(apps = AppCatalog.defaults(this), folder = FolderMode.ICON)
+            stored.copy(apps = AppCatalog.defaults(this), folder = FolderMode.ICON, shape = FolderShape.ARC)
         } else stored
         setContent {
             AppTheme(theme.accentColor) {
@@ -180,6 +180,7 @@ fun WidgetConfigScreen(
     val wallpaper = remember { ThemeRenderer.background(context, theme, 720, 720).asImageBitmap() }
     val view = LocalView.current
     var previewBounds by remember { mutableStateOf<android.graphics.Rect?>(null) }
+    var drawLine by remember { mutableStateOf(false) }
     val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         calendarAllowed = it
         config = config.copy() // перерисовать превью с событиями
@@ -188,6 +189,22 @@ fun WidgetConfigScreen(
     val analog = style.startsWith("analog_")
     val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("bold", "glass", "minimal")
     val digital = kind == WidgetKind.CLOCK && !analog
+
+    if (drawLine) {
+        androidx.activity.compose.BackHandler { drawLine = false }
+        FolderLineEditor(
+            config, theme,
+            onPreview = { line ->
+                context.startActivity(FolderActivity.preview(context, config.copy(shape = FolderShape.CUSTOM, line = line), null))
+            },
+            onCancel = { drawLine = false },
+        ) { line ->
+            config = config.copy(shape = FolderShape.CUSTOM, line = line)
+            FolderLineStore.add(context, line)
+            drawLine = false
+        }
+        return
+    }
 
     AppBackdrop {
         Column(Modifier.statusBarsPadding().navigationBarsPadding()) {
@@ -260,7 +277,7 @@ fun WidgetConfigScreen(
                 }
                 if (kind == WidgetKind.APPS) {
                     item {
-                        FolderSection(config, onChange = { config = it }) {
+                        FolderSection(config, onChange = { config = it }, onDraw = { drawLine = true }) {
                             context.startActivity(FolderActivity.preview(context, config, previewBounds))
                         }
                     }
@@ -386,7 +403,8 @@ private fun defaultTargetTitle(context: android.content.Context, kind: WidgetKin
 /** «Приложения»: значки на виджете или папка, которая раскрывается по нажатию. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FolderSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit, onPreview: () -> Unit) {
+private fun FolderSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit, onDraw: () -> Unit, onPreview: () -> Unit) {
+    val context = LocalContext.current
     val muted = LocalLook.current.muted
     Section("Вид на рабочем столе") {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -412,13 +430,64 @@ private fun FolderSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit
                 FolderGlyph.entries.forEach { g -> FilterChip(config.glyph == g, { onChange(config.copy(glyph = g)) }, label = { Text(g.title) }) }
             }
         }
-        if (config.isFolder) {
-            Text("Анимация открытия", style = MaterialTheme.typography.labelMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FolderAnim.entries.forEach { a -> FilterChip(config.animation == a, { onChange(config.copy(animation = a)) }, label = { Text(a.title) }) }
+    }
+    if (!config.isFolder) return
+    Section("Как раскрывается") {
+        var saved by remember { mutableStateOf(FolderLineStore.all(context)) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FolderShape.entries.filter { it != FolderShape.CUSTOM }.forEach { sh ->
+                FilterChip(config.shape == sh, { onChange(config.copy(shape = sh)) }, label = { Text(sh.title) })
             }
-            OutlinedButton(onClick = onPreview) { Text("Посмотреть, как раскрывается") }
+            saved.forEachIndexed { i, line ->
+                FilterChip(
+                    config.shape == FolderShape.CUSTOM && config.line == line,
+                    { onChange(config.copy(shape = FolderShape.CUSTOM, line = line)) },
+                    label = { Text("Моя линия ${i + 1}") },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Default.Close, "Удалить линию",
+                            modifier = Modifier.size(16.dp).clickable {
+                                FolderLineStore.remove(context, line)
+                                saved = FolderLineStore.all(context)
+                            },
+                        )
+                    },
+                )
+            }
         }
+        Text(
+            when (config.shape) {
+                FolderShape.GRID -> "Приложения сеткой посреди экрана."
+                FolderShape.RING -> "Приложения кольцом вокруг виджета."
+                FolderShape.CUSTOM -> "Приложения летят вдоль вашей линии — от её начала к концу."
+                else -> "Приложения вылетают из виджета и ложатся вдоль линии; она сама поворачивает к середине экрана, " +
+                    "а если не помещается — в другую сторону."
+            },
+            style = MaterialTheme.typography.bodySmall, color = muted,
+        )
+        OutlinedButton(onClick = onDraw) {
+            Text(if (config.shape == FolderShape.CUSTOM) "Изменить свою линию" else "Нарисовать свою линию")
+        }
+        Text("Анимация", style = MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FolderAnim.entries.forEach { a -> FilterChip(config.animation == a, { onChange(config.copy(animation = a)) }, label = { Text(a.title) }) }
+        }
+        CheckRow("Подписи под значками", config.labels) { onChange(config.copy(labels = it)) }
+        if (config.shape == FolderShape.GRID) CheckRow("Фон и контур папки", config.panel) { onChange(config.copy(panel = it)) }
+        CheckRow("Затемнять рабочий стол", config.dim) { onChange(config.copy(dim = it)) }
+        OutlinedButton(onClick = onPreview) { Text("Посмотреть, как раскрывается") }
+    }
+}
+
+/** Строка с галочкой. */
+@Composable
+private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { onChange(!checked) },
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onChange)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

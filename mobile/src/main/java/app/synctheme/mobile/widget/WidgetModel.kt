@@ -130,6 +130,21 @@ enum class FolderAnim(val title: String) {
     SPIRAL("Спираль"),
 }
 
+/**
+ * Как ложатся приложения раскрытой папки: сеткой, вдоль готовой линии от виджета (она сама
+ * поворачивает к середине экрана) или вдоль своей линии, нарисованной пальцем.
+ */
+@Serializable
+enum class FolderShape(val title: String) {
+    ARC("Дуга"),
+    COLUMN("Столбик"),
+    ROW("Строка"),
+    WAVE("Волна"),
+    RING("Кольцо"),
+    GRID("Сетка"),
+    CUSTOM("Своя линия"),
+}
+
 /** Рисунок на значке папки. */
 @Serializable
 enum class FolderGlyph(val title: String) {
@@ -171,6 +186,16 @@ data class WidgetConfig(
     val folder: FolderMode = FolderMode.ICONS,
     val animation: FolderAnim = FolderAnim.REVEAL,
     val glyph: FolderGlyph = FolderGlyph.DOTS,
+    /** Раскладка раскрытой папки. */
+    val shape: FolderShape = FolderShape.GRID,
+    /** Своя линия ([FolderShape.CUSTOM]): x0, y0, x1, y1 … в долях экрана — от «откуда» к «куда». */
+    val line: List<Float> = emptyList(),
+    /** Подложка и контур у папки-сетки. */
+    val panel: Boolean = false,
+    /** Затемнять и размывать рабочий стол, пока папка открыта. */
+    val dim: Boolean = false,
+    /** Подписи под значками в раскрытой папке. */
+    val labels: Boolean = true,
 ) {
     /** Приложения раскрываются из папки, а не лежат на виджете. */
     val isFolder get() = folder != FolderMode.ICONS
@@ -198,5 +223,28 @@ object WidgetConfigStore {
 
     fun delete(context: Context, ids: IntArray) {
         prefs(context).edit().apply { ids.forEach { remove(it.toString()) } }.apply()
+    }
+}
+
+/** Свои линии папок: нарисованные один раз, их можно выбрать и для других виджетов. */
+object FolderLineStore {
+    private const val MAX = 6
+    private val json = Json { ignoreUnknownKeys = true }
+
+    private fun prefs(context: Context) = context.getSharedPreferences("folder_lines", Context.MODE_PRIVATE)
+
+    fun all(context: Context): List<List<Float>> = prefs(context).getString("lines", null)
+        ?.let { runCatching { json.decodeFromString<List<List<Float>>>(it) }.getOrNull() }.orEmpty()
+
+    /** Новая линия — первой; та же линия второй раз не сохраняется. */
+    fun add(context: Context, line: List<Float>) {
+        if (line.size < 4) return
+        save(context, (listOf(line) + all(context).filter { it != line }).take(MAX))
+    }
+
+    fun remove(context: Context, line: List<Float>) = save(context, all(context).filter { it != line })
+
+    private fun save(context: Context, lines: List<List<Float>>) {
+        prefs(context).edit().putString("lines", json.encodeToString(lines)).apply()
     }
 }

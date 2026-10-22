@@ -16,10 +16,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import app.synctheme.core.Presets
@@ -29,7 +35,11 @@ import app.synctheme.mobile.widget.FolderAnim
 import app.synctheme.mobile.widget.FolderApp
 import app.synctheme.mobile.widget.FolderGlyph
 import app.synctheme.mobile.widget.FolderMode
+import app.synctheme.mobile.widget.FolderLineEditor
+import app.synctheme.mobile.widget.FolderLineOverlay
+import app.synctheme.mobile.widget.FolderLines
 import app.synctheme.mobile.widget.FolderOverlay
+import app.synctheme.mobile.widget.FolderShape
 import app.synctheme.mobile.widget.FolderWidget
 import app.synctheme.mobile.widget.WidgetConfig
 import app.synctheme.mobile.widget.WidgetKind
@@ -101,6 +111,107 @@ class FolderTest {
                 compose.onRoot().captureRoboImage(File(out, "folder_${anim.name.lowercase()}_$c.png").absolutePath)
             }
         }
+    }
+
+    /** S-образная линия снизу слева вверх направо — как нарисованная пальцем. */
+    private val sCurve = (0..30).flatMap { k ->
+        val t = k / 30f
+        listOf(0.15f + 0.7f * t, 0.84f - 0.56f * t + 0.1f * kotlin.math.sin(2.2f * Math.PI.toFloat() * t))
+    }
+
+    /** Папка вдоль линии: строки — линия и анимация, столбцы — моменты раскрытия. */
+    @Test
+    fun lineFrames() {
+        val w = 1442
+        val h = 3202
+        val wallpaper = ThemeRenderer.background(app, theme, w / 2, h / 2).asImageBitmap()
+        val origin = Rect(110, 2280, 390, 2560)
+        val list = apps(8)
+        val rows = listOf(
+            FolderShape.ARC to FolderAnim.SPRING,
+            FolderShape.WAVE to FolderAnim.FAN,
+            FolderShape.CUSTOM to FolderAnim.CASCADE,
+            FolderShape.RING to FolderAnim.SPIRAL,
+            FolderShape.COLUMN to FolderAnim.REVEAL,
+        )
+        var state by mutableStateOf(Triple(rows[0], 0f, false))
+        compose.setContent {
+            val (row, p, dim) = state
+            Box(Modifier.fillMaxSize()) {
+                Image(wallpaper, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                FolderLineOverlay(
+                    WidgetConfig(style = "glass", folder = FolderMode.ICON, shape = row.first, animation = row.second, line = sCurve, dim = dim),
+                    theme, list, origin, p,
+                )
+            }
+        }
+        val steps = listOf(0.15f, 0.35f, 0.6f, 0.85f, 1f)
+        rows.forEachIndexed { r, row ->
+            steps.forEachIndexed { c, p ->
+                state = Triple(row, p, r == 3)
+                compose.waitForIdle()
+                compose.onRoot().captureRoboImage(File(out, "folder_line_${r}_$c.png").absolutePath)
+            }
+        }
+    }
+
+    /** Значки ложатся вдоль линии через равные промежутки и не вылезают за экран. */
+    @Test
+    fun lineGeometry() {
+        val screen = Size(1440f, 3120f)
+        val dp = 3.5f
+        // Своя линия: значки от начала к концу, последний — в конце линии.
+        val custom = FolderLines.layout(FolderShape.CUSTOM, sCurve, 6, Offset.Zero, screen, dp, true)
+        val path = custom.path!!
+        assertEquals(path.length, custom.stops.last(), 1f)
+        val gaps = custom.stops.toList().zipWithNext { a, b -> b - a }
+        assertTrue("равные промежутки: $gaps", gaps.all { kotlin.math.abs(it - gaps[0]) < 1f })
+        assertEquals(FolderLines.points(sCurve, screen).first(), custom.origin)
+        // Готовые линии от виджета в левом нижнем углу: вверх и вправо, всё на экране.
+        val widget = Offset(250f, 2400f)
+        for (shape in listOf(FolderShape.ARC, FolderShape.COLUMN, FolderShape.ROW, FolderShape.WAVE, FolderShape.RING)) {
+            val geo = FolderLines.layout(shape, emptyList(), 12, widget, screen, dp, true)
+            geo.targets.forEach { t ->
+                assertTrue("$shape: $t на экране", t.x in 0f..screen.width && t.y in 0f..screen.height)
+            }
+            if (shape != FolderShape.ROW && shape != FolderShape.RING) assertTrue("$shape: вверх от виджета", geo.targets.last().y < widget.y)
+        }
+        // Линия, нарисованная пальцем, хранится в долях экрана и не длиннее 64 точек.
+        val drawn = (0..300).map { Offset(100f + it * 3f, 2000f - it * 4f + 60f * kotlin.math.sin(it / 20f)) }
+        val norm = FolderLines.normalize(drawn, screen)
+        assertTrue(norm.size in 16..128 && norm.all { it in 0f..1f })
+    }
+
+    /** Своя линия рисуется пальцем: изогнутая линия сохраняется в настройку виджета. */
+    @Test
+    fun drawsLineWithFinger() {
+        var result: List<Float>? = null
+        val config = WidgetConfig(style = "glass", folder = FolderMode.ICON, apps = (0 until 7).map { "com.example.app$it/.Main" })
+        compose.setContent { FolderLineEditor(config, theme, onPreview = {}, onCancel = {}) { result = it } }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Холст линии").performTouchInput {
+            down(Offset(width * 0.18f, height * 0.86f))
+            for (k in 1..40) {
+                val t = k / 40f
+                moveTo(Offset(width * (0.18f + 0.62f * t), height * (0.86f - 0.62f * t + 0.12f * kotlin.math.sin(6f * t))))
+            }
+            up()
+        }
+        compose.waitForIdle()
+        Thread.sleep(800)
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage(File(out, "screen_folder_line.png").absolutePath)
+        compose.onNodeWithText("Готово").performClick()
+        val line = result
+        assertNotNull("линия сохранена", line)
+        assertTrue("точек: ${line!!.size}", line.size >= 16)
+        // Изогнутая: середина заметно в стороне от прямой между концами.
+        val pts = line.chunked(2)
+        val a = pts.first()
+        val b = pts.last()
+        val m = pts[pts.size / 2]
+        val cross = kotlin.math.abs((b[0] - a[0]) * (m[1] - a[1]) - (b[1] - a[1]) * (m[0] - a[0]))
+        assertTrue("изгиб: $cross", cross > 0.01f)
     }
 
     /** Значок папки во всех стилях, точками и силуэтами, и невидимый виджет — собираются и открывают папку. */

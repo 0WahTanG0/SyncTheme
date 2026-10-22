@@ -399,4 +399,20 @@ class FeaturesTest {
         val intent = app.synctheme.mobile.widget.AppCatalog.wallClockIntent(context, theme.wallClock!!.openApp)!!
         assertEquals("com.example.notes", intent.component?.packageName)
     }
+
+    /** Нажатие на обои: короткое и на месте — да; свайп, долгое нажатие и отменённое касание — нет. */
+    @Test
+    fun wallpaperTapDetector() {
+        val tap = app.synctheme.mobile.wallpaper.TapDetector(slop = 30f)
+        fun gesture(vararg events: Triple<Int, Float, Long>) = events.map { (a, x, t) -> tap.onEvent(a, x, 500f, t) }.last()
+        val down = android.view.MotionEvent.ACTION_DOWN
+        val move = android.view.MotionEvent.ACTION_MOVE
+        val up = android.view.MotionEvent.ACTION_UP
+        val cancel = android.view.MotionEvent.ACTION_CANCEL
+        val hit = gesture(Triple(down, 100f, 0L), Triple(move, 108f, 50L), Triple(up, 110f, 120L))
+        assertEquals(100f, hit!!.x, 0.01f)
+        assertEquals(null, gesture(Triple(down, 100f, 0L), Triple(move, 400f, 80L), Triple(up, 400f, 160L)))
+        assertEquals(null, gesture(Triple(down, 100f, 0L), Triple(up, 100f, 900L)))
+        assertEquals(null, gesture(Triple(down, 100f, 0L), Triple(cancel, 100f, 50L), Triple(up, 100f, 100L)))
+    }
 }
