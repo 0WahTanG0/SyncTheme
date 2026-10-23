@@ -3,8 +3,11 @@ package app.synctheme.mobile.install
 import app.synctheme.mobile.util.Compat
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
 import io.github.muntashirakon.adb.PairingConnectionCtx
 import java.io.File
+import java.net.ConnectException
+import java.net.NoRouteToHostException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -58,9 +61,22 @@ class WatchAppInstaller(private val context: Context, private val log: (String) 
         // Порт сопряжения заранее не проверяем: лишнее подключение часы считают неудачной попыткой.
         log("Сопряжение с $host:$port")
         val manager = adb
-        detached(PAIR_TIMEOUT) {
-            PairingConnectionCtx(host, port, code.trim().toByteArray(), manager.key, manager.cert, manager.deviceName).use { it.start() }
-        } ?: throw WatchUnreachableException("${target.pick("Часы не ответили", "Телевизор не ответил")} на сопряжение за ${PAIR_TIMEOUT / 1000} с")
+        // Сокет сопряжения открывает libadb — привязать его к Wi‑Fi нельзя, поэтому на время сопряжения
+        // весь процесс идёт через Wi‑Fi: иначе при включённом VPN соединение уходит в VPN.
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        val wifi = AdbLink.wifiFor(context, host)
+        val bound = wifi != null && runCatching { cm.bindProcessToNetwork(wifi) }.getOrDefault(false)
+        try {
+            detached(PAIR_TIMEOUT) {
+                PairingConnectionCtx(host, port, code.trim().toByteArray(), manager.key, manager.cert, manager.deviceName).use { it.start() }
+            } ?: throw WatchUnreachableException("${target.pick("Часы не ответили", "Телевизор не ответил")} на сопряжение за ${PAIR_TIMEOUT / 1000} с")
+        } catch (e: ConnectException) {
+            throw WatchUnreachableException("Нет связи с $host:$port — ${AdbLink.reason(e)}")
+        } catch (e: NoRouteToHostException) {
+            throw WatchUnreachableException("Нет связи с $host:$port — ${AdbLink.reason(e)}")
+        } finally {
+            if (bound) runCatching { cm.bindProcessToNetwork(null) }
+        }
         log("Сопряжение: успешно")
     }
 

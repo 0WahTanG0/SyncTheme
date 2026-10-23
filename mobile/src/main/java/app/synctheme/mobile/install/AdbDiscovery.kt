@@ -13,8 +13,17 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-/** Найденная в сети служба (ADB часов или SyncTheme на устройстве); [attributes] — её TXT-запись. */
-data class AdbService(val name: String, val host: String, val port: Int, val attributes: Map<String, String> = emptyMap())
+/**
+ * Найденная в сети служба (ADB часов или SyncTheme на устройстве); [attributes] — её TXT-запись,
+ * [addresses] — все адреса устройства (у телевизора их бывает два: Wi‑Fi и кабель).
+ */
+data class AdbService(
+    val name: String,
+    val host: String,
+    val port: Int,
+    val attributes: Map<String, String> = emptyMap(),
+    val addresses: List<String> = listOf(host),
+)
 
 /**
  * Ищет часы с включённой «Отладкой по Wi‑Fi» через mDNS (как это делает Android Studio):
@@ -42,12 +51,12 @@ object AdbDiscovery {
         }
 
         fun resolved(name: String, addresses: List<InetAddress>, port: Int, attributes: Map<String, ByteArray?>?) {
-            val address = addresses.firstOrNull { it is Inet4Address } ?: addresses.firstOrNull() ?: return
-            val host = address.hostAddress ?: return
+            val all = (addresses.filterIsInstance<Inet4Address>() + addresses).mapNotNull { it.hostAddress }.distinct()
+            val host = all.firstOrNull() ?: return
             // Свой телефон (если на нём тоже включена отладка) не показываем.
-            if (host in ownAddresses || port <= 0) return
+            if (all.any { it in ownAddresses } || port <= 0) return
             val txt = attributes.orEmpty().mapNotNull { (k, v) -> v?.let { k to String(it, Charsets.UTF_8) } }.toMap()
-            found[name] = AdbService(name, host, port, txt)
+            found[name] = AdbService(name, host, port, txt, all.filterNot { ':' in it }.ifEmpty { listOf(host) })
             publish()
         }
 

@@ -196,9 +196,11 @@ private fun FindStep(ui: InstallerUi, vm: InstallerViewModel) {
         if (!ui.manual) {
             hosts.forEach { host ->
                 val states = buildList {
+                    // Адреса — чтобы сверить с экраном «Отладка по Wi‑Fi» на телевизоре.
+                    if (tv) add(ui.addressesOf(host).joinToString(", "))
                     ui.pairing.firstOrNull { it.host == host }?.let { add(ui.target.pick("ждут сопряжения", "ждёт сопряжения") + ", порт ${it.port}") }
                     ui.connect.firstOrNull { it.host == host }?.let { add("отладка включена, порт ${it.port}") }
-                    if (isEmpty() && tv) add("$host · подключусь через «Отладку по сети»")
+                    if (size == 1 && tv) add("подключусь через «Отладку по сети»")
                 }
                 Row(
                     Modifier.fillMaxWidth().clickable { vm.selectHost(host) },
@@ -371,7 +373,11 @@ private fun TvNetworkHints(vpn: Boolean) {
         StepText(2, "«Для разработчиков» → «Отладка по USB» должна быть включена. На некоторых телевизорах нужно ещё «Отладка по сети».")
         StepText(3, "Появилось «Разрешить отладку?» — выберите «Всегда разрешать» и нажмите «OK». Пропустили — нажмите «Попробовать ещё раз».")
         StepText(4, "Есть «Отладка по Wi‑Fi» — включите её и введите код из «Подключить устройство с помощью кода».")
-        StepText(5, "Проверьте адрес телевизора: «Настройки» → «Сеть и Интернет» → ваша сеть. Если отличается — введите вручную.")
+        StepText(
+            5,
+            "Сверьте адрес и порт с экраном «Отладка по Wi‑Fi» на телевизоре (строка «IP-адрес и порт»). Отличаются — нажмите " +
+                "«Ввести адрес вручную» и введите их; порт сопряжения — в окне с кодом.",
+        )
     }
 }
 

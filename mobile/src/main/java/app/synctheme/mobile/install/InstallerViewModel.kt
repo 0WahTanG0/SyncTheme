@@ -53,6 +53,15 @@ data class InstallerUi(
     val hosts: List<String> get() = (pairing.map { it.host } + connect.map { it.host } +
         (if (target == InstallTarget.TV) tvs.map { it.host } else emptyList())).distinct()
 
+    /**
+     * Все адреса устройства: у телевизора их бывает несколько (Wi‑Fi и кабель), и в сети
+     * может быть объявлен не тот, по которому он отвечает.
+     */
+    fun addressesOf(host: String): List<String> {
+        val same = (pairing + connect + tvs).filter { it.host == host || host in it.addresses }
+        return (listOf(host) + same.flatMap { it.addresses }).distinct()
+    }
+
     /** Имя телевизора в сети («Tuvio TV»), если он нашёлся по своей службе. */
     fun tvName(host: String): String? = tvs.firstOrNull { it.host == host }?.name
 
@@ -164,8 +173,8 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
                         else "Откройте на часах «Сопряжение нового устройства», чтобы появился порт сопряжения."
                     )
                 busy(s.target.pick("Сопряжение с часами…", "Сопряжение с телевизором…"))
-                installer.pair(s.host, port, s.code)
-                prefs.edit().putStringSet("paired", pairedHosts + s.host).apply()
+                val paired = pairAny(_ui.value.addressesOf(s.host), port, s.code)
+                prefs.edit().putStringSet("paired", pairedHosts + s.host + paired).apply()
                 _ui.update { it.copy(knownHost = true, code = "") }
             } else if (!s.knownHost && (!tv || s.pairPort.isNotBlank())) {
                 return@launch fail(
@@ -174,7 +183,7 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
 
-            val device = connectWithRetry(s.host)
+            val (device, reached) = connectWithRetry(s.host)
             _ui.update { it.copy(device = device) }
             if (tv && device.sdk in 1 until 28) {
                 return@launch fail("На телевизоре ${device.model} Android API ${device.sdk}. SyncTheme нужен Android TV 9 или новее.")
@@ -193,7 +202,7 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
             installer.disconnect()
             val linkPort = if (tv) {
                 busy("Жду SyncTheme на телевизоре…")
-                waitForReceiver(s.host)
+                waitForReceiver(reached)
             } else null
             log("Готово")
             _ui.update { it.copy(busy = null, progress = null, done = true, linkPort = linkPort) }
@@ -229,7 +238,7 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
      * задремать — поэтому до 3 попыток, каждый раз с актуальным портом из сети. Телевизор без
      * «Отладки по Wi‑Fi» слушает постоянный порт 5555 («Отладка по сети»).
      */
-    private suspend fun connectWithRetry(host: String): WatchDevice {
+    private suspend fun connectWithRetry(host: String): Pair<WatchDevice, String> {
         val tv = _ui.value.target == InstallTarget.TV
         val what = if (tv) "телевизору" else "часам"
         var last: Exception? = null
@@ -239,17 +248,38 @@ class InstallerViewModel(app: Application) : AndroidViewModel(app) {
                 ?: if (tv) LEGACY_PORT else throw WatchUnreachableException(
                     "Не найден порт подключения. Он указан на часах на экране «Отладка по Wi‑Fi» после двоеточия"
                 )
-            try {
-                return installer.connect(host, port) {
-                    busy("На телевизоре появилось «Разрешить отладку?» — выберите «Всегда разрешать» и нажмите «OK» пультом")
-                }
-            } catch (e: WatchUnreachableException) {
-                last = e
-                log("Попытка ${attempt + 1}: ${e.message}")
-                delay(2_000)
+            // Каждый адрес устройства; телевизору — ещё и постоянный порт «Отладки по сети».
+            val tries = _ui.value.addressesOf(host).flatMap { address ->
+                listOf(address to port) + if (tv && port != LEGACY_PORT) listOf(address to LEGACY_PORT) else emptyList()
             }
+            for ((address, p) in tries) {
+                try {
+                    return installer.connect(address, p) {
+                        busy("На телевизоре появилось «Разрешить отладку?» — выберите «Всегда разрешать» и нажмите «OK» пультом")
+                    } to address
+                } catch (e: WatchUnreachableException) {
+                    last = e
+                    log("Попытка ${attempt + 1}: ${e.message}")
+                }
+            }
+            delay(2_000)
         }
         throw last ?: WatchUnreachableException("Не удалось подключиться к $what")
+    }
+
+    /** Сопряжение по первому адресу, который отвечает; неверный код — сразу ошибка. */
+    private suspend fun pairAny(addresses: List<String>, port: Int, code: String): String {
+        var last: WatchUnreachableException? = null
+        for (address in addresses) {
+            try {
+                installer.pair(address, port, code)
+                return address
+            } catch (e: WatchUnreachableException) {
+                last = e
+                log("Сопряжение с $address: ${e.message}")
+            }
+        }
+        throw last ?: WatchUnreachableException("Не удалось выполнить сопряжение")
     }
 
     /** После сопряжения часы объявляют порт подключения в сети — ждём его немного. */

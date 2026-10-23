@@ -1,6 +1,9 @@
 package app.synctheme.mobile
 
 import app.synctheme.mobile.install.AdbLink
+import app.synctheme.mobile.install.AdbService
+import app.synctheme.mobile.install.InstallTarget
+import app.synctheme.mobile.install.InstallerUi
 import app.synctheme.mobile.install.WatchUnreachableException
 import io.github.muntashirakon.adb.AdbPairingRequiredException
 import java.io.DataInputStream
@@ -83,6 +86,30 @@ class AdbLinkTest {
             link.close()
         }
         assertTrue(System.currentTimeMillis() - start < 3_000)
+    }
+
+    /** Порт закрыт (отладку выключили или её порт сменился) — так и написано, без кода ошибки. */
+    @Test
+    fun closedPortIsExplained() {
+        val port = ServerSocket(0).use { it.localPort }
+        try {
+            AdbLink.open("127.0.0.1", port, null, phone.private, phoneCert, log = {}).close()
+            fail("порт закрыт — ожидалась ошибка")
+        } catch (e: WatchUnreachableException) {
+            assertTrue(e.message, e.message!!.contains("127.0.0.1:$port") && e.message!!.contains("порт закрыт"))
+        }
+    }
+
+    /** Телевизор объявляет два адреса (Wi‑Fi и кабель) — установщик пробует оба, начиная с выбранного. */
+    @Test
+    fun deviceAddressesIncludeEveryAnnouncedOne() {
+        val ui = InstallerUi(
+            target = InstallTarget.TV,
+            connect = listOf(AdbService("adb-tv", "192.168.31.187", 45103, addresses = listOf("192.168.31.187", "192.168.31.239"))),
+            tvs = listOf(AdbService("Google TV", "192.168.31.187", 6466)),
+        )
+        assertEquals(listOf("192.168.31.187", "192.168.31.239"), ui.addressesOf("192.168.31.187"))
+        assertEquals(listOf("192.168.31.187"), ui.hosts)
     }
 
     /** Ключ телефона часам неизвестен (сопряжение забыто) — просим сопряжение заново. */

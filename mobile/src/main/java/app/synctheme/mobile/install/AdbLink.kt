@@ -78,7 +78,7 @@ internal class AdbLink private constructor(private val plain: Socket, private va
                 p = receive(HANDSHAKE_MS)
             } catch (e: SSLException) {
                 // Часы не приняли ключ телефона: сопряжение забыто или его не было.
-                throw AdbPairingRequiredException("Часы не узнали телефон (${e.message})")
+                throw AdbPairingRequiredException("Устройство не узнало телефон (${e.message})")
             }
             log("TLS: ${tls.session.protocol}")
         } else if (p.command == A_AUTH && p.arg0 == AUTH_TOKEN) {
@@ -99,7 +99,7 @@ internal class AdbLink private constructor(private val plain: Socket, private va
         }
         when (p.command) {
             A_CNXN -> Unit
-            A_AUTH -> throw AdbPairingRequiredException("Часы просят подтвердить ключ — нужно сопряжение по коду")
+            A_AUTH -> throw AdbPairingRequiredException("Устройство просит подтвердить ключ — нужно сопряжение по коду")
             else -> throw IOException("Неожиданный ответ часов: ${name(p.command)}")
         }
         if (p.arg1 > 0) maxData = min(p.arg1, MAX_DATA)
@@ -126,10 +126,10 @@ internal class AdbLink private constructor(private val plain: Socket, private va
                 receive(left.toInt())
             } catch (e: SocketTimeoutException) {
                 throw WatchUnreachableException(
-                    if (remote == 0) "Часы не ответили на команду ($what)" else "Часы перестали отвечать ($what)",
+                    if (remote == 0) "Устройство не ответило на команду ($what)" else "Устройство перестало отвечать ($what)",
                 )
             } catch (e: IOException) {
-                throw WatchUnreachableException("Связь с часами прервалась ($what): ${e.message ?: e.javaClass.simpleName}")
+                throw WatchUnreachableException("Связь прервалась ($what): ${e.message ?: e.javaClass.simpleName}")
             }
             if (p.arg1 != local) {
                 log("Пропускаю пакет ${name(p.command)} для потока ${p.arg1}")
@@ -145,7 +145,7 @@ internal class AdbLink private constructor(private val plain: Socket, private va
                     send(A_OKAY, local, p.arg0)
                 }
                 A_CLSE -> {
-                    if (remote == 0) throw InstallException("Часы отклонили команду ($what)")
+                    if (remote == 0) throw InstallException("Устройство отклонило команду ($what)")
                     return out.toString(Charsets.UTF_8.name())
                 }
                 else -> log("Неожиданный пакет ${name(p.command)}")
@@ -188,7 +188,7 @@ internal class AdbLink private constructor(private val plain: Socket, private va
         var read = 0
         while (read < buffer.size) {
             val n = input.read(buffer, read, buffer.size - read)
-            if (n < 0) throw EOFException("часы закрыли соединение")
+            if (n < 0) throw EOFException("устройство закрыло соединение")
             read += n
         }
     }
@@ -271,19 +271,31 @@ internal class AdbLink private constructor(private val plain: Socket, private va
                 socket.connect(InetSocketAddress(host, port), CONNECT_MS)
             } catch (e: IOException) {
                 runCatching { socket.close() }
-                throw WatchUnreachableException("Часы не отвечают по Wi‑Fi ($host:$port): ${e.javaClass.simpleName}")
+                throw WatchUnreachableException("Нет связи с $host:$port — ${reason(e)}")
             }
             val link = AdbLink(socket, log)
             try {
                 link.handshake(host, port, key, cert, onConfirm)
             } catch (e: SocketTimeoutException) {
                 link.close()
-                throw WatchUnreachableException("Часы не завершили подключение за ${HANDSHAKE_MS / 1000} с")
+                throw WatchUnreachableException("Устройство не завершило подключение за ${HANDSHAKE_MS / 1000} с")
             } catch (e: Throwable) {
                 link.close()
                 throw e
             }
             return link
+        }
+
+        /** Почему не удалось подключиться — словами, а не кодом ошибки. */
+        fun reason(e: IOException): String {
+            val text = e.message.orEmpty()
+            return when {
+                "ECONNREFUSED" in text || "refused" in text -> "порт закрыт: отладка выключена или её порт уже другой"
+                "EHOSTUNREACH" in text || "No route" in text -> "по этому адресу никого нет: у устройства, видимо, другой адрес"
+                "ENETUNREACH" in text || "unreachable" in text -> "сеть недоступна: телефон и устройство в разных сетях"
+                e is SocketTimeoutException || "ETIMEDOUT" in text || "timed out" in text -> "нет ответа: устройство спит или в другой сети"
+                else -> text.ifBlank { e.javaClass.simpleName }
+            }
         }
 
         /**
