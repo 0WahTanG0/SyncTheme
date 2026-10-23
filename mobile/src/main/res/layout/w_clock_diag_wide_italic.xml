@@ -56,6 +56,16 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/tih_m_hours"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="-16dp"
+                android:layout_marginBottom="-19dp"
+                android:scaleType="fitStart"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
         </FrameLayout>
 
         <FrameLayout
@@ -82,6 +92,16 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/tim_a_minutes"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="-16dp"
+                android:layout_marginBottom="-19dp"
+                android:scaleType="fitEnd"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
         </FrameLayout>
     </LinearLayout>
 

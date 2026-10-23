@@ -21,6 +21,9 @@ import app.synctheme.mobile.widget.WidgetAlign
 import app.synctheme.mobile.widget.WidgetConfig
 import app.synctheme.mobile.widget.WidgetKind
 import app.synctheme.mobile.widget.WidgetRenderer
+import org.junit.Assert.assertEquals
+import app.synctheme.mobile.widget.TimeImages
+import android.view.ViewGroup
 import app.synctheme.mobile.widget.WidgetSize
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -155,14 +158,36 @@ class RenderingTest {
         sheet.save("widget_skies.png")
     }
 
-    /** Шрифты цифр в каждом стиле цифровых часов (размер 2×2 и 4×2): строки — шрифты, столбцы — стили. */
+    /**
+     * Шрифты цифр в каждом стиле цифровых часов: строки — шрифты, столбцы — стили. Цифры — картинкой
+     * выбранным шрифтом (лаунчер шрифты приложения в TextClock не загружает): проверяется, что во всех
+     * размерах картинка на месте, а TextClock спрятан.
+     */
     @Test
     fun widgetClockFonts() {
+        org.robolectric.shadows.ShadowAlarmManager.setCanScheduleExactAlarms(true)
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val d = context.resources.displayMetrics.density
         val theme = Presets.all[0]
         val styles = WidgetKind.CLOCK.styles.filter { !it.id.startsWith("analog_") }
-        for (size in listOf(WidgetSize.M, WidgetSize.WIDE)) {
+        for (size in WidgetSize.entries) for (style in styles) for (font in DigitFont.entries) {
+            val config = WidgetConfig(style = style.id, font = font.name, align = WidgetAlign.entries[font.ordinal % 3])
+            val view = WidgetRenderer.buildSize(context, WidgetKind.CLOCK, config, theme, size).apply(activity, FrameLayout(activity))
+            val images = mutableListOf<View>()
+            fun walk(v: View) {
+                if (v is android.widget.ImageView && v.id != View.NO_ID && TimeImages[v.id] != null && v.visibility == View.VISIBLE) images += v
+                if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+            }
+            walk(view)
+            val clocks = images.map { TimeImages[it.id]!!.clock }
+            if (font.res == null) {
+                assertTrue("$style $size $font: системный шрифт — без картинок", images.isEmpty())
+            } else {
+                assertTrue("$style $size $font: цифры картинкой", images.isNotEmpty())
+                clocks.forEach { assertEquals("$style $size $font: TextClock спрятан", View.GONE, view.findViewById<View>(it).visibility) }
+            }
+        }
+        for (size in listOf(WidgetSize.M, WidgetSize.WIDE, WidgetSize.COLUMN)) {
             val cw = (size.previewW * d).toInt()
             val ch = (size.previewH * d).toInt()
             val gap = (10 * d).toInt()

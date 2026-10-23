@@ -18,6 +18,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Планшет: попросить систему не усыплять приём темы (иначе в фоне его может закрыть экономия заряда). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Цифры часов на виджетах — картинкой выбранным шрифтом: её нужно обновлять ровно в начале минуты. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
 
     <!-- То же приложение ставится на телевизор (Google TV / Android TV): там нет сенсорного экрана. -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -206,6 +209,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_apps_info" />
+        </receiver>
+
+        <!-- Новая минута, смена времени и пояса: перерисовать цифры часов на виджетах. -->
+        <receiver
+            android:name=".mobile.widget.ClockTickReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
         </receiver>
 
         <!-- Следующий будильник показывается на виджете часов. -->

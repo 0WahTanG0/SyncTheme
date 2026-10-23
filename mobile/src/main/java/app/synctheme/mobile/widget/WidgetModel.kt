@@ -150,7 +150,13 @@ enum class FolderShape(val title: String) {
 @Serializable
 enum class FolderGlyph(val title: String) {
     DOTS("Точки"),
+    ICONS("Значки"),
     SILHOUETTES("Силуэты"),
+    TILES("Плитки"),
+    PETALS("Лепестки"),
+    SPARKLE("Искра"),
+    ORBIT("Орбита"),
+    LETTER("Буква"),
 }
 
 /** Приложений в папке: на виджете со значками — 8, в раскрывающейся — 12. */

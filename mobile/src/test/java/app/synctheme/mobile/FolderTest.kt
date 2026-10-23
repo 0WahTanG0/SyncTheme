@@ -299,12 +299,12 @@ class FolderTest {
         assertEquals("изгиб после правки", 0.35f, bend, 0.05f)
     }
 
-    /** Значок папки во всех стилях, точками и силуэтами, и невидимый виджет — собираются и открывают папку. */
+    /** Значок папки во всех стилях с каждым рисунком и невидимый виджет — собираются и открывают папку. */
     @Test
     fun folderWidget() {
         val styles = WidgetKind.APPS.styles.map { it.id }
         val px = 240
-        val sheet = Bitmap.createBitmap(styles.size * (px + 20) + 20, 2 * (px + 20) + 20, Bitmap.Config.ARGB_8888)
+        val sheet = Bitmap.createBitmap(styles.size * (px + 20) + 20, FolderGlyph.entries.size * (px + 20) + 20, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(sheet)
         canvas.drawBitmap(ThemeRenderer.background(app, theme, sheet.width, sheet.height), 0f, 0f, null)
         FolderGlyph.entries.forEachIndexed { r, glyph ->

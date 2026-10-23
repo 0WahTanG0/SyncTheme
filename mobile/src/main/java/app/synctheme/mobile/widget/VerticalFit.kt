@@ -62,7 +62,7 @@ internal object VerticalFit {
         else -> DigitFont.THIN
     }
 
-    private fun typeface(context: Context, font: DigitFont): Typeface = synchronized(typefaces) {
+    fun typeface(context: Context, font: DigitFont): Typeface = synchronized(typefaces) {
         typefaces.getOrPut(font.name) {
             val res = font.res?.let { context.resources.getIdentifier(it, "font", context.packageName) } ?: 0
             if (res == 0) Typeface.create("sans-serif-thin", Typeface.NORMAL)
@@ -107,6 +107,13 @@ internal object VerticalFit {
             if (!Compat.modernWidgets) return
             rv.setViewLayoutMargin(id, RemoteViews.MARGIN_TOP, top - em.above * s, TypedValue.COMPLEX_UNIT_DIP)
             rv.setViewLayoutMargin(id, RemoteViews.MARGIN_BOTTOM, bottom - em.below * s, TypedValue.COMPLEX_UNIT_DIP)
+            // Картинка цифр (ClockDigits) — на том же месте: строка текста той же высоты и с теми же отступами.
+            for (image in layout.ids) {
+                if (TimeImages[image]?.clock != id) continue
+                rv.setViewLayoutHeight(image, (em.above + em.ink + em.below) * s, TypedValue.COMPLEX_UNIT_DIP)
+                rv.setViewLayoutMargin(image, RemoteViews.MARGIN_TOP, top - em.above * s, TypedValue.COMPLEX_UNIT_DIP)
+                rv.setViewLayoutMargin(image, RemoteViews.MARGIN_BOTTOM, bottom - em.below * s, TypedValue.COMPLEX_UNIT_DIP)
+            }
         }
         fun show(id: Int, visible: Boolean) {
             if (layout.has(id)) rv.setViewVisibility(id, if (visible) View.VISIBLE else View.GONE)

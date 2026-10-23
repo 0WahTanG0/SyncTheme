@@ -70,6 +70,15 @@
             android:maxLines="1"
             android:textColor="#FFFFFFFF" />
 
+        <ImageView
+            android:id="@+id/tih_m_hours"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
         <TextClock
             android:id="@+id/m_minutes"
             android:textSize="52dp"
@@ -82,6 +91,14 @@
             android:fontFamily="@font/space_mono"
             android:maxLines="1"
             android:textColor="#FFFFFFFF" />
+
+        <ImageView
+            android:id="@+id/tim_m_minutes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
 
         <ImageView
             android:id="@+id/if_line"

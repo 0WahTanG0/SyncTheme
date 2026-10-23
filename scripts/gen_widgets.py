@@ -86,9 +86,17 @@ SHORT = {
 DIM = {"match": "match_parent", "wrap": "wrap_content"}
 
 
+def flat(children):
+    for c in children:
+        if isinstance(c, (list, tuple)):
+            yield from flat(c)
+        elif c is not None:
+            yield c
+
+
 class E:
     def __init__(self, tag, attrs, children=()):
-        self.tag, self.attrs, self.children = tag, attrs, [c for c in children if c is not None]
+        self.tag, self.attrs, self.children = tag, attrs, list(flat(children))
 
     def render(self, depth=1):
         pad = "    " * depth
@@ -198,7 +206,36 @@ def text(id_, *, clock=None, font=None, size=None, auto=None, w="match", h="wrap
     kw["textColor"] = "#FFFFFFFF"
     if txt:
         kw["text"] = txt
-    return E(tag, attrs_of(kw))
+    images = time_images(id_, clock, font, kw)
+    node = E(tag, attrs_of(kw))
+    return [node] + images if images else node
+
+
+# Лаунчер собирает виджет в «ограниченном» контексте, где TextView не загружает шрифты из ресурсов
+# приложения: цифры часов показывались бы системным шрифтом. Поэтому рядом с каждыми цифрами — картинка
+# на то же место (те же размеры и отступы); WidgetRenderer рисует в неё время выбранным шрифтом
+# и обновляет раз в минуту, а TextClock прячет.
+TIME_CODES = {"H:mm": "t", "HH": "h", "mm": "m", "HH\\nmm": "w", "HH mm": "s"}
+DIGIT_FAMILIES = {d["family"] for d in DIGIT_FONTS.values() if d["family"].startswith("@font/")}
+TIME_IMAGES = OrderedDict()  # id картинки -> (id цифр, код формата, вариант выравнивания)
+LAYOUT_KEYS = ("w", "h", "weight", "lg", "m", "mt", "mb", "ms", "me", "mh", "mv",
+               "pad", "padH", "padV", "padT", "padB", "padS", "padE")
+
+
+def time_images(id_, clock, font, kw):
+    code = TIME_CODES.get(clock[1]) if clock else None
+    if not code or font not in DIGIT_FAMILIES:
+        return []
+    base = {k: kw[k] for k in LAYOUT_KEYS if k in kw}
+    g = kw.get("g", "center")
+    fixed = "fitStart" if ("start" in g or "top" in g) else "fitEnd" if ("end" in g or "bottom" in g) else "fitCenter"
+    variants = [("_s", "s", "fitStart"), ("_c", "c", "fitCenter"), ("_e", "e", "fitEnd")] if id_.endswith("_al") else [("", ".", fixed)]
+    out = []
+    for suffix, align, scale in variants:
+        image = f"ti{code}_{id_}{suffix}"
+        TIME_IMAGES[image] = (id_, code, align)
+        out.append(E("ImageView", attrs_of(dict(base, id=image, scale=scale, vis="gone", importantForAccessibility="no"))))
+    return out
 
 
 LAYOUTS = OrderedDict()  # имя -> список id в порядке появления
@@ -1707,7 +1744,7 @@ for name, parts in ICONS.items():
 
 # Код роли элемента: какой цвет или действие ему положено (см. WidgetRenderer.paint).
 ROLE_CODES = [
-    ("bo_", "P"), ("bg_s", "b"), ("bg_a", "B"), ("bg_g", "g"), ("sh_a", "h"), ("fx_", "x"), ("pb_", "p"),
+    ("ti", "T"), ("bo_", "P"), ("bg_s", "b"), ("bg_a", "B"), ("bg_g", "g"), ("sh_a", "h"), ("fx_", "x"), ("pb_", "p"),
     ("im_", "M"), ("is_", "S"), ("if_", "F"), ("ia_", "A"), ("io_", "O"), ("in_", "N"),
     ("m_", "m"), ("s_", "s"), ("f_", "f"), ("a_", "a"), ("o_", "o"), ("n_", "n"),
 ]
@@ -1779,6 +1816,17 @@ kt += ["}", "", "/** Слот данных → все элементы, кото
 for slot, values in slots.items():
     kt.append(f'        "{slot}" to intArrayOf({", ".join("R.id." + v for v in values)}),')
 kt += ["    )", "", "    operator fun get(slot: String): IntArray = map[slot] ?: IntArray(0)", "}"]
+kt += ["", "/**",
+       " * Картинка с цифрами часов вместо TextClock (шрифты из ресурсов приложения лаунчер не загружает):",
+       " * [clock] — цифры, место которых она занимает, [format] — h (часы), m (минуты), t («ч:мм»),",
+       " * w («чч» над «мм»), s («чч мм»), [align] — для выравниваемых цифр s/c/e (начало, центр, конец), иначе «.».",
+       " */",
+       "class TimeImage(val image: Int, val clock: Int, val format: Char, val align: Char)", "",
+       "object TimeImages {",
+       "    private val map: Map<Int, TimeImage> = listOf("]
+for image, (clock_id, code, align) in TIME_IMAGES.items():
+    kt.append(f"        TimeImage(R.id.{image}, R.id.{clock_id}, '{code}', '{align}'),")
+kt += ["    ).associateBy { it.image }", "", "    operator fun get(id: Int): TimeImage? = map[id]", "}"]
 kt += ["", "/** Небо (по погоде или времени суток): градиент со скруглением подложки стиля. */", "object SkyScenes {",
        "    val radii = intArrayOf(" + ", ".join(str(r) for r in SKY_RADII) + ")", "",
        "    fun of(scene: String, radius: Int): Int = when (\"${scene}_$radius\") {"]

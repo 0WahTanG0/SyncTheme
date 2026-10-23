@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -271,7 +272,7 @@ fun WidgetConfigScreen(
     }
     if (kind == WidgetKind.APPS) {
         item {
-            FolderSection(config, onChange = { config = it }, onDraw = { FolderDrawActivity.startFromSettings(context, config) }) {
+            FolderSection(config, theme, onChange = { config = it }, onDraw = { FolderDrawActivity.startFromSettings(context, config) }) {
                 context.startActivity(FolderActivity.preview(context, config, previewBounds))
             }
         }
@@ -423,7 +424,7 @@ private fun defaultTargetTitle(context: android.content.Context, kind: WidgetKin
 /** «Приложения»: значки на виджете или папка, которая раскрывается по нажатию. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FolderSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit, onDraw: () -> Unit, onPreview: () -> Unit) {
+private fun FolderSection(config: WidgetConfig, theme: Theme, onChange: (WidgetConfig) -> Unit, onDraw: () -> Unit, onPreview: () -> Unit) {
     val context = LocalContext.current
     val muted = LocalLook.current.muted
     Section("Вид на рабочем столе") {
@@ -446,8 +447,19 @@ private fun FolderSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit
         )
         if (config.folder == FolderMode.ICON) {
             Text("Рисунок на значке", style = MaterialTheme.typography.labelMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FolderGlyph.entries.forEach { g -> FilterChip(config.glyph == g, { onChange(config.copy(glyph = g)) }, label = { Text(g.title) }) }
+            // У каждого варианта — сам значок в нынешнем стиле и цветах, чтобы выбирать глазами.
+            val px = with(LocalDensity.current) { 28.dp.roundToPx() }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FolderGlyph.entries.forEach { g ->
+                    val icon = remember(g, config.style, config.opacity, config.textColor, config.accentColor, config.apps, config.title, theme) {
+                        FolderWidget.glyph(context, config.copy(glyph = g), theme, px).asImageBitmap()
+                    }
+                    FilterChip(
+                        config.glyph == g, { onChange(config.copy(glyph = g)) },
+                        label = { Text(g.title) },
+                        leadingIcon = { Image(icon, null, Modifier.size(28.dp)) },
+                    )
+                }
             }
         }
     }

@@ -49,6 +49,15 @@
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
 
+        <ImageView
+            android:id="@+id/tih_m_hours"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="fitStart"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
         <TextClock
             android:id="@+id/a_minutes"
             android:layout_weight="1"
@@ -66,5 +75,14 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
+
+        <ImageView
+            android:id="@+id/tim_a_minutes"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="fitEnd"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
     </LinearLayout>
 </FrameLayout>

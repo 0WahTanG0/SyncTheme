@@ -80,6 +80,33 @@
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
 
+        <ImageView
+            android:id="@+id/tit_m_time_al_s"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="fitStart"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
+        <ImageView
+            android:id="@+id/tit_m_time_al_c"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
+        <ImageView
+            android:id="@+id/tit_m_time_al_e"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="fitEnd"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
         <TextClock
             android:id="@+id/m_date_al"
             android:layout_width="match_parent"

@@ -16,6 +16,7 @@ import app.synctheme.mobile.data.ThemeRepository
 abstract class ThemedWidget(val kind: WidgetKind) : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { WidgetUpdater.updateOne(context, manager, it, kind) }
+        if (kind == WidgetKind.CLOCK) ClockTicker.schedule(context)
     }
 
     /** Виджет растянули или сжали: лаунчер прислал новые размеры — подбираем разметку под них. */
@@ -25,6 +26,7 @@ abstract class ThemedWidget(val kind: WidgetKind) : AppWidgetProvider() {
 
     override fun onDeleted(context: Context, ids: IntArray) {
         WidgetConfigStore.delete(context, ids)
+        if (kind == WidgetKind.CLOCK) ClockTicker.schedule(context)
     }
 
     override fun onEnabled(context: Context) = WidgetScheduler.ensure(context)
@@ -86,6 +88,7 @@ object WidgetUpdater {
     fun update(context: Context, kind: WidgetKind) {
         val manager = manager(context) ?: return
         ids(context, kind).forEach { updateOne(context, manager, it, kind) }
+        if (kind == WidgetKind.CLOCK) ClockTicker.schedule(context)
     }
 
     fun updateOne(context: Context, manager: AppWidgetManager, id: Int, kind: WidgetKind) {

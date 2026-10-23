@@ -17,6 +17,7 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.core.graphics.ColorUtils
 import app.synctheme.R
+import app.synctheme.core.DigitFont
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.CalendarData
 import app.synctheme.mobile.data.CalendarEvent
@@ -66,6 +67,8 @@ object WidgetRenderer {
         val events: List<CalendarEvent> by lazy { CalendarData.upcoming(context, 3) }
         val month by lazy { CalendarData.month() }
         val battery: Battery by lazy { Battery.read(context) }
+        /** Картинки цифр часов: одна на всех размерах виджета с тем же текстом и высотой. */
+        val digits = HashMap<String, Bitmap>()
         val apps: List<Pair<String, Bitmap?>> by lazy {
             val circle = config.style != "glass"
             config.apps.ifEmpty { AppCatalog.defaults(context) }.take(APPS_ON_WIDGET).map { it to AppCatalog.icon(context, it, 120, circle) }
@@ -166,7 +169,13 @@ object WidgetRenderer {
         v.paint(p, config.align)
         if (scene != null) v.sky(scene, config.opacity)
         when (kind) {
-            WidgetKind.CLOCK -> v.clock(style, data, p)
+            WidgetKind.CLOCK -> {
+                v.clock(style, data, p)
+                val font = config.copy(style = style).digitFont()
+                if (!style.startsWith("analog_") && ClockDigits.enabled(context, font)) {
+                    v.digits(context, font, family(kind, style) == "neon", config.align, dp, data, p)
+                }
+            }
             WidgetKind.CALENDAR -> v.calendar(context, family(kind, style), data, p)
             WidgetKind.WEATHER -> v.weather(data, p)
             WidgetKind.BATTERY -> v.battery(context, data.battery)
@@ -273,6 +282,40 @@ object WidgetRenderer {
             rv.setColorStateList(R.id.analog, "setHourHandTintList", ColorStateList.valueOf(hands))
             rv.setColorStateList(R.id.analog, "setMinuteHandTintList", ColorStateList.valueOf(hands))
             if (data.config.showSeconds) rv.setColorStateList(R.id.analog, "setSecondHandTintList", ColorStateList.valueOf(second))
+        }
+
+        /**
+         * Цифры выбранным шрифтом: картинка встаёт на место TextClock (в разметке рядом — с теми же
+         * размерами), сам TextClock прячется. У выравниваемых цифр три картинки — видна та, что по выравниванию.
+         */
+        fun digits(context: Context, font: DigitFont, glow: Boolean, align: WidgetAlign, dp: SizeF, data: Data, p: Palette) {
+            val side = when (align) {
+                WidgetAlign.START -> 's'
+                WidgetAlign.CENTER -> 'c'
+                WidgetAlign.END -> 'e'
+            }
+            val density = context.resources.displayMetrics.density
+            // Чёткость: по высоте виджета, но без огромных картинок — их передают лаунчеру целиком.
+            val px = (dp.height * density * 0.8f).toInt().coerceIn(64, 320)
+            for (i in layout.ids.indices) {
+                val t = TimeImages[layout.ids[i]] ?: continue
+                val show = t.align == '.' || t.align == side
+                rv.setViewVisibility(t.image, if (show) View.VISIBLE else View.GONE)
+                if (!show) continue
+                rv.setViewVisibility(t.clock, View.GONE)
+                val text = ClockDigits.text(context, t.format)
+                val bmp = data.digits.getOrPut("$text|$px") { ClockDigits.render(context, font, text, glow, px) }
+                rv.setImageViewBitmap(t.image, bmp)
+                val role = layout.ids.indexOf(t.clock).takeIf { it >= 0 }?.let { layout.roles[2 * it] }
+                rv.setInt(t.image, "setColorFilter", when (role) {
+                    'a' -> p.label
+                    's' -> p.sub
+                    'f' -> p.faint
+                    'o' -> p.on
+                    'n' -> p.onSub
+                    else -> p.main
+                })
+            }
         }
 
         // ------------------------------------------------------------ календарь

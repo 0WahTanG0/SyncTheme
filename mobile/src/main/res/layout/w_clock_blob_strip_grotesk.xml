@@ -50,6 +50,15 @@
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
 
+        <ImageView
+            android:id="@+id/tit_m_time"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:scaleType="fitStart"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
         <TextClock
             android:id="@+id/bo_date"
             android:paddingHorizontal="14dp"

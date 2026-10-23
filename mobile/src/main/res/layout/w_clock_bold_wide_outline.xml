@@ -57,6 +57,15 @@
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
 
+            <ImageView
+                android:id="@+id/tis_m_time"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:scaleType="fitStart"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+
             <TextClock
                 android:id="@+id/a_ampm"
                 android:paddingTop="6dp"
