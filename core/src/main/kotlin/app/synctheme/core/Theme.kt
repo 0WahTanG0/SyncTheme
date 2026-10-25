@@ -124,6 +124,12 @@ data class WallClock(
     val tapToOpen: Boolean = true,
     /** Что открывать: «пакет/активити»; null — будильники. */
     val openApp: String? = null,
+    /** Цифры «из стекла»: размытое фото внутри цифр и светлый контур, как на iPhone. */
+    val glass: Boolean = false,
+    /** Во сколько раз цифры вытянуты вниз (1 — обычные): высокие часы до половины экрана и больше. */
+    val stretch: Float = 1f,
+    /** Показывать эти часы и на экране блокировки (живые обои SyncTheme стоят и там). */
+    val onLock: Boolean = false,
 )
 
 /**

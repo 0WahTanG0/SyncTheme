@@ -164,6 +164,12 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     }
     var colorTarget by remember { mutableStateOf<ColorTarget?>(null) }
 
+    val subject by vm.subjectEditor.collectAsStateWithLifecycle()
+    subject?.let { photo ->
+        androidx.activity.compose.BackHandler { vm.closeSubjectEditor() }
+        SubjectEditorScreen(photo, vm::closeSubjectEditor)
+        return
+    }
     arrange?.let { target ->
         androidx.activity.compose.BackHandler { arrange = null }
         ArrangeScreen(vm, target) { arrange = null }

@@ -20,7 +20,6 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import app.synctheme.core.Theme
-import app.synctheme.core.WatchFaceXml
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
@@ -39,6 +38,17 @@ object ClockWallpaper {
     fun isActive(context: Context): Boolean =
         WallpaperManager.getInstance(context).wallpaperInfo?.packageName == context.packageName
 
+    /** Стоят ли живые обои SyncTheme и на экране блокировки (свои у блокировки или общие с рабочим столом). */
+    fun isActiveOnLock(context: Context): Boolean = runCatching {
+        val manager = WallpaperManager.getInstance(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            manager.getWallpaperInfo(WallpaperManager.FLAG_LOCK)?.packageName == context.packageName ||
+                (manager.getWallpaperId(WallpaperManager.FLAG_LOCK) < 0 && isActive(context))
+        } else {
+            manager.getWallpaperId(WallpaperManager.FLAG_LOCK) < 0 && isActive(context)
+        }
+    }.getOrDefault(false)
+
     /** Системный экран «Установить живые обои» с нашими обоями. */
     fun setIntent(context: Context): Intent =
         Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
@@ -50,7 +60,17 @@ object ClockWallpaper {
  * Фон, слой глубины и место часов для текущей темы и размера — их не нужно считать каждую минуту.
  * width × height — размер, для которого всё посчитано.
  */
-private class Layers(val key: Any, val background: Bitmap, val foreground: Bitmap?, val spot: WallClockSpot, val width: Int, val height: Int)
+private class Layers(
+    val key: Any, val background: Bitmap, val foreground: Bitmap?, val spot: WallClockSpot, val width: Int, val height: Int,
+    /** Размытое фото для «стеклянных» цифр. */
+    val glass: Bitmap? = null,
+) {
+    fun recycle() {
+        background.recycle()
+        foreground?.recycle()
+        glass?.recycle()
+    }
+}
 
 /**
  * Обои с часами: фон темы, время шрифтом цифр и — с эффектом глубины — главный объект фото поверх цифр.
@@ -112,6 +132,8 @@ class ClockWallpaperService : WallpaperService() {
             }
             registerReceiver(events, filter)
             scope.launch { repo.applied.collect { prepare() } }
+            // Объект для глубины выделили заново (в том числе вручную) — пересобрать слои.
+            scope.launch { SubjectMask.version.collect { prepare() } }
         }
 
         override fun onTouchEvent(event: MotionEvent) {
@@ -175,10 +197,7 @@ class ClockWallpaperService : WallpaperService() {
             handler.removeCallbacks(tick)
             runCatching { unregisterReceiver(events) }
             scope.cancel()
-            layers?.let {
-                it.background.recycle()
-                it.foreground?.recycle()
-            }
+            layers?.recycle()
             layers = null
             super.onDestroy()
         }
@@ -205,7 +224,7 @@ class ClockWallpaperService : WallpaperService() {
                 touchesEnabled = touches
                 setTouchEventsEnabled(touches)
             }
-            val key = listOf(theme, width, height, lock)
+            val key = listOf(theme, width, height, lock, SubjectMask.version.value)
             if (layers?.key == key) return draw()
             if (preparingKey == key && preparing?.isActive == true) return
             preparing?.cancel()
@@ -218,15 +237,16 @@ class ClockWallpaperService : WallpaperService() {
                     runCatching {
                         val background = if (lock) ThemeRenderer.lockBackground(ctx, theme, w, h)
                         else ThemeRenderer.background(ctx, theme, w, h)
-                        val foreground = if (!lock) foreground(ctx, theme, w, h) else null
+                        // Только экран блокировки — часы и объект по его фону.
+                        val clockTheme = if (lock) ThemeRenderer.lockClockTheme(theme) else theme
+                        val wall = theme.wallClock
+                        val foreground = if (!lock || wall?.onLock == true) foreground(ctx, clockTheme, w, h) else null
+                        val glass = if (wall?.glass == true) ThemeRenderer.glassBackdrop(background) else null
                         // Место часов — после маски объекта: с глубиной часы встают напротив него.
-                        Layers(key, background, foreground, ThemeRenderer.wallClockSpot(ctx, theme, w, h), w, h)
+                        Layers(key, background, foreground, ThemeRenderer.wallClockSpot(ctx, clockTheme, w, h), w, h, glass)
                     }.onFailure { Log.e(TAG, "Wallpaper layers failed", it) }.getOrNull()
                 } ?: return@launch
-                layers?.let {
-                    it.background.recycle()
-                    it.foreground?.recycle()
-                }
+                layers?.recycle()
                 layers = prepared
                 draw()
             }
@@ -250,25 +270,22 @@ class ClockWallpaperService : WallpaperService() {
             try {
                 val dst = Rect(0, 0, canvas.width, canvas.height)
                 canvas.drawBitmap(l.background, null, dst, null)
-                // На экране блокировки часы рисует сам телефон — свои не дублируем.
+                // На экране блокировки часы рисует сам телефон — свои там только если их туда попросили.
+                val theme = repo.applied.value
                 val locked = lockOnly || keyguard?.isKeyguardLocked == true
-                if (!locked) {
-                    val theme = repo.applied.value
+                if (!locked || theme.wallClock?.onLock == true) {
+                    val clockTheme = if (lockOnly) ThemeRenderer.lockClockTheme(theme) else theme
                     val now = System.currentTimeMillis()
                     // Часы считались для размера слоёв; если холст другого размера — масштабируем.
                     canvas.save()
                     canvas.scale(canvas.width / l.width.toFloat(), canvas.height / l.height.toFloat())
                     val pressed = SystemClock.uptimeMillis() < pressedUntil
-                    ThemeRenderer.drawWallClock(this@ClockWallpaperService, canvas, theme, l.spot, now, alpha = if (pressed) 150 else 255)
+                    ThemeRenderer.drawWallClock(
+                        this@ClockWallpaperService, canvas, clockTheme, l.spot, now, alpha = if (pressed) 150 else 255, glass = l.glass,
+                    )
                     canvas.restore()
-                    l.foreground?.let { fg ->
-                        canvas.drawBitmap(fg, null, dst, null)
-                        // Время поверх объекта — полупрозрачное: объект впереди, но время читается.
-                        canvas.save()
-                        canvas.scale(canvas.width / l.width.toFloat(), canvas.height / l.height.toFloat())
-                        ThemeRenderer.drawWallClock(this@ClockWallpaperService, canvas, theme, l.spot, now, alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
-                        canvas.restore()
-                    }
+                    // Объект с фото целиком закрывает цифры — часы стоят за ним.
+                    l.foreground?.let { fg -> canvas.drawBitmap(fg, null, dst, null) }
                 }
             } finally {
                 holder.unlockCanvasAndPost(canvas)

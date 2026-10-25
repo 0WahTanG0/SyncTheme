@@ -99,6 +99,37 @@ class FeaturesTest {
     )
 
     /**
+     * Часы «из стекла» во весь экран — на рабочем столе и экране блокировки; объект с фото целиком закрывает
+     * цифры. Затем объект выделен вручную (другой формы) — часы встают уже за ним.
+     */
+    @Test
+    fun glassClockFullScreen() = runBlocking<Unit> {
+        SubjectMask.ensure(context, photo)
+        val base = photoTheme()
+        val full = ThemeRenderer.fullScreenClock(base.copy(wallClock = WallClock(depth = true, glass = true)), 540, 1170)
+        assertTrue("часы вытянуты", full.stretch > 2f)
+        val theme = base.copy(wallClock = full.copy(onLock = true))
+        val pw = 270
+        val ph = 585
+        val sheet = Bitmap.createBitmap(4 * (pw + 16) + 16, ph + 32, Bitmap.Config.ARGB_8888)
+        val c = Canvas(sheet)
+        c.drawColor(0xFF202024.toInt())
+        fun put(i: Int, b: Bitmap) = c.drawBitmap(b, null, RectF(16f + i * (pw + 16), 16f, 16f + i * (pw + 16) + pw, 16f + ph), null)
+        put(0, ThemeRenderer.phonePreview(context, theme, 540, 1170, widgets = false))
+        put(1, ThemeRenderer.lockPreview(context, theme, 540, 1170))
+        put(2, ThemeRenderer.phonePreview(context, theme.copy(wallClock = theme.wallClock!!.copy(glass = false, stretch = 2.2f)), 540, 1170, widgets = false))
+        // Ручная маска: только нижняя треть кадра — «машина».
+        val v = SubjectMask.version.value
+        val small = SubjectMask.preparedPhoto(context, photo)
+        val manual = Bitmap.createBitmap(small.width, small.height, Bitmap.Config.ARGB_8888)
+        Canvas(manual).drawRoundRect(RectF(0f, small.height * 0.62f, small.width * 0.9f, small.height.toFloat()), 60f, 60f, Paint().apply { color = Color.WHITE })
+        SubjectMask.save(context, photo, manual)
+        assertTrue("маска сохранена — обои перерисуются", SubjectMask.version.value > v)
+        put(3, ThemeRenderer.lockPreview(context, theme, 540, 1170))
+        sheet.save("glass_clock.png")
+    }
+
+    /**
      * Эффект глубины: объект справа — часы слева, слева — справа, сверху — снизу, снизу — сверху,
      * и объект закрывает лишь край цифр. На часах-циферблате фото сдвигается так, что объект
      * остаётся со своей стороны от времени. Строки листа — положения объекта.
