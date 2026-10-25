@@ -678,7 +678,7 @@ object ThemeRenderer {
     fun glassBackdrop(background: Bitmap): Bitmap {
         val w = background.width
         val h = background.height
-        val tiny = Bitmap.createScaledBitmap(background, max(1, w / 28), max(1, h / 28), true)
+        val tiny = Bitmap.createScaledBitmap(background, max(1, w / 10), max(1, h / 10), true)
         val out = Bitmap.createBitmap(max(1, w / 4), max(1, h / 4), Bitmap.Config.ARGB_8888)
         val bright = android.graphics.ColorMatrix(floatArrayOf(
             1.1f, 0f, 0f, 0f, 22f,
@@ -769,38 +769,68 @@ object ThemeRenderer {
     }
 
     /**
-     * Цифра «из стекла»: внутри — размытое фото ([backdrop], в четверть размера экрана) и блик сверху,
-     * по краю — тонкий светлый контур с лёгкой тенью, чтобы цифры читались и на светлом фото.
+     * Цифра «из жидкого стекла», как часы iOS: фото за ней видно сквозь стекло — чуть размытым
+     * и увеличенным, как через линзу; по краю — объём: светлая грань сверху слева, тень внутри
+     * снизу справа, тонкий яркий ободок и мягкая тень под цифрой.
      */
     private fun drawGlass(canvas: Canvas, path: Path, backdrop: Bitmap?, color: Int, size: Float, alpha: Int) {
         val a = alpha / 255f
-        val bounds = RectF().also { path.computeBounds(it, true) }
-        val edge = max(1.5f, size * 0.011f)
+        val b = RectF().also { path.computeBounds(it, true) }
+        val e = max(2f, size * 0.022f)
+        // Тень под стеклом: цифра чуть «приподнята» над фото.
+        canvas.save()
+        canvas.translate(0f, e * 0.7f)
         canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = edge * 2.6f
-            this.color = Colors.withAlpha(Color.BLACK, 0.16f * a)
-            maskFilter = android.graphics.BlurMaskFilter(edge * 2, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            this.color = Colors.withAlpha(Color.BLACK, 0.28f * a)
+            maskFilter = android.graphics.BlurMaskFilter(e * 1.6f, android.graphics.BlurMaskFilter.Blur.NORMAL)
         })
+        canvas.restore()
         canvas.save()
         canvas.clipPath(path)
+        // Преломление: фото за цифрой — как через линзу, увеличено к её центру.
         if (backdrop != null) {
+            val lens = 1.14f
             val dst = RectF(0f, 0f, backdrop.width * 4f, backdrop.height * 4f)
+            canvas.save()
+            canvas.scale(lens, lens, b.centerX(), b.centerY())
             canvas.drawBitmap(backdrop, null, dst, Paint(Paint.FILTER_BITMAP_FLAG).apply { this.alpha = alpha })
+            canvas.restore()
         }
-        canvas.drawRect(bounds, Paint().apply { this.color = Colors.withAlpha(Color.WHITE, (if (backdrop != null) 0.08f else 0.16f) * a) })
-        canvas.drawRect(bounds, Paint().apply {
+        canvas.drawRect(b, Paint().apply {
+            this.color = Colors.withAlpha(ColorUtils.blendARGB(Color.WHITE, color, 0.25f), (if (backdrop != null) 0.05f else 0.2f) * a)
+        })
+        // Тень внутри по нижней правой грани и свет по верхней левой — объём стекла.
+        fun inner(dx: Float, dy: Float, c: Int, width: Float, blur: Float) {
+            canvas.save()
+            canvas.translate(dx, dy)
+            canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = width
+                this.color = c
+                maskFilter = android.graphics.BlurMaskFilter(blur, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            })
+            canvas.restore()
+        }
+        inner(e * 0.9f, e * 1.3f, Colors.withAlpha(Color.BLACK, 0.24f * a), e * 2.6f, e * 1.2f)
+        inner(-e * 0.6f, -e * 0.9f, Colors.withAlpha(Color.WHITE, 0.85f * a), e * 2f, e * 0.7f)
+        inner(e * 0.5f, e * 0.7f, Colors.withAlpha(Color.WHITE, 0.3f * a), e * 1.2f, e * 0.6f)
+        // Блик сверху: по стеклу скользит свет.
+        canvas.drawRect(b, Paint().apply {
             shader = android.graphics.LinearGradient(
-                0f, bounds.top, 0f, bounds.top + bounds.height() * 0.45f,
+                b.left, b.top, b.left + b.width() * 0.3f, b.top + b.height() * 0.5f,
                 Colors.withAlpha(Color.WHITE, 0.22f * a), Colors.withAlpha(Color.WHITE, 0f), android.graphics.Shader.TileMode.CLAMP,
             )
         })
         canvas.restore()
+        // Тонкий ободок: ярче там, куда падает свет.
         canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = edge
+            strokeWidth = e * 0.45f
             strokeJoin = Paint.Join.ROUND
-            this.color = Colors.withAlpha(ColorUtils.blendARGB(color, Color.WHITE, 0.35f), 0.9f * a)
+            shader = android.graphics.LinearGradient(
+                b.left, b.top, b.right, b.bottom,
+                Colors.withAlpha(Color.WHITE, 0.95f * a), Colors.withAlpha(Color.WHITE, 0.25f * a), android.graphics.Shader.TileMode.CLAMP,
+            )
         })
     }
 

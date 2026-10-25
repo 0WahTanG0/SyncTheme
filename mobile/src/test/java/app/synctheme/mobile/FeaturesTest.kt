@@ -127,6 +127,15 @@ class FeaturesTest {
         assertTrue("маска сохранена — обои перерисуются", SubjectMask.version.value > v)
         put(3, ThemeRenderer.lockPreview(context, theme, 540, 1170))
         sheet.save("glass_clock.png")
+        // Настоящее фото (для подбора вида; путь — в GLASS_PHOTO, без него пропускается).
+        System.getenv("GLASS_PHOTO")?.let { File(it) }?.takeIf { it.exists() }?.let { file ->
+            val name = "photo_glass.jpg"
+            file.copyTo(ThemeRepository.get(context).photoFile(name), overwrite = true)
+            val real = theme.copy(background = Background(BackgroundType.PHOTO, listOf(Color.BLACK), photoFile = name), dim = 0f,
+                wallClock = theme.wallClock!!.copy(depth = false, font = app.synctheme.core.DigitFont.NARROW))
+            ThemeRenderer.lockPreview(context, real, 540, 1170).save("glass_real.png")
+            ThemeRenderer.lockPreview(context, real.copy(wallClock = real.wallClock!!.copy(font = app.synctheme.core.DigitFont.ROUND, stretch = 1.6f)), 540, 1170).save("glass_real2.png")
+        }
     }
 
     /**
