@@ -718,6 +718,19 @@ object ThemeRenderer {
         val u = min(width.toFloat(), height * 0.6f) / 100f
         val cx = width / 2f
         val white = Color.WHITE
+        val wall = theme.wallClock
+        if (wall != null && wall.onLock) {
+            // Часы SyncTheme и на экране блокировки — те же, что на рабочем столе, по фону блокировки.
+            val lock = theme.copy(background = theme.lockScreenBackground(), dim = theme.lockScreenDim())
+            val spot = wallClockSpot(context, lock, width, height)
+            drawWallClock(context, canvas, lock, spot, previewMillis())
+            if (wall.depth) foreground(context, lock.background, lock.dim, width, height)?.let {
+                canvas.drawBitmap(it, 0f, 0f, null)
+                it.recycle()
+                drawWallClock(context, canvas, lock, spot, previewMillis(), alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
+            }
+            return bmp
+        }
         val depth = if (theme.lockDepth) foreground(context, theme.lockScreenBackground(), theme.lockScreenDim(), width, height) else null
         canvas.textCentered(dateString("EEE, d MMMM"), cx, 22 * u, textPaint(white, 4.6f * u))
         if (depth != null) {

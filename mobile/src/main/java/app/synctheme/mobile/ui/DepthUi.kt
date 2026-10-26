@@ -84,6 +84,8 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
             }
         }
     }
+    SwitchRow("Часы на экране блокировки", wall.onLock) { on -> vm.setWallClock(wall.copy(onLock = on)) }
+    LockClockHint(wall.onLock)
     SwitchRow("Дата над часами", wall.showDate) { on -> vm.setWallClock(wall.copy(showDate = on)) }
     SwitchRow("Открывать приложение по нажатию", wall.tapToOpen) { on -> vm.setWallClock(wall.copy(tapToOpen = on)) }
     if (wall.tapToOpen) {
@@ -123,6 +125,29 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
 }
 
 // ---------------------------------------------------------------- экран блокировки
+
+/** Часы SyncTheme на экране блокировки работают, только если живые обои стоят и там. */
+@Composable
+private fun LockClockHint(onLock: Boolean) {
+    val context = LocalContext.current
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    var live by remember { mutableStateOf(ClockWallpaper.isActiveOnLock(context)) }
+    LaunchedEffect(onLock) { live = ClockWallpaper.isActiveOnLock(context) }
+    Text(
+        when {
+            !onLock -> "На экране блокировки — только часы самого телефона."
+            live -> "Часы SyncTheme есть и на экране блокировки ✓. Часы самого телефона там тоже останутся — " +
+                "на Samsung их можно уменьшить: зажмите экран блокировки → «Изменить» → часы."
+            else -> "Чтобы часы были и на экране блокировки, поставьте живые обои SyncTheme на «Главный экран и экран блокировки»."
+        },
+        style = MaterialTheme.typography.bodySmall, color = muted,
+    )
+    if (onLock && !live) {
+        FilledTonalButton(onClick = {
+            runCatching { context.startActivity(ClockWallpaper.setIntent(context)) }
+        }) { Text("Поставить живые обои на оба экрана") }
+    }
+}
 
 /**
  * Глубина на экране блокировки. Часы там рисует One UI: начиная с One UI 8 его «Адаптивные часы»

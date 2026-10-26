@@ -124,6 +124,8 @@ data class WallClock(
     val tapToOpen: Boolean = true,
     /** Что открывать: «пакет/активити»; null — будильники. */
     val openApp: String? = null,
+    /** Показывать эти часы и на экране блокировки; иначе там только часы самого телефона. */
+    val onLock: Boolean = false,
 )
 
 /**

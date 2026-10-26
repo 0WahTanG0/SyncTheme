@@ -202,6 +202,8 @@ class FeaturesTest {
         val lock = ThemeRenderer.lockPreview(context, base.copy(lockDepth = true), 540, 1170)
         c.drawBitmap(lock, null, RectF(16f + 3 * (pw + 16), 16f, 16f + 3 * (pw + 16) + pw, 16f + ph), null)
         sheet.save("depth_phone.png")
+        // Часы SyncTheme на экране блокировки: в превью блокировки — они, а не часы телефона.
+        ThemeRenderer.lockPreview(context, base.copy(wallClock = WallClock(depth = true, onLock = true)), 540, 1170).save("lock_own_clock.png")
         // Фото экрана блокировки с глубиной ставится без затемнения.
         assertEquals(0f, base.copy(lockDepth = true).lockScreenDim())
     }

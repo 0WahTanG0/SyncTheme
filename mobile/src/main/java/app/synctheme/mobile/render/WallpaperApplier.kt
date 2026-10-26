@@ -20,7 +20,9 @@ object WallpaperApplier {
         val liveHome = theme.wallClock != null && ClockWallpaper.isActive(context)
         val setHome = home && !liveHome
         val sameOnLock = theme.lockBackground == null && theme.lockDim == null
-        if (setHome && lock && sameOnLock) {
+        // Живые обои с часами стоят и на экране блокировки — картинка их там заменила бы, и часы пропали бы.
+        val liveLock = theme.wallClock != null && ClockWallpaper.isActiveOnLock(context)
+        if (setHome && lock && sameOnLock && !liveLock) {
             val bitmap = ThemeRenderer.background(context, theme, w, h)
             manager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
             bitmap.recycle()
@@ -31,7 +33,7 @@ object WallpaperApplier {
             manager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
             bitmap.recycle()
         }
-        if (lock) {
+        if (lock && !liveLock) {
             val bitmap = ThemeRenderer.lockBackground(context, theme, w, h)
             manager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
             bitmap.recycle()

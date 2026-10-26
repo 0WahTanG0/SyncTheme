@@ -39,6 +39,15 @@ object ClockWallpaper {
     fun isActive(context: Context): Boolean =
         WallpaperManager.getInstance(context).wallpaperInfo?.packageName == context.packageName
 
+    /** Стоят ли живые обои SyncTheme и на экране блокировки (свои у блокировки или общие с рабочим столом). */
+    fun isActiveOnLock(context: Context): Boolean = runCatching {
+        val manager = WallpaperManager.getInstance(context)
+        val shared = manager.getWallpaperId(WallpaperManager.FLAG_LOCK) < 0 && isActive(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            shared || manager.getWallpaperInfo(WallpaperManager.FLAG_LOCK)?.packageName == context.packageName
+        } else shared
+    }.getOrDefault(false)
+
     /** Системный экран «Установить живые обои» с нашими обоями. */
     fun setIntent(context: Context): Intent =
         Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
@@ -99,6 +108,8 @@ class ClockWallpaperService : WallpaperService() {
             }
         }
 
+        private val lockListener by lazy { KeyguardManager.KeyguardLockedStateListener { draw() } }
+
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             // Касания включаются, только когда нажатие на часы что-то открывает (см. prepare).
@@ -106,11 +117,17 @@ class ClockWallpaperService : WallpaperService() {
             setOffsetNotificationsEnabled(false)
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_ON)
+                // Перерисовка и при выключении: к включению экрана кадр уже правильный, а не прежний.
+                addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_USER_PRESENT)
                 addAction(Intent.ACTION_TIME_CHANGED)
                 addAction(Intent.ACTION_TIMEZONE_CHANGED)
             }
             registerReceiver(events, filter)
+            // Телефон заблокировался или разблокировался (в том числе с задержкой после выключения экрана).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                runCatching { keyguard?.addKeyguardLockedStateListener(mainExecutor, lockListener) }
+            }
             scope.launch { repo.applied.collect { prepare() } }
         }
 
@@ -174,6 +191,9 @@ class ClockWallpaperService : WallpaperService() {
         override fun onDestroy() {
             handler.removeCallbacks(tick)
             runCatching { unregisterReceiver(events) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                runCatching { keyguard?.removeKeyguardLockedStateListener(lockListener) }
+            }
             scope.cancel()
             layers?.let {
                 it.background.recycle()
@@ -218,9 +238,11 @@ class ClockWallpaperService : WallpaperService() {
                     runCatching {
                         val background = if (lock) ThemeRenderer.lockBackground(ctx, theme, w, h)
                         else ThemeRenderer.background(ctx, theme, w, h)
-                        val foreground = if (!lock) foreground(ctx, theme, w, h) else null
+                        // Только экран блокировки — часы и объект по его фону.
+                        val clockTheme = if (lock) lockTheme(theme) else theme
+                        val foreground = if (!lock || theme.wallClock?.onLock == true) foreground(ctx, clockTheme, w, h) else null
                         // Место часов — после маски объекта: с глубиной часы встают напротив него.
-                        Layers(key, background, foreground, ThemeRenderer.wallClockSpot(ctx, theme, w, h), w, h)
+                        Layers(key, background, foreground, ThemeRenderer.wallClockSpot(ctx, clockTheme, w, h), w, h)
                     }.onFailure { Log.e(TAG, "Wallpaper layers failed", it) }.getOrNull()
                 } ?: return@launch
                 layers?.let {
@@ -250,10 +272,11 @@ class ClockWallpaperService : WallpaperService() {
             try {
                 val dst = Rect(0, 0, canvas.width, canvas.height)
                 canvas.drawBitmap(l.background, null, dst, null)
-                // На экране блокировки часы рисует сам телефон — свои не дублируем.
+                // На экране блокировки — свои часы, только если их туда попросили; иначе там часы самого телефона.
+                val stored = repo.applied.value
                 val locked = lockOnly || keyguard?.isKeyguardLocked == true
-                if (!locked) {
-                    val theme = repo.applied.value
+                if (!locked || stored.wallClock?.onLock == true) {
+                    val theme = if (lockOnly) lockTheme(stored) else stored
                     val now = System.currentTimeMillis()
                     // Часы считались для размера слоёв; если холст другого размера — масштабируем.
                     canvas.save()
@@ -275,6 +298,9 @@ class ClockWallpaperService : WallpaperService() {
             }
         }
     }
+
+    /** Фон и затемнение экрана блокировки — по ним место часов и объект, когда обои стоят только там. */
+    private fun lockTheme(theme: Theme): Theme = theme.copy(background = theme.lockScreenBackground(), dim = theme.lockScreenDim())
 
     private companion object {
         const val TAG = "ClockWallpaper"
