@@ -43,41 +43,6 @@ object SubjectMask {
 
     private val cache = LinkedHashMap<String, Bitmap>()
 
-    /** Растёт, когда маску выделили заново (в том числе вручную): обои и превью перерисовываются. */
-    val version = kotlinx.coroutines.flow.MutableStateFlow(0)
-
-    /** Маска, выделенная вручную в редакторе: сохраняется рядом с фото вместо найденной автоматически. */
-    suspend fun save(context: Context, photo: String, mask: Bitmap) {
-        withContext(Dispatchers.IO) {
-            file(context, photo).outputStream().use { mask.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        }
-        synchronized(this) { cache[photo] = mask.copy(Bitmap.Config.ARGB_8888, false) }
-        version.value++
-    }
-
-    /** Фото, уменьшенное так же, как для распознавания: по нему рисуют маску вручную. */
-    suspend fun preparedPhoto(context: Context, photo: String): Bitmap = withContext(Dispatchers.Default) {
-        val source = ThemeRepository.get(context).photoFile(photo)
-        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(source.path, opts)
-        var sample = 1
-        while (max(opts.outWidth, opts.outHeight) / (sample * 2) >= MAX_SIDE) sample *= 2
-        val decoded = BitmapFactory.decodeFile(source.path, BitmapFactory.Options().apply { inSampleSize = sample })
-            ?: throw DepthException("Не удалось открыть фото")
-        val scale = MAX_SIDE.toFloat() / max(decoded.width, decoded.height)
-        if (scale < 1f) {
-            Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt(), (decoded.height * scale).toInt(), true)
-                .also { decoded.recycle() }
-        } else decoded
-    }
-
-    /**
-     * Все объекты, которые нашёл распознаватель, — каждый своей маской размера [small]: в редакторе
-     * их выбирают касанием. В тестах подменяется.
-     */
-    @Volatile
-    var subjects: suspend (Context, Bitmap) -> List<Bitmap> = ::mlKitSubjects
-
     fun file(context: Context, photo: String): File =
         ThemeRepository.get(context).photoFile(photo.substringBeforeLast('.') + ".mask.png")
 
@@ -97,16 +62,26 @@ object SubjectMask {
     /** Считает маску, если её ещё нет. */
     suspend fun ensure(context: Context, photo: String) {
         if (exists(context, photo)) return
-        val small = preparedPhoto(context, photo)
-        val mask = withContext(Dispatchers.Default) { segmenter(context, small).also { small.recycle() } }
-        if (coverage(mask) < 0.01f) {
-            throw DepthException("На фото не нашлось главного объекта — выделите его сами: «Выбрать объект»")
+        val source = ThemeRepository.get(context).photoFile(photo)
+        val mask = withContext(Dispatchers.Default) {
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(source.path, opts)
+            var sample = 1
+            while (max(opts.outWidth, opts.outHeight) / (sample * 2) >= MAX_SIDE) sample *= 2
+            val decoded = BitmapFactory.decodeFile(source.path, BitmapFactory.Options().apply { inSampleSize = sample })
+                ?: throw DepthException("Не удалось открыть фото")
+            val scale = MAX_SIDE.toFloat() / max(decoded.width, decoded.height)
+            val small = if (scale < 1f) {
+                Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt(), (decoded.height * scale).toInt(), true)
+                    .also { decoded.recycle() }
+            } else decoded
+            segmenter(context, small).also { small.recycle() }
         }
+        if (coverage(mask) < 0.01f) throw DepthException("На фото не нашлось главного объекта — попробуйте снимок, где он крупнее")
         withContext(Dispatchers.IO) {
             file(context, photo).outputStream().use { mask.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
         synchronized(this) { cache[photo] = mask }
-        version.value++
     }
 
     /** Доля «объекта» на маске (по альфе). */
@@ -139,33 +114,6 @@ object SubjectMask {
                 pixels[i] = ((a * 255).toInt() shl 24) or 0xFFFFFF
             }
             return Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
-        } finally {
-            segmenter.close()
-        }
-    }
-
-    /** Каждый найденный объект — отдельной маской во весь размер фото. */
-    private suspend fun mlKitSubjects(context: Context, bitmap: Bitmap): List<Bitmap> {
-        val segmenter = SubjectSegmentation.getClient(
-            SubjectSegmenterOptions.Builder()
-                .enableMultipleSubjects(SubjectSegmenterOptions.SubjectResultOptions.Builder().enableConfidenceMask().build())
-                .build(),
-        )
-        try {
-            ensureModel(context, segmenter)
-            val result = segmenter.process(InputImage.fromBitmap(bitmap, 0)).await()
-            return result.subjects.mapNotNull { subject ->
-                val confidence = subject.confidenceMask ?: return@mapNotNull null
-                val pixels = IntArray(bitmap.width * bitmap.height)
-                confidence.rewind()
-                for (y in 0 until subject.height) for (x in 0 until subject.width) {
-                    val a = ((confidence.get() - 0.3f) / 0.4f).coerceIn(0f, 1f)
-                    val px = subject.startX + x
-                    val py = subject.startY + y
-                    if (px < bitmap.width && py < bitmap.height) pixels[py * bitmap.width + px] = ((a * 255).toInt() shl 24) or 0xFFFFFF
-                }
-                Bitmap.createBitmap(pixels, bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
-            }
         } finally {
             segmenter.close()
         }

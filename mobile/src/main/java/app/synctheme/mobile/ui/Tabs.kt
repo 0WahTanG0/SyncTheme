@@ -159,12 +159,6 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
         }
         item {
             ExpandableSection(
-                "Свои часы", summary = if (theme.wallClock?.onLock == true) "Часы SyncTheme на экране блокировки" else "Выключены",
-                initiallyExpanded = theme.wallClock?.onLock == true,
-            ) { LockClockContent(theme, a.vm) }
-        }
-        item {
-            ExpandableSection(
                 "Эффект глубины", summary = if (theme.lockDepth) "Часы за объектом фото" else "Выключен",
                 initiallyExpanded = theme.lockDepth,
             ) { LockDepthContent(theme, a.vm) }

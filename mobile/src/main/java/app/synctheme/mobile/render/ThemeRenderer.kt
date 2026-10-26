@@ -12,9 +12,7 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
-import android.graphics.Rect
 import android.graphics.RectF
-import androidx.core.graphics.ColorUtils
 import android.graphics.Shader
 import android.graphics.Typeface
 import app.synctheme.core.Background
@@ -398,13 +396,11 @@ object ThemeRenderer {
             // Часы на обоях (живые обои) и объект с фото поверх них.
             val spot = wallClockSpot(context, theme, width, height)
             clockArea = wallClockArea(theme, spot)
-            val glass = if (wall.glass) glassBackdrop(bmp) else null
-            drawWallClock(context, canvas, theme, spot, previewMillis(), glass = glass)
-            glass?.recycle()
-            // Объект с фото целиком закрывает цифры — часы за ним, как на iPhone.
+            drawWallClock(context, canvas, theme, spot, previewMillis())
             if (wall.depth) foreground(context, theme.background, theme.dim, width, height)?.let {
                 canvas.drawBitmap(it, 0f, 0f, null)
                 it.recycle()
+                drawWallClock(context, canvas, theme, spot, previewMillis(), alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
             }
         } else if (widgets) {
             // Виджет часов 4x2.
@@ -483,7 +479,10 @@ object ThemeRenderer {
         val t = tvTheme(theme)
         val spot = tvClockSpot(t, width, height, dx, dy)
         drawWallClock(context, canvas, t, spot, millis)
-        if (foreground != null) canvas.drawBitmap(foreground, 0f, 0f, null)
+        if (foreground != null) {
+            canvas.drawBitmap(foreground, 0f, 0f, null)
+            drawWallClock(context, canvas, t, spot, millis, alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
+        }
     }
 
     /** Обои телевизора и, с эффектом глубины, объект с фото отдельным слоем. */
@@ -665,64 +664,15 @@ object ThemeRenderer {
             val r = RectF(line.cx - hw, line.cy - hh, line.cx + hw, line.cy + hh)
             area = area?.apply { union(r) } ?: r
         }
-        val stretch = theme.wallClock?.stretch ?: 1f
-        if (stretch > 1f) area?.let { it.bottom = it.top + (it.bottom - it.top) * stretch }
         spot.date?.let { d -> area?.union(d.cx - d.size * 5, d.cy - d.size, d.cx + d.size * 5, d.cy + d.size) }
         return area
     }
 
     /**
-     * Размытое и чуть высветленное фото для «стеклянных» цифр — в четверть разрешения: оно всё равно
-     * размыто, а рисуется растянутым на весь экран.
-     */
-    fun glassBackdrop(background: Bitmap): Bitmap {
-        val w = background.width
-        val h = background.height
-        val tiny = Bitmap.createScaledBitmap(background, max(1, w / 10), max(1, h / 10), true)
-        val out = Bitmap.createBitmap(max(1, w / 4), max(1, h / 4), Bitmap.Config.ARGB_8888)
-        val bright = android.graphics.ColorMatrix(floatArrayOf(
-            1.1f, 0f, 0f, 0f, 22f,
-            0f, 1.1f, 0f, 0f, 22f,
-            0f, 0f, 1.1f, 0f, 22f,
-            0f, 0f, 0f, 1f, 0f,
-        ))
-        Canvas(out).drawBitmap(tiny, null, Rect(0, 0, out.width, out.height), Paint(Paint.FILTER_BITMAP_FLAG).apply {
-            colorFilter = android.graphics.ColorMatrixColorFilter(bright)
-        })
-        tiny.recycle()
-        return out
-    }
-
-    /**
-     * «Во весь экран»: часы одной строкой во всю ширину сверху, цифры вытянуты вниз почти до низа
-     * экрана — как высокие часы на экране блокировки iPhone.
-     */
-    fun fullScreenClock(theme: Theme, width: Int, height: Int): WallClock {
-        val wall = theme.wallClock ?: WallClock()
-        val font = wallClockFont(theme)
-        val w = width.toFloat()
-        val h = height.toFloat()
-        val base = baseClockSize(font, w, h, false)
-        val scale = (w * 0.9f) / (font.width("00:00") * base)
-        val digitH = font.digitHeight * base * scale
-        val top = h * 0.13f
-        val stretch = ((h * 0.8f - top) / digitH).coerceIn(1f, MAX_STRETCH)
-        return wall.copy(place = ClockPlace(0.5f, (top + digitH / 2) / h, scale, stacked = false), stretch = stretch)
-    }
-
-    /** Тема для часов на экране блокировки: фон и затемнение блокировки — по ним место часов и объект. */
-    fun lockClockTheme(theme: Theme): Theme = theme.copy(background = theme.lockScreenBackground(), dim = theme.lockScreenDim())
-
-    /** Насколько можно вытянуть цифры. */
-    const val MAX_STRETCH = 6f
-
-    /**
      * Часы на обоях телефона (рисуют живые обои SyncTheme) в месте [spot]: время шрифтом цифр темы,
      * дата цветом акцента, лёгкая тень для читаемости на фото.
      */
-    fun drawWallClock(
-        context: Context, canvas: Canvas, theme: Theme, spot: WallClockSpot, millis: Long, alpha: Int = 255, glass: Bitmap? = null,
-    ) {
+    fun drawWallClock(context: Context, canvas: Canvas, theme: Theme, spot: WallClockSpot, millis: Long, alpha: Int = 255) {
         val wall = theme.wallClock ?: return
         val font = wallClockFont(theme)
         val tf = fonts(context).of(font)
@@ -732,106 +682,26 @@ object ThemeRenderer {
         val hh = "%02d".format(hours)
         val mm = "%02d".format(cal.get(java.util.Calendar.MINUTE))
         val shadow = Colors.withAlpha(Color.BLACK, 0.35f)
-        // Вытянутые цифры растут вниз от верха часов; дата над ними остаётся на месте.
-        val stretch = wall.stretch.coerceIn(1f, MAX_STRETCH)
-        val top = spot.lines.minOfOrNull { it.cy - font.digitHeight * it.size / 2 } ?: 0f
-        val matrix = android.graphics.Matrix().apply { setScale(1f, stretch, 0f, top) }
+        // alpha < 255 — время поверх объекта с фото (эффект глубины): без тени и даты.
+        val ghost = alpha < 255
         for (line in spot.lines) {
             val text = when (line.part) {
                 WallClockSpot.Part.TIME -> "$hh:$mm"
                 WallClockSpot.Part.HOURS -> hh
                 WallClockSpot.Part.MINUTES -> mm
             }
-            val color = if (line.accent) theme.accentColor else theme.textColor
-            val p = textPaint(Colors.withAlpha(color, alpha / 255f), line.size, tf)
-            val baseline = line.cy + (font.top + font.bottom) / 2 * line.size
-            if (wall.glass) {
-                val path = Path()
-                p.getTextPath(text, 0, text.length, line.cx, baseline, path)
-                path.transform(matrix)
-                drawGlass(canvas, path, glass, color, line.size, alpha)
-                continue
-            }
-            p.setShadowLayer(line.size * 0.04f, 0f, line.size * 0.02f, shadow)
-            canvas.save()
-            canvas.concat(matrix)
-            canvas.drawText(text, line.cx, baseline, p)
-            canvas.restore()
+            val p = textPaint(Colors.withAlpha(if (line.accent) theme.accentColor else theme.textColor, alpha / 255f), line.size, tf)
+            if (!ghost) p.setShadowLayer(line.size * 0.04f, 0f, line.size * 0.02f, shadow)
+            canvas.drawText(text, line.cx, line.cy + (font.top + font.bottom) / 2 * line.size, p)
         }
         val d = spot.date
-        if (d != null && wall.showDate) {
+        if (d != null && wall.showDate && !ghost) {
             val p = textPaint(theme.accentColor, d.size, fonts(context).label).apply {
                 textAlign = d.align
                 setShadowLayer(d.size * 0.15f, 0f, 2f, shadow)
             }
             canvas.textCentered(dateString(millis, d.pattern), d.cx, d.cy, p)
         }
-    }
-
-    /**
-     * Цифра «из жидкого стекла», как часы iOS: фото за ней видно сквозь стекло — чуть размытым
-     * и увеличенным, как через линзу; по краю — объём: светлая грань сверху слева, тень внутри
-     * снизу справа, тонкий яркий ободок и мягкая тень под цифрой.
-     */
-    private fun drawGlass(canvas: Canvas, path: Path, backdrop: Bitmap?, color: Int, size: Float, alpha: Int) {
-        val a = alpha / 255f
-        val b = RectF().also { path.computeBounds(it, true) }
-        val e = max(2f, size * 0.022f)
-        // Тень под стеклом: цифра чуть «приподнята» над фото.
-        canvas.save()
-        canvas.translate(0f, e * 0.7f)
-        canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = Colors.withAlpha(Color.BLACK, 0.28f * a)
-            maskFilter = android.graphics.BlurMaskFilter(e * 1.6f, android.graphics.BlurMaskFilter.Blur.NORMAL)
-        })
-        canvas.restore()
-        canvas.save()
-        canvas.clipPath(path)
-        // Преломление: фото за цифрой — как через линзу, увеличено к её центру.
-        if (backdrop != null) {
-            val lens = 1.14f
-            val dst = RectF(0f, 0f, backdrop.width * 4f, backdrop.height * 4f)
-            canvas.save()
-            canvas.scale(lens, lens, b.centerX(), b.centerY())
-            canvas.drawBitmap(backdrop, null, dst, Paint(Paint.FILTER_BITMAP_FLAG).apply { this.alpha = alpha })
-            canvas.restore()
-        }
-        canvas.drawRect(b, Paint().apply {
-            this.color = Colors.withAlpha(ColorUtils.blendARGB(Color.WHITE, color, 0.25f), (if (backdrop != null) 0.05f else 0.2f) * a)
-        })
-        // Тень внутри по нижней правой грани и свет по верхней левой — объём стекла.
-        fun inner(dx: Float, dy: Float, c: Int, width: Float, blur: Float) {
-            canvas.save()
-            canvas.translate(dx, dy)
-            canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = width
-                this.color = c
-                maskFilter = android.graphics.BlurMaskFilter(blur, android.graphics.BlurMaskFilter.Blur.NORMAL)
-            })
-            canvas.restore()
-        }
-        inner(e * 0.9f, e * 1.3f, Colors.withAlpha(Color.BLACK, 0.24f * a), e * 2.6f, e * 1.2f)
-        inner(-e * 0.6f, -e * 0.9f, Colors.withAlpha(Color.WHITE, 0.85f * a), e * 2f, e * 0.7f)
-        inner(e * 0.5f, e * 0.7f, Colors.withAlpha(Color.WHITE, 0.3f * a), e * 1.2f, e * 0.6f)
-        // Блик сверху: по стеклу скользит свет.
-        canvas.drawRect(b, Paint().apply {
-            shader = android.graphics.LinearGradient(
-                b.left, b.top, b.left + b.width() * 0.3f, b.top + b.height() * 0.5f,
-                Colors.withAlpha(Color.WHITE, 0.22f * a), Colors.withAlpha(Color.WHITE, 0f), android.graphics.Shader.TileMode.CLAMP,
-            )
-        })
-        canvas.restore()
-        // Тонкий ободок: ярче там, куда падает свет.
-        canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = e * 0.45f
-            strokeJoin = Paint.Join.ROUND
-            shader = android.graphics.LinearGradient(
-                b.left, b.top, b.right, b.bottom,
-                Colors.withAlpha(Color.WHITE, 0.95f * a), Colors.withAlpha(Color.WHITE, 0.25f * a), android.graphics.Shader.TileMode.CLAMP,
-            )
-        })
     }
 
     private fun dateString(millis: Long, pattern: String) =
@@ -848,20 +718,6 @@ object ThemeRenderer {
         val u = min(width.toFloat(), height * 0.6f) / 100f
         val cx = width / 2f
         val white = Color.WHITE
-        val wall = theme.wallClock
-        if (wall != null && wall.onLock) {
-            // Свои часы SyncTheme на экране блокировки — те же, что на рабочем столе, на фоне блокировки.
-            val lock = lockClockTheme(theme)
-            val spot = wallClockSpot(context, lock, width, height)
-            val glass = if (wall.glass) glassBackdrop(bmp) else null
-            drawWallClock(context, canvas, lock, spot, previewMillis(), glass = glass)
-            glass?.recycle()
-            if (wall.depth) foreground(context, lock.background, lock.dim, width, height)?.let {
-                canvas.drawBitmap(it, 0f, 0f, null)
-                it.recycle()
-            }
-            return bmp
-        }
         val depth = if (theme.lockDepth) foreground(context, theme.lockScreenBackground(), theme.lockScreenDim(), width, height) else null
         canvas.textCentered(dateString("EEE, d MMMM"), cx, 22 * u, textPaint(white, 4.6f * u))
         if (depth != null) {

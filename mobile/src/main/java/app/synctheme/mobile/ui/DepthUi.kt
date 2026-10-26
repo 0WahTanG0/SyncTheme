@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.ui.Modifier
-import androidx.compose.material3.Slider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -65,32 +63,12 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
     Text(
         when {
             !photo -> "Эффект глубины работает с фото — выберите фото в «Фон»."
-            depth -> "Объект с фото стоит перед часами и закрывает часть цифр — как на iPhone. Сами часы встают " +
-                "с противоположной от объекта стороны; передвинуть их можно кнопкой ниже."
+            depth -> "Часы встают с противоположной от объекта стороны: объект справа — часы слева, слева — справа, " +
+                "снизу — сверху, сверху — снизу. Объект лишь слегка заходит на цифры, а их видно сквозь него."
             else -> "Объект с фото встанет перед часами, а сами часы — рядом с ним."
         },
         style = MaterialTheme.typography.bodySmall, color = muted,
     )
-    if (depth) {
-        OutlinedButton(onClick = { vm.editSubject(theme.background) }) { Text("Выбрать объект") }
-        Text(
-            "Если телефон не увидел объект или выбрал не тот — выберите его касанием или обведите пальцем.",
-            style = MaterialTheme.typography.bodySmall, color = muted,
-        )
-    }
-    SwitchRow("Цифры из стекла", wall.glass) { on -> vm.setWallClock(wall.copy(glass = on)) }
-    Text("Высота цифр", style = MaterialTheme.typography.labelMedium)
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        var stretch by remember(wall.stretch) { mutableStateOf(wall.stretch) }
-        Slider(
-            stretch, { stretch = it }, valueRange = 1f..ThemeRenderer.MAX_STRETCH,
-            onValueChangeFinished = { vm.setWallClock(wall.copy(stretch = stretch)) },
-            modifier = Modifier.weight(1f),
-        )
-        FilterChip(false, vm::setWallClockFullScreen, label = { Text("Во весь экран") })
-    }
-    SwitchRow("И на экране блокировки", wall.onLock) { on -> vm.setWallClock(wall.copy(onLock = on)) }
-    if (wall.onLock) LockClockHint()
     val place = wall.place
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedButton(onClick = onArrange) { Text(arrangeLabel(theme, ArrangeTarget.HOME) ?: "Подвинуть часы") }
@@ -145,67 +123,6 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
 }
 
 // ---------------------------------------------------------------- экран блокировки
-
-/**
- * Свои часы SyncTheme на экране блокировки — как высокие стеклянные часы iPhone: те же, что «Часы на обоях»,
- * с эффектом глубины по фото блокировки.
- */
-@Composable
-fun LockClockContent(theme: Theme, vm: MainViewModel) {
-    val wall = theme.wallClock
-    val photo = theme.lockScreenBackground().type == BackgroundType.PHOTO
-    SwitchRow("Часы SyncTheme на экране блокировки", wall?.onLock == true) { on ->
-        vm.setWallClock((wall ?: WallClock(depth = photo, glass = true)).copy(onLock = on))
-    }
-    if (wall == null || !wall.onLock) {
-        Text(
-            "Крупные часы прямо на обоях: из стекла, во весь экран, за объектом фото.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        return
-    }
-    SwitchRow("Цифры из стекла", wall.glass) { on -> vm.setWallClock(wall.copy(glass = on)) }
-    SwitchRow("За объектом фото", wall.depth && photo, enabled = photo) { on -> vm.setWallClock(wall.copy(depth = on)) }
-    Text("Высота цифр", style = MaterialTheme.typography.labelMedium)
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        var stretch by remember(wall.stretch) { mutableStateOf(wall.stretch) }
-        Slider(
-            stretch, { stretch = it }, valueRange = 1f..ThemeRenderer.MAX_STRETCH,
-            onValueChangeFinished = { vm.setWallClock(wall.copy(stretch = stretch)) },
-            modifier = Modifier.weight(1f),
-        )
-        FilterChip(false, vm::setWallClockFullScreen, label = { Text("Во весь экран") })
-    }
-    if (wall.depth && photo) OutlinedButton(onClick = { vm.editSubject(theme.lockScreenBackground()) }) { Text("Выбрать объект") }
-    Text(
-        "Шрифт и место часов — в «Обои» → «Часы на обоях».",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    LockClockHint()
-}
-
-/** Свои часы на экране блокировки: живые обои SyncTheme должны стоять и там. */
-@Composable
-fun LockClockHint() {
-    val context = LocalContext.current
-    var onLock by remember { mutableStateOf(ClockWallpaper.isActiveOnLock(context)) }
-    LaunchedEffect(Unit) { onLock = ClockWallpaper.isActiveOnLock(context) }
-    Text(
-        if (onLock) "Живые обои SyncTheme стоят и на экране блокировки ✓ — часы там свои, с эффектом глубины."
-        else "Поставьте живые обои SyncTheme на «Главный экран и экран блокировки» — тогда эти часы будут и там.",
-        style = MaterialTheme.typography.bodySmall,
-    )
-    if (!onLock) {
-        FilledTonalButton(onClick = {
-            runCatching { context.startActivity(ClockWallpaper.setIntent(context)) }
-        }) { Text("Поставить живые обои") }
-    }
-    Text(
-        "Часы самого телефона на экране блокировки убрать нельзя — их можно сделать маленькими: на Samsung зажмите " +
-            "экран блокировки → «Изменить» → часы.",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
 
 /**
  * Глубина на экране блокировки. Часы там рисует One UI: начиная с One UI 8 его «Адаптивные часы»

@@ -40,7 +40,6 @@ import app.synctheme.mobile.install.WatchAppInstaller
 import app.synctheme.mobile.update.UpdateInfo
 import app.synctheme.mobile.update.Updater
 import app.synctheme.mobile.render.ThemeRenderer
-import app.synctheme.mobile.util.Compat
 import app.synctheme.mobile.render.WallpaperApplier
 import app.synctheme.mobile.watch.TimeCheck
 import app.synctheme.mobile.watch.TimeCheckResult
@@ -170,7 +169,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             // Подключили или отключили планшет либо телевизор — нужны (или больше не нужны) их превью.
             val kinds = devices.map { d -> d.peers.map { it.kind }.toSet() }.distinctUntilChanged()
-            combine(theme, masks, kinds, SubjectMask.version) { t, _, _, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
+            combine(theme, masks, kinds) { t, _, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
         }
         // Сменили фото, а глубина уже включена, — сразу ищем объект на новом фото (каждое фото — один раз).
         viewModelScope.launch {
@@ -457,10 +456,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             SubjectMask.ensure(app, photo)
             enable()
         } catch (e: DepthException) {
-            // Объект не нашёлся сам — включаем глубину и сразу даём выделить его вручную.
-            enable()
             _messages.tryEmit(e.message.orEmpty())
-            _subjectEditor.value = photo
         } catch (e: Exception) {
             _messages.tryEmit("Не удалось выделить объект: ${e.message ?: e.javaClass.simpleName}")
         } finally {
@@ -469,26 +465,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     private fun photoOf(bg: Background) = bg.photoFile?.takeIf { bg.type == BackgroundType.PHOTO }
-
-    private val _subjectEditor = MutableStateFlow<String?>(null)
-
-    /** Фото, на котором сейчас вручную выделяют объект для глубины; null — редактор закрыт. */
-    val subjectEditor: StateFlow<String?> = _subjectEditor.asStateFlow()
-
-    fun editSubject(bg: Background) {
-        val photo = photoOf(bg) ?: return run { _messages.tryEmit("Эффект глубины работает с фото: выберите фото для фона") }
-        _subjectEditor.value = photo
-    }
-
-    fun closeSubjectEditor() {
-        _subjectEditor.value = null
-    }
-
-    /** Часы во весь экран: во всю ширину сверху и вытянуты вниз, как высокие часы iPhone. */
-    fun setWallClockFullScreen() {
-        val (w, h) = Compat.screen(app)
-        update { it.copy(wallClock = ThemeRenderer.fullScreenClock(it, w, h)) }
-    }
 
     /** Глубина на циферблате: объект с фото фона часов поверх цифр. */
     fun setWatchDepth(enabled: Boolean, edit: ((WatchSettings) -> WatchSettings) -> Unit) {
