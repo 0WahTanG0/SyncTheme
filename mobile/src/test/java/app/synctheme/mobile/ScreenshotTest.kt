@@ -37,7 +37,9 @@ import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.widget.WidgetConfig
 import app.synctheme.mobile.widget.WidgetConfigScreen
 import app.synctheme.mobile.widget.WidgetKind
+import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
+import app.synctheme.core.ThemeMode
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.WallClock
 import app.synctheme.core.WallClockLayout
@@ -95,6 +97,36 @@ class ScreenshotTest {
 
     @Test
     fun widgetsTab() = screen("screen_widgets", Tab.WIDGETS)
+
+    /** Одна тема с фото: как есть, светлая и тёмная версии. */
+    @Test
+    fun themeModes() {
+        for (mode in listOf(ThemeMode.ORIGINAL, ThemeMode.LIGHT, ThemeMode.DARK)) {
+            screen("screen_mode_${mode.name.lowercase()}", Tab.WALLPAPER, Appearance(AppStyle.GLASS, AppMode.DARK), expand = true) { app ->
+                val repo = ThemeRepository.get(app)
+                val w = 540
+                val h = 1170
+                val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                val c = android.graphics.Canvas(bmp)
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+                // Вечернее небо и тёмные холмы — как обычное фото на обоях.
+                paint.shader = android.graphics.LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(0xFF1B2A4A.toInt(), 0xFF7A4B7E.toInt(), 0xFFF29E6D.toInt()), null, android.graphics.Shader.TileMode.CLAMP)
+                c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+                paint.shader = null
+                paint.color = 0xFFFFE2B0.toInt()
+                c.drawCircle(w * 0.62f, h * 0.62f, w * 0.12f, paint)
+                paint.color = 0xFF221A2E.toInt()
+                c.drawPath(android.graphics.Path().apply { moveTo(0f, h * 0.7f); quadTo(w * 0.3f, h * 0.6f, w * 0.55f, h * 0.72f); quadTo(w * 0.8f, h * 0.66f, w.toFloat(), h * 0.74f); lineTo(w.toFloat(), h.toFloat()); lineTo(0f, h.toFloat()); close() }, paint)
+                repo.photoFile("modes.jpg").outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) }
+                repo.setDraft(
+                    Presets.all[0].copy(
+                        background = Background(BackgroundType.PHOTO, listOf(0xFF1B2A4A.toInt(), 0xFFF29E6D.toInt()), photoFile = "modes.jpg"),
+                        textColor = 0xFFFFFFFF.toInt(), accentColor = 0xFFF29E6D.toInt(), dim = 0.15f, mode = mode,
+                    ),
+                )
+            }
+        }
+    }
 
     @Test
     fun moreTab() = screen("screen_more", Tab.MORE)

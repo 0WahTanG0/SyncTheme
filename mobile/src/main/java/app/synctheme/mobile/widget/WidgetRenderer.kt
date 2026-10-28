@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.os.BatteryManager
+import android.os.Build
 import android.provider.Settings
 import android.text.format.DateFormat
 import android.util.SizeF
@@ -19,12 +20,15 @@ import androidx.core.graphics.ColorUtils
 import app.synctheme.R
 import app.synctheme.core.DigitFont
 import app.synctheme.core.Theme
+import app.synctheme.core.ThemeMode
+import app.synctheme.core.resolved
 import app.synctheme.mobile.data.CalendarData
 import app.synctheme.mobile.data.CalendarEvent
 import app.synctheme.mobile.data.WeatherCodes
 import app.synctheme.mobile.data.WeatherData
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.render.Colors
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.util.Compat
 import java.time.Instant
 import java.time.LocalDate
@@ -59,6 +63,43 @@ object WidgetRenderer {
             else -> surface
         }
         val alpha = (config.opacity.coerceIn(0f, 1f) * 255).roundToInt()
+    }
+
+    /**
+     * Цвета виджета для светлого ([day]) и тёмного ([night]) оформления телефона. У темы «Как в системе»
+     * на Android 12+ в виджете сразу оба набора — лаунчер переключает их сам, в ту же секунду, что и телефон.
+     * Иначе набор один ([night] = null). [now] — набор, который виден сейчас: им рисуются картинки.
+     */
+    private class Paints(val day: Palette, val night: Palette?, val now: Palette) {
+        val alpha get() = now.alpha
+
+        fun color(rv: RemoteViews, id: Int, method: String, pick: (Palette) -> Int) {
+            val n = night
+            if (n != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) rv.setColorInt(id, method, pick(day), pick(n))
+            else rv.setInt(id, method, pick(day))
+        }
+
+        fun text(rv: RemoteViews, id: Int, pick: (Palette) -> Int) = color(rv, id, "setTextColor", pick)
+
+        fun tint(rv: RemoteViews, id: Int, pick: (Palette) -> Int) = color(rv, id, "setColorFilter", pick)
+
+        fun list(rv: RemoteViews, id: Int, method: String, pick: (Palette) -> Int) {
+            val n = night
+            if (n != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                rv.setColorStateList(id, method, ColorStateList.valueOf(pick(day)), ColorStateList.valueOf(pick(n)))
+            } else rv.setColorStateList(id, method, ColorStateList.valueOf(pick(day)))
+        }
+    }
+
+    private fun paints(context: Context, theme: Theme, config: WidgetConfig, family: String, accentBackground: Boolean): Paints {
+        fun of(t: Theme) = Palette(t, config, family, accentBackground)
+        if (theme.mode == ThemeMode.AUTO && Compat.modernWidgets) {
+            val day = of(theme.resolved(night = false))
+            val night = of(theme.resolved(night = true))
+            return Paints(day, night, if (DayNight.isNight(context)) night else day)
+        }
+        val now = of(DayNight.of(context, theme))
+        return Paints(now, null, now)
     }
 
     /** Данные, общие для всех размеров одного виджета: считаются один раз. */
@@ -149,7 +190,7 @@ object WidgetRenderer {
     private fun sized(
         context: Context, kind: WidgetKind, config: WidgetConfig, theme: Theme, size: WidgetSize, data: Data, dp: SizeF,
     ): RemoteViews {
-        if (kind == WidgetKind.APPS && config.isFolder) return FolderWidget.views(context, config, theme, dp, data.widgetId)
+        if (kind == WidgetKind.APPS && config.isFolder) return FolderWidget.views(context, config, DayNight.of(context, theme), dp, data.widgetId)
         val layout = WidgetLayouts[layoutKey(kind, config, size)]
             ?: WidgetLayouts[layoutKey(kind, WidgetConfig(style = kind.defaultStyle), size)]!!
         val style = kind.style(config.style).id
@@ -165,7 +206,7 @@ object WidgetRenderer {
             textColor = config.textColor ?: WHITE,
             accentColor = config.accentColor ?: ColorUtils.blendARGB(theme.accentColor, WHITE, 0.45f),
         )
-        val p = Palette(theme, colors, family(kind, style), layout.accentBackground)
+        val p = paints(context, theme, colors, family(kind, style), layout.accentBackground)
         v.paint(p, config.align)
         if (scene != null) v.sky(scene, config.opacity)
         when (kind) {
@@ -211,8 +252,9 @@ object WidgetRenderer {
     private class Views(val rv: RemoteViews, val layout: WidgetLayout) {
         fun text(slot: String, value: CharSequence) = each(slot) { rv.setTextViewText(it, value) }
         fun visible(slot: String, show: Boolean) = each(slot) { rv.setViewVisibility(it, if (show) View.VISIBLE else View.GONE) }
-        fun textColor(slot: String, color: Int) = each(slot) { rv.setTextColor(it, color) }
+        fun textColor(slot: String, p: Paints, pick: (Palette) -> Int) = each(slot) { p.text(rv, it, pick) }
         fun tint(slot: String, color: Int) = each(slot) { rv.setInt(it, "setColorFilter", color) }
+        fun tint(slot: String, p: Paints, pick: (Palette) -> Int) = each(slot) { p.tint(rv, it, pick) }
 
         inline fun each(slot: String, action: (Int) -> Unit) {
             for (id in WidgetSlots[slot]) if (layout.has(id)) action(id)
@@ -220,7 +262,7 @@ object WidgetRenderer {
 
         fun has(slot: String) = WidgetSlots[slot].any(layout::has)
 
-        fun paint(p: Palette, align: WidgetAlign) {
+        fun paint(p: Paints, align: WidgetAlign) {
             val gravity = when (align) {
                 WidgetAlign.START -> Gravity.START or Gravity.CENTER_VERTICAL
                 WidgetAlign.CENTER -> Gravity.CENTER
@@ -229,36 +271,36 @@ object WidgetRenderer {
             for (i in layout.ids.indices) {
                 val id = layout.ids[i]
                 when (layout.roles[2 * i]) {
-                    'm' -> rv.setTextColor(id, p.main)
-                    's' -> rv.setTextColor(id, p.sub)
-                    'f' -> rv.setTextColor(id, p.faint)
-                    'a' -> rv.setTextColor(id, p.label)
-                    'o' -> rv.setTextColor(id, p.on)
-                    'n' -> rv.setTextColor(id, p.onSub)
-                    'M' -> rv.setInt(id, "setColorFilter", p.main)
-                    'S' -> rv.setInt(id, "setColorFilter", p.sub)
-                    'F' -> rv.setInt(id, "setColorFilter", p.faint)
-                    'A' -> rv.setInt(id, "setColorFilter", p.label)
-                    'O' -> rv.setInt(id, "setColorFilter", p.on)
-                    'N' -> rv.setInt(id, "setColorFilter", p.onSub)
+                    'm' -> p.text(rv, id) { it.main }
+                    's' -> p.text(rv, id) { it.sub }
+                    'f' -> p.text(rv, id) { it.faint }
+                    'a' -> p.text(rv, id) { it.label }
+                    'o' -> p.text(rv, id) { it.on }
+                    'n' -> p.text(rv, id) { it.onSub }
+                    'M' -> p.tint(rv, id) { it.main }
+                    'S' -> p.tint(rv, id) { it.sub }
+                    'F' -> p.tint(rv, id) { it.faint }
+                    'A' -> p.tint(rv, id) { it.label }
+                    'O' -> p.tint(rv, id) { it.on }
+                    'N' -> p.tint(rv, id) { it.onSub }
                     'b' -> {
-                        rv.setInt(id, "setColorFilter", p.bg)
+                        p.tint(rv, id) { it.bg }
                         rv.setInt(id, "setImageAlpha", p.alpha)
                     }
                     'B' -> {
-                        rv.setInt(id, "setColorFilter", p.accent)
+                        p.tint(rv, id) { it.accent }
                         rv.setInt(id, "setImageAlpha", p.alpha)
                     }
                     'g' -> rv.setInt(id, "setImageAlpha", p.alpha)
-                    'h', 'x' -> rv.setInt(id, "setColorFilter", p.accent)
+                    'h', 'x' -> p.tint(rv, id) { it.accent }
                     // Цвета через ColorStateList виджеты понимают с Android 12; раньше — цвета по умолчанию.
                     'P' -> {
-                        rv.setTextColor(id, p.onAccent)
-                        if (Compat.modernWidgets) rv.setColorStateList(id, "setBackgroundTintList", ColorStateList.valueOf(p.accent))
+                        p.text(rv, id) { it.onAccent }
+                        if (Compat.modernWidgets) p.list(rv, id, "setBackgroundTintList") { it.accent }
                     }
                     'p' -> if (Compat.modernWidgets) {
-                        rv.setColorStateList(id, "setProgressTintList", ColorStateList.valueOf(p.accent))
-                        rv.setColorStateList(id, "setProgressBackgroundTintList", ColorStateList.valueOf(p.faint))
+                        p.list(rv, id, "setProgressTintList") { it.accent }
+                        p.list(rv, id, "setProgressBackgroundTintList") { it.faint }
                     }
                 }
                 // Выравнивание: текст и контейнеры, помеченные в разметке (менять его виджетам можно с Android 12).
@@ -268,27 +310,25 @@ object WidgetRenderer {
 
         // ------------------------------------------------------------ часы
 
-        fun clock(style: String, data: Data, p: Palette) {
+        fun clock(style: String, data: Data, p: Paints) {
             val alarm = data.alarm
             visible("row_alarm", alarm != null)
             if (alarm != null) text("alarm", alarm)
             if (!style.startsWith("analog_") || !layout.has(R.id.analog) || !Compat.modernWidgets) return
-            val (dial, hands, second) = when (style) {
-                "analog_blob" -> Triple(p.accent, p.onAccent, p.onAccent)
-                "analog_numbers" -> Triple(p.main, p.main, p.accent)
-                else -> Triple(p.accent, p.main, p.accent)
-            }
-            rv.setColorStateList(R.id.analog, "setDialTintList", ColorStateList.valueOf(dial))
-            rv.setColorStateList(R.id.analog, "setHourHandTintList", ColorStateList.valueOf(hands))
-            rv.setColorStateList(R.id.analog, "setMinuteHandTintList", ColorStateList.valueOf(hands))
-            if (data.config.showSeconds) rv.setColorStateList(R.id.analog, "setSecondHandTintList", ColorStateList.valueOf(second))
+            val dial: (Palette) -> Int = if (style == "analog_numbers") { c -> c.main } else { c -> c.accent }
+            val hands: (Palette) -> Int = if (style == "analog_blob") { c -> c.onAccent } else { c -> c.main }
+            val second: (Palette) -> Int = if (style == "analog_blob") { c -> c.onAccent } else { c -> c.accent }
+            p.list(rv, R.id.analog, "setDialTintList", dial)
+            p.list(rv, R.id.analog, "setHourHandTintList", hands)
+            p.list(rv, R.id.analog, "setMinuteHandTintList", hands)
+            if (data.config.showSeconds) p.list(rv, R.id.analog, "setSecondHandTintList", second)
         }
 
         /**
          * Цифры выбранным шрифтом: картинка встаёт на место TextClock (в разметке рядом — с теми же
          * размерами), сам TextClock прячется. У выравниваемых цифр три картинки — видна та, что по выравниванию.
          */
-        fun digits(context: Context, font: DigitFont, glow: Boolean, align: WidgetAlign, dp: SizeF, data: Data, p: Palette) {
+        fun digits(context: Context, font: DigitFont, glow: Boolean, align: WidgetAlign, dp: SizeF, data: Data, p: Paints) {
             val side = when (align) {
                 WidgetAlign.START -> 's'
                 WidgetAlign.CENTER -> 'c'
@@ -307,20 +347,22 @@ object WidgetRenderer {
                 val bmp = data.digits.getOrPut("$text|$px") { ClockDigits.render(context, font, text, glow, px) }
                 rv.setImageViewBitmap(t.image, bmp)
                 val role = layout.ids.indexOf(t.clock).takeIf { it >= 0 }?.let { layout.roles[2 * it] }
-                rv.setInt(t.image, "setColorFilter", when (role) {
-                    'a' -> p.label
-                    's' -> p.sub
-                    'f' -> p.faint
-                    'o' -> p.on
-                    'n' -> p.onSub
-                    else -> p.main
-                })
+                p.tint(rv, t.image) {
+                    when (role) {
+                        'a' -> it.label
+                        's' -> it.sub
+                        'f' -> it.faint
+                        'o' -> it.on
+                        'n' -> it.onSub
+                        else -> it.main
+                    }
+                }
             }
         }
 
         // ------------------------------------------------------------ календарь
 
-        fun calendar(context: Context, family: String, data: Data, p: Palette) {
+        fun calendar(context: Context, family: String, data: Data, p: Paints) {
             val events = data.events
             val hint = when {
                 !CalendarData.hasPermission(context) -> "Разрешите доступ к календарю в SyncTheme"
@@ -333,7 +375,8 @@ object WidgetRenderer {
                 if (e != null) {
                     text("ev${i}_title", e.title)
                     text("ev${i}_time", e.time)
-                    tint("ed_$i", e.color.takeIf { it != 0 } ?: p.accent)
+                    val own = e.color
+                    if (own != 0) tint("ed_$i", own) else tint("ed_$i", p) { it.accent }
                 }
             }
             // В маленьких размерах строки событий нет — там первое событие или подсказка.
@@ -344,12 +387,18 @@ object WidgetRenderer {
             if (!layout.has(R.id.m_cd0)) return
             val grid = data.month
             grid.weekdays.forEachIndexed { i, name -> text("wd$i", name.take(2)) }
-            val todayText = if (family == "neon" || family == "minimal") p.label else p.onAccent
+            val ownToday = family == "neon" || family == "minimal"
             grid.cells.forEachIndexed { i, cell ->
                 text("cd$i", cell.day.toString())
-                textColor("cd$i", if (cell.today) todayText else if (cell.inMonth) p.main else p.faint)
+                textColor("cd$i", p) {
+                    when {
+                        cell.today -> if (ownToday) it.label else it.onAccent
+                        cell.inMonth -> it.main
+                        else -> it.faint
+                    }
+                }
                 visible("tb_$i", cell.today)
-                if (cell.today) tint("tb_$i", p.accent)
+                if (cell.today) tint("tb_$i", p) { it.accent }
             }
         }
 
@@ -368,18 +417,18 @@ object WidgetRenderer {
             if (layout.has(R.id.bg_g)) rv.setInt(R.id.bg_g, "setImageAlpha", 70)
         }
 
-        fun weather(data: Data, p: Palette) {
+        fun weather(data: Data, p: Paints) {
             val mono = !data.config.colorIcons
             fun icon(slot: String, code: Int, isDay: Boolean) {
                 each(slot) {
                     rv.setImageViewResource(it, WeatherCodes.icon(code, isDay))
                     // 0 — цвета иконки без изменений; иначе вся иконка в цвете текста.
-                    rv.setInt(it, "setColorFilter", if (mono) p.main else 0)
+                    p.tint(rv, it) { c -> if (mono) c.main else 0 }
                 }
                 // На акцентной фигуре цветная иконка теряется — она всегда одного цвета с текстом на фигуре.
                 if (slot == "wx_now") each("wxo_now") {
                     rv.setImageViewResource(it, WeatherCodes.icon(code, isDay))
-                    rv.setInt(it, "setColorFilter", p.on)
+                    p.tint(rv, it) { c -> c.on }
                 }
             }
             val w = data.weather
@@ -421,7 +470,7 @@ object WidgetRenderer {
                     icon("wx_d$i", d.code, true)
                     text("d${i}_min", deg(d.min))
                     text("d${i}_max", deg(d.max))
-                    each("rb_d$i") { rv.setImageViewBitmap(it, RangeBar.render(d.min, d.max, low, high, w.now.temp.takeIf { i == 0 }, p.main)) }
+                    each("rb_d$i") { rv.setImageViewBitmap(it, RangeBar.render(d.min, d.max, low, high, w.now.temp.takeIf { i == 0 }, p.now.main)) }
                 }
             }
         }

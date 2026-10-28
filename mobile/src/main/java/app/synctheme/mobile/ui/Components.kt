@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.Theme
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.ThemeRenderer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -124,13 +125,17 @@ private object ThumbCache {
     private val cache = LruCache<Theme, Pair<ImageBitmap, ImageBitmap>>(32)
     private val renderer = Dispatchers.Default.limitedParallelism(1)
 
-    fun cached(theme: Theme) = cache.get(theme)
+    /** Миниатюра — в версии темы, которая сейчас была бы на экране (светлой или тёмной). */
+    fun cached(context: Context, theme: Theme) = cache.get(DayNight.of(context, theme))
 
-    suspend fun render(context: Context, theme: Theme, phoneW: Int, watch: Int) = cache.get(theme) ?: withContext(renderer) {
-        cache.get(theme) ?: runCatching {
-            val phone = ThemeRenderer.phonePreview(context, theme, phoneW, phoneW * 13 / 6).asImageBitmap()
-            phone to ThemeRenderer.watchPreview(context, theme, watch).asImageBitmap()
-        }.getOrNull()?.also { cache.put(theme, it) }
+    suspend fun render(context: Context, theme: Theme, phoneW: Int, watch: Int): Pair<ImageBitmap, ImageBitmap>? {
+        val shown = DayNight.of(context, theme)
+        return cache.get(shown) ?: withContext(renderer) {
+            cache.get(shown) ?: runCatching {
+                val phone = ThemeRenderer.phonePreview(context, shown, phoneW, phoneW * 13 / 6).asImageBitmap()
+                phone to ThemeRenderer.watchPreview(context, DayNight.forWatch(theme), watch).asImageBitmap()
+            }.getOrNull()?.also { cache.put(shown, it) }
+        }
     }
 }
 
@@ -140,7 +145,7 @@ fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: M
     val look = LocalLook.current
     val context = LocalContext.current
     val density = LocalDensity.current
-    val images by produceState(ThumbCache.cached(theme), theme) {
+    val images by produceState(ThumbCache.cached(context, theme), theme) {
         value = ThumbCache.render(context, theme, with(density) { 54.dp.roundToPx() }, with(density) { 46.dp.roundToPx() })
     }
     val colors = theme.background.colors.ifEmpty { listOf(0xFF000000.toInt()) }.map { Color(it) }

@@ -53,6 +53,7 @@ import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.link.LinkReceiver
 import app.synctheme.mobile.link.LinkService
 import app.synctheme.mobile.link.LinkStore
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.ui.AppBackdrop
 import app.synctheme.mobile.ui.AppTheme
@@ -93,7 +94,7 @@ fun TvScreen(initialPreview: ImageBitmap? = null) {
     val first = remember { FocusRequester() }
     LaunchedEffect(theme) {
         if (initialPreview != null) return@LaunchedEffect
-        preview = withContext(Dispatchers.Default) { ThemeRenderer.tvFrame(context, theme, 960, 540).asImageBitmap() }
+        preview = withContext(Dispatchers.Default) { ThemeRenderer.tvFrame(context, DayNight.of(context, theme), 960, 540).asImageBitmap() }
     }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 

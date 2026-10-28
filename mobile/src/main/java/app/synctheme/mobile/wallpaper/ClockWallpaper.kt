@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
@@ -21,6 +22,7 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.render.WallClockSpot
@@ -73,7 +75,25 @@ private class Layers(val key: Any, val background: Bitmap, val foreground: Bitma
  * обои остаются с фоном и часами, а не пустыми.
  */
 class ClockWallpaperService : WallpaperService() {
+    private val engines = mutableSetOf<ClockEngine>()
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
     override fun onCreateEngine(): Engine = ClockEngine()
+
+    /**
+     * Телефон перешёл на светлое или тёмное оформление: у темы «Как в системе» обои перерисовываются сразу,
+     * а заодно — обои картинкой на экране блокировки и виджеты-картинки.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        engines.forEach { it.prepare() }
+        serviceScope.launch(Dispatchers.Default) { DayNight.refresh(this@ClockWallpaperService) }
+    }
+
+    override fun onDestroy() {
+        serviceScope.cancel()
+        super.onDestroy()
+    }
 
     private inner class ClockEngine : Engine() {
         private val handler = Handler(Looper.getMainLooper())
@@ -128,6 +148,9 @@ class ClockWallpaperService : WallpaperService() {
                 runCatching { keyguard?.addKeyguardLockedStateListener(mainExecutor, lockListener) }
             }
             scope.launch { repo.applied.collect { prepare() } }
+            // Объект выделили вручную — новая маска для того же фото.
+            scope.launch { SubjectMask.version.collect { prepare() } }
+            engines += this
         }
 
         override fun onTouchEvent(event: MotionEvent) {
@@ -142,7 +165,7 @@ class ClockWallpaperService : WallpaperService() {
         /** Касание пустого места рабочего стола: если на часах (с запасом под палец) — открываем приложение. */
         private fun onTap(x: Float, y: Float) {
             val l = layers ?: return
-            val theme = repo.applied.value
+            val theme = current()
             val wall = theme.wallClock ?: return
             if (!wall.tapToOpen || isPreview || lockOnly || keyguard?.isKeyguardLocked == true) return
             // Место часов посчитано для размера слоёв, касание — в точках поверхности.
@@ -188,6 +211,7 @@ class ClockWallpaperService : WallpaperService() {
         }
 
         override fun onDestroy() {
+            engines -= this
             handler.removeCallbacks(tick)
             runCatching { unregisterReceiver(events) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -214,17 +238,20 @@ class ClockWallpaperService : WallpaperService() {
             get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
                 wallpaperFlags == WallpaperManager.FLAG_LOCK
 
+        /** Применённая тема в версии для нынешнего оформления телефона (светлая или тёмная). */
+        private fun current(): Theme = DayNight.of(this@ClockWallpaperService, repo.applied.value)
+
         /** Готовит фон и слой глубины; пока готовит, на экране остаётся предыдущий кадр. */
-        private fun prepare() {
+        fun prepare() {
             if (width == 0 || height == 0) return
-            val theme = repo.applied.value
+            val theme = current()
             val lock = lockOnly
             val touches = !lock && theme.wallClock?.tapToOpen == true
             if (touches != touchesEnabled) {
                 touchesEnabled = touches
                 setTouchEventsEnabled(touches)
             }
-            val key = listOf(theme, width, height, lock)
+            val key = listOf(theme, width, height, lock, SubjectMask.version.value)
             if (layers?.key == key) return draw()
             if (preparingKey == key && preparing?.isActive == true) return
             preparing?.cancel()
@@ -272,7 +299,7 @@ class ClockWallpaperService : WallpaperService() {
                 val dst = Rect(0, 0, canvas.width, canvas.height)
                 canvas.drawBitmap(l.background, null, dst, null)
                 // На экране блокировки — свои часы, только если их туда попросили; иначе там часы самого телефона.
-                val stored = repo.applied.value
+                val stored = current()
                 val locked = lockOnly || keyguard?.isKeyguardLocked == true
                 if (!locked || stored.wallClock?.onLock == true) {
                     val theme = if (lockOnly) lockTheme(stored) else stored

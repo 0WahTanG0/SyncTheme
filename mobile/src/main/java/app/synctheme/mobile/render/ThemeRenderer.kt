@@ -84,9 +84,13 @@ object ThemeRenderer {
         return bmp
     }
 
-    /** Затемнение — одинаково для фона и для слоя глубины. */
+    /**
+     * Затемнение — одинаково для фона и для слоя глубины. Меньше нуля — светлая вуаль: так фото
+     * выглядит в светлой версии темы (см. [app.synctheme.core.ThemeMode]).
+     */
     private fun darken(canvas: Canvas, dim: Float) {
         if (dim > 0f) canvas.drawColor(Colors.withAlpha(Color.BLACK, dim.coerceIn(0f, 0.8f)))
+        else if (dim < 0f) canvas.drawColor(Colors.withAlpha(Color.WHITE, (-dim).coerceIn(0f, 0.8f)))
     }
 
     /**

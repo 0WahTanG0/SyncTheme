@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         viewModel.refreshWatch()
         viewModel.refreshPlaced()
+        viewModel.onResumed()
     }
 
     companion object {

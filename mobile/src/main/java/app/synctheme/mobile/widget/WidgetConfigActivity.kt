@@ -80,6 +80,7 @@ import app.synctheme.mobile.data.CalendarData
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.data.WeatherData
 import app.synctheme.mobile.data.WeatherRepository
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.ui.AccentButton
 import app.synctheme.mobile.ui.AppBackdrop
@@ -182,7 +183,7 @@ fun WidgetConfigScreen(
     var colorEdit by remember { mutableStateOf<String?>(null) }
     var picker by remember { mutableStateOf<String?>(null) } // "open" или "apps"
     var calendarAllowed by remember { mutableStateOf(CalendarData.hasPermission(context)) }
-    val wallpaper = remember { ThemeRenderer.background(context, theme, 720, 720).asImageBitmap() }
+    val wallpaper = remember { ThemeRenderer.background(context, DayNight.of(context, theme), 720, 720).asImageBitmap() }
     val view = LocalView.current
     var previewBounds by remember { mutableStateOf<android.graphics.Rect?>(null) }
     val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {

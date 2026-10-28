@@ -76,6 +76,7 @@ import androidx.core.graphics.ColorUtils
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.Colors
+import app.synctheme.mobile.render.DayNight
 import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.cos
@@ -98,7 +99,7 @@ class FolderActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val config = intent.getStringExtra(EXTRA_CONFIG)?.let { runCatching { Json.decodeFromString(WidgetConfig.serializer(), it) }.getOrNull() }
             ?: WidgetUpdater.config(this, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0), WidgetKind.APPS)
-        val theme = ThemeRepository.get(this).applied.value
+        val theme = DayNight.of(this, ThemeRepository.get(this).applied.value)
         val origin = intent.sourceBounds
         val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
         val blur = config.dim && blurBehind()

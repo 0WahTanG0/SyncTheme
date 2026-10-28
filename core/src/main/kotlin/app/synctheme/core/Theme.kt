@@ -223,6 +223,8 @@ data class Theme(
     val wallClock: WallClock? = null,
     /** Устарело (до 1.19 — «Адаптивные часы» Samsung); глубина на экране блокировки теперь у [WallClock.onLock]. */
     val lockDepth: Boolean = false,
+    /** Светлая или тёмная версия темы ([resolved]). */
+    val mode: ThemeMode = ThemeMode.ORIGINAL,
 ) {
     /** Итоговые настройки циферблата: свои или повторяющие телефон. */
     fun watchSettings(): WatchSettings = watch ?: followPhone()

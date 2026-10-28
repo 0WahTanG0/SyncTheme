@@ -141,12 +141,14 @@ private fun SyncThemeContent(
     /** На вкладке «Обои»: редактируется рабочий стол или экран блокировки. */
     var lock by rememberSaveable { mutableStateOf(initialLock) }
     var photoTarget by remember { mutableStateOf(BgTarget.HOME) }
+    /** Фото выбирают для новой темы («Из фото»), а не для фона текущей. */
+    var photoTheme by remember { mutableStateOf(false) }
     /** Открыт редактор расположения (часы и фото). */
     var arrange by rememberSaveable { mutableStateOf<ArrangeTarget?>(null) }
     /** Открыта проверка совместимости: при первом запуске сама, потом — из «Настроек». */
     var compat by rememberSaveable { mutableStateOf(firstLaunchCheck && !CompatCheck.shown(context)) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        uri?.let { vm.pickPhoto(it, photoTarget) }
+        uri?.let { if (photoTheme) vm.themeFromPhoto(it) else vm.pickPhoto(it, photoTarget) }
     }
 
     val actions = remember(vm) {
@@ -154,6 +156,11 @@ private fun SyncThemeContent(
             vm = vm,
             pickPhoto = { target ->
                 photoTarget = target
+                photoTheme = false
+                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            themeFromPhoto = {
+                photoTheme = true
                 photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
             openInstaller = onOpenInstaller,
@@ -311,6 +318,8 @@ class ScreenActions(
     val arrange: (ArrangeTarget) -> Unit = {},
     /** Проверка совместимости с этим телефоном. */
     val openCompat: () -> Unit = {},
+    /** Новая тема из фото в один шаг. */
+    val themeFromPhoto: () -> Unit = {},
 ) {
     /** Меняет циферблат: в отдельных настройках часов или, если их нет, в общей теме. */
     fun editWatchFace(transform: (app.synctheme.core.WatchSettings) -> app.synctheme.core.WatchSettings) {

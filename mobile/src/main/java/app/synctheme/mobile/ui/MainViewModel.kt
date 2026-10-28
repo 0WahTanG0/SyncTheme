@@ -31,6 +31,7 @@ import app.synctheme.mobile.data.NotAnImageException
 import app.synctheme.mobile.data.SharedImage
 import app.synctheme.mobile.data.ThemeApplier
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.DepthException
 import app.synctheme.mobile.render.DepthMasks
 import app.synctheme.mobile.render.SubjectMask
@@ -170,7 +171,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         stylesWanted.value = true
     }
 
-    private suspend fun renderStylePreviews(t: Theme) = withContext(Dispatchers.Default) {
+    private suspend fun renderStylePreviews(stored: Theme) = withContext(Dispatchers.Default) {
+        val t = DayNight.forWatch(stored)
         _stylePreviews.value = ClockStyle.entries.associateWith { style ->
             val variant = t.watch?.let { t.copy(watch = it.copy(clockStyle = style)) } ?: t.copy(clockStyle = style)
             ThemeRenderer.watchPreview(app, variant, 200).asImageBitmap()
@@ -180,12 +182,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Растёт, когда появилась новая маска эффекта глубины, — превью нужно перерисовать. */
     private val masks = MutableStateFlow(0)
 
+    /** На телефоне тёмное оформление — от него зависит, какая версия темы видна («Как в системе»). */
+    private val night = MutableStateFlow(DayNight.isNight(app))
+
+    /** Вернулись в приложение: оформление телефона могло смениться — обновить превью, обои и виджеты. */
+    fun onResumed() {
+        night.value = DayNight.isNight(app)
+        viewModelScope.launch(Dispatchers.Default) { DayNight.refresh(app) }
+    }
+
     init {
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
             // Подключили или отключили планшет либо телевизор — нужны (или больше не нужны) их превью.
             val kinds = devices.map { d -> d.peers.map { it.kind }.toSet() }.distinctUntilChanged()
-            combine(theme, masks, kinds, SubjectMask.version) { t, _, _, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
+            combine(theme, masks, kinds, SubjectMask.version, night) { t, _, _, _, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
         }
         // Сменили фото, а глубина уже включена, — сразу ищем объект на новом фото (каждое фото — один раз).
         viewModelScope.launch {
@@ -215,7 +226,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             combine(theme, devices, _targets, masks) { t, d, tg, _ -> t.takeIf { d.watch && tg.watch } }
                 .filterNotNull()
                 .debounce(1_200)
-                .collectLatest { WatchFaceBuilder(app).prebuild(it) }
+                .collectLatest { WatchFaceBuilder(app).prebuild(DayNight.forWatch(it)) }
         }
         if (devices.value.watch) refreshWatch()
         LinkService.ensure(app)
@@ -283,12 +294,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun installPermissionIntent() = updater.installPermissionIntent()
 
-    private suspend fun renderPreviews(t: Theme) = withContext(Dispatchers.Default) {
+    /** Превью — в той версии темы (светлой или тёмной), которая будет видна сейчас; циферблат — всегда тёмный. */
+    private suspend fun renderPreviews(stored: Theme) = withContext(Dispatchers.Default) {
+        val t = DayNight.of(app, stored)
+        val face = DayNight.forWatch(stored)
         // На планшете своё превью — планшет в альбомной ориентации.
         val phone = if (selfTablet) ThemeRenderer.tabletPreview(app, t, 800, 500) else ThemeRenderer.phonePreview(app, t, 540, 1170)
         val lock = if (selfTablet) ThemeRenderer.lockPreview(app, t, 800, 500) else ThemeRenderer.lockPreview(app, t, 540, 1170)
-        val watch = ThemeRenderer.watchPreview(app, t, 450)
-        _ambientPreview.value = ThemeRenderer.watchAmbientPreview(app, t, 240).asImageBitmap()
+        val watch = ThemeRenderer.watchPreview(app, face, 450)
+        _ambientPreview.value = ThemeRenderer.watchAmbientPreview(app, face, 240).asImageBitmap()
         _phonePreview.value = phone.asImageBitmap()
         _lockPreview.value = lock.asImageBitmap()
         _watchPreview.value = watch.asImageBitmap()
@@ -348,42 +362,95 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Цвета темы по снимку: градиент (подложки виджетов), цифры, акцент; [light] — фото светлое. */
+    private class PhotoColors(val gradient: List<Int>, val text: Int, val accent: Int, val light: Boolean)
+
+    private suspend fun photoColors(name: String): PhotoColors = withContext(Dispatchers.Default) {
+        val small = BitmapFactory.decodeFile(repo.photoFile(name).path, BitmapFactory.Options().apply { inSampleSize = 8 })
+        val palette = Palette.from(small).generate()
+        // Палитра пропускает почти белые, почти чёрные и бежевые тона — тогда берём средний цвет снимка.
+        val dominant = palette.dominantSwatch?.rgb ?: average(small)
+        small.recycle()
+        val light = ColorUtils.calculateLuminance(dominant) > 0.6
+        // Акцент — сочный цвет снимка, который на нём читается: на светлом фото не слишком светлый, на тёмном — не тёмный.
+        val accent = listOfNotNull(palette.vibrantSwatch, palette.lightVibrantSwatch, palette.darkVibrantSwatch, palette.mutedSwatch)
+            .map { it.rgb }
+            .firstOrNull { c -> ColorUtils.calculateLuminance(c).let { if (light) it < 0.5 else it > 0.12 } }
+            ?: palette.vibrantSwatch?.rgb ?: palette.lightVibrantSwatch?.rgb ?: dominant
+        val gradient = listOfNotNull(palette.darkMutedSwatch?.rgb ?: dominant, palette.vibrantSwatch?.rgb, palette.lightMutedSwatch?.rgb).distinct()
+        PhotoColors(gradient, if (light) 0xFF1A1A1A.toInt() else 0xFFFFFFFF.toInt(), accent, light)
+    }
+
+    private fun average(bmp: android.graphics.Bitmap): Int {
+        val one = android.graphics.Bitmap.createScaledBitmap(bmp, 1, 1, true)
+        return one.getPixel(0, 0).also { one.recycle() } or 0xFF000000.toInt()
+    }
+
     /**
      * Фото становится фоном. Для рабочего стола под снимок подстраиваются цвета цифр, акцента,
      * виджетов и циферблата; для экрана блокировки и часов меняется только их фон.
      */
     private suspend fun setPhoto(uri: Uri, target: BgTarget) {
-        run {
-            val name = repo.importPhoto(uri)
-            val palette = withContext(Dispatchers.Default) {
-                val small = BitmapFactory.decodeFile(
-                    repo.photoFile(name).path, BitmapFactory.Options().apply { inSampleSize = 8 },
+        val name = repo.importPhoto(uri)
+        val c = photoColors(name)
+        val photo = Background(BackgroundType.PHOTO, c.gradient, photoFile = name)
+        when (target) {
+            // Новое фото — новый объект: часы снова встают сами, кадр фото — по центру.
+            BgTarget.HOME -> update {
+                it.copy(
+                    background = photo,
+                    accentColor = c.accent,
+                    textColor = c.text,
+                    dim = if (c.light) 0f else maxOf(it.dim, 0.15f),
+                    wallClock = it.wallClock?.copy(place = null),
+                    watchTimeShift = null,
+                    watchPhotoCrop = null,
                 )
-                Palette.from(small).generate().also { small.recycle() }
             }
-            val dominant = palette.dominantSwatch?.rgb ?: 0xFF000000.toInt()
-            val accent = palette.vibrantSwatch?.rgb ?: palette.lightVibrantSwatch?.rgb ?: dominant
-            val colors = listOfNotNull(
-                palette.darkMutedSwatch?.rgb ?: dominant, palette.vibrantSwatch?.rgb, palette.lightMutedSwatch?.rgb,
-            ).distinct()
-            val light = ColorUtils.calculateLuminance(dominant) > 0.6
-            val photo = Background(BackgroundType.PHOTO, colors, photoFile = name)
-            when (target) {
-                // Новое фото — новый объект: часы снова встают сами, кадр фото — по центру.
-                BgTarget.HOME -> update {
-                    it.copy(
-                        background = photo,
-                        accentColor = accent,
-                        textColor = if (light) 0xFF1A1A1A.toInt() else 0xFFFFFFFF.toInt(),
-                        dim = if (light) 0f else maxOf(it.dim, 0.15f),
-                        wallClock = it.wallClock?.copy(place = null),
-                        watchTimeShift = null,
-                        watchPhotoCrop = null,
-                    )
-                }
-                BgTarget.LOCK -> update { it.copy(lockBackground = photo, lockDim = it.lockDim ?: it.dim) }
-                BgTarget.WATCH -> update { it.copy(watch = it.watchSettings().copy(background = photo, timeShift = null), watchPhotoCrop = null) }
+            BgTarget.LOCK -> update { it.copy(lockBackground = photo, lockDim = it.lockDim ?: it.dim) }
+            BgTarget.WATCH -> update { it.copy(watch = it.watchSettings().copy(background = photo, timeShift = null), watchPhotoCrop = null) }
+        }
+    }
+
+    /**
+     * Тема из фото в один шаг: снимок — фоном рабочего стола, экрана блокировки и циферблата, цвета цифр,
+     * акцента и виджетов — по нему. Если часы на обоях или циферблат с эффектом глубины, объект на фото
+     * ищется сразу. Тема сохраняется в «Мои темы» и открывается — остаётся нажать «Применить».
+     */
+    fun themeFromPhoto(uri: Uri) = viewModelScope.launch {
+        _busy.value = "Собираю тему из фото…"
+        try {
+            val name = repo.importPhoto(uri)
+            val c = photoColors(name)
+            val base = theme.value
+            val dim = if (c.light) 0f else 0.15f
+            var t = base.copy(
+                name = "Из фото",
+                background = Background(BackgroundType.PHOTO, c.gradient, photoFile = name),
+                textColor = c.text,
+                accentColor = c.accent,
+                dim = dim,
+                lockBackground = null,
+                lockDim = null,
+                wallClock = base.wallClock?.copy(place = null),
+                watch = base.watch?.copy(background = null, textColor = c.text, accentColor = c.accent, dim = dim, timeShift = null),
+                watchTimeShift = null,
+                watchPhotoCrop = null,
+            )
+            val wantsDepth = t.wallClock != null || t.watchSettings().depth
+            if (wantsDepth) {
+                _busy.value = "Ищу главный объект на фото…"
+                val found = runCatching { SubjectMask.ensure(app, name) }.isSuccess
+                if (!found) _messages.tryEmit("Объект на фото не нашёлся сам — его можно обвести пальцем: «Часы на обоях» → «Выбрать объект»")
+                t = t.copy(wallClock = t.wallClock?.copy(depth = found || t.wallClock?.depth == true))
             }
+            val stored = repo.save(t)
+            repo.setDraft(stored)
+            _messages.tryEmit("Тема «${stored.name}» готова и сохранена в «Мои темы» — нажмите «Применить»")
+        } catch (e: Exception) {
+            _messages.tryEmit("Не удалось открыть фото: ${e.message ?: e.javaClass.simpleName}")
+        } finally {
+            _busy.value = null
         }
     }
 

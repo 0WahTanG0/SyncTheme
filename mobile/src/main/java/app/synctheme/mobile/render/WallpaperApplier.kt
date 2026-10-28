@@ -10,8 +10,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object WallpaperApplier {
-    suspend fun apply(context: Context, theme: Theme, home: Boolean, lock: Boolean) = withContext(Dispatchers.Default) {
+    /** Картинкой — светлая или тёмная версия темы по оформлению телефона (см. [DayNight]). */
+    suspend fun apply(context: Context, stored: Theme, home: Boolean, lock: Boolean) = withContext(Dispatchers.Default) {
         if (!home && !lock) return@withContext
+        val theme = DayNight.of(context, stored)
         // Телефон — портрет в реальном разрешении экрана (на S25+ до 1440x3120). Планшет поворачивают:
         // квадрат по длинной стороне, и система вырезает из него и портрет, и альбомную ориентацию.
         val (w, h) = Compat.screen(context).let { (w, h) -> if (DeviceSettings.isTablet(context)) h to h else w to h }
@@ -26,6 +28,7 @@ object WallpaperApplier {
             val bitmap = ThemeRenderer.background(context, theme, w, h)
             manager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
             bitmap.recycle()
+            DayNight.rememberWallpapers(context, home = true, lock = true)
             return@withContext
         }
         if (setHome) {
@@ -38,5 +41,6 @@ object WallpaperApplier {
             manager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
             bitmap.recycle()
         }
+        DayNight.rememberWallpapers(context, home = setHome, lock = lock && !liveLock)
     }
 }

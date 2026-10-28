@@ -52,6 +52,7 @@ import app.synctheme.core.Theme
 import app.synctheme.core.TimeShift
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.Crop
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.ThemeRenderer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.conflate
@@ -101,8 +102,9 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
         snapshotFlow { edited }.conflate().collect { t ->
             preview = withContext(Dispatchers.Default) {
                 when (target) {
-                    ArrangeTarget.HOME -> ThemeRenderer.phonePreview(context, t, PHONE_W, PHONE_H, widgets = false)
-                    ArrangeTarget.WATCH -> ThemeRenderer.watchPreview(context, t, WATCH)
+                    // Цвета — той версии темы (светлой или тёмной), что будет на экране; место от неё не зависит.
+                    ArrangeTarget.HOME -> ThemeRenderer.phonePreview(context, DayNight.of(context, t), PHONE_W, PHONE_H, widgets = false)
+                    ArrangeTarget.WATCH -> ThemeRenderer.watchPreview(context, DayNight.forWatch(t), WATCH)
                 }.asImageBitmap()
             }
         }

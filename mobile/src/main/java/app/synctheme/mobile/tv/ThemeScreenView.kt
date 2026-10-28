@@ -9,6 +9,7 @@ import android.os.Looper
 import android.view.View
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.ThemeRenderer
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -61,7 +62,7 @@ class ThemeScreenView(context: Context) : View(context) {
 
     /** Тема сменилась — перерисовать обои; иначе только время. */
     private fun refresh() {
-        val t = repo.applied.value
+        val t = DayNight.of(context, repo.applied.value)
         if (t != theme || layers == null) {
             theme = t
             render(t)

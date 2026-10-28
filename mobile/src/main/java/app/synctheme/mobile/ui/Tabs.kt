@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import app.synctheme.mobile.widget.WidgetSize
 import app.synctheme.mobile.widget.WidgetPreview
 import app.synctheme.mobile.widget.WidgetConfig
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.data.WeatherRepository
 import androidx.compose.ui.platform.LocalContext
@@ -75,6 +76,7 @@ import app.synctheme.core.DialStyle
 import app.synctheme.core.DigitFont
 import app.synctheme.core.Presets
 import app.synctheme.core.Theme
+import app.synctheme.core.ThemeMode
 import app.synctheme.mobile.watch.TimeCheck
 import app.synctheme.mobile.watch.TimeCheckResult
 import app.synctheme.mobile.util.CrashLog
@@ -99,7 +101,18 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
     if (!lock) {
         item {
             val saved by a.vm.saved.collectAsStateWithLifecycle()
-            ThemeStrip(saved, theme.id, onPhoto = { a.pickPhoto(BgTarget.HOME) }, onSelect = a.vm::select, onDelete = a.vm::delete)
+            ThemeStrip(saved, theme.id, onPhoto = a.themeFromPhoto, onSelect = a.vm::select, onDelete = a.vm::delete)
+        }
+        item {
+            ExpandableSection("Светлая и тёмная", summary = theme.mode.title) {
+                // Все четыре варианта видны сразу: на узком экране переносятся на вторую строку.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ThemeMode.entries.forEach { m ->
+                        FilterChip(selected = theme.mode == m, onClick = { a.vm.update { it.copy(mode = m) } }, label = { Text(m.title) })
+                    }
+                }
+                Text(modeHint(theme.mode), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         item {
             ExpandableSection("Фон", summary = backgroundSummary(theme.background, theme.dim)) {
@@ -175,6 +188,14 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
     }
 }
 
+private fun modeHint(mode: ThemeMode): String = when (mode) {
+    ThemeMode.ORIGINAL -> "Цвета — ровно как в теме."
+    ThemeMode.LIGHT -> "Светлые фон и подложки виджетов, тёмные цифры. Тёмное фото — под светлой вуалью."
+    ThemeMode.DARK -> "Приглушённый фон, затемнённое фото, белые цифры — спокойно вечером и экономит заряд."
+    ThemeMode.AUTO -> "Днём — светлая, когда на телефоне включена тёмная тема — тёмная. Обои и виджеты переключаются сами, " +
+        "циферблат часов всегда тёмный."
+}
+
 private fun backgroundSummary(bg: Background, dim: Float): String {
     val type = when (bg.type) {
         BackgroundType.AURORA -> "Аврора"
@@ -195,7 +216,7 @@ private fun SwatchPair(text: Int, accent: Int) {
     }
 }
 
-/** Лента тем: «+ Фото» из галереи, свои темы и готовые. */
+/** Лента тем: «Из фото» — новая тема из снимка в один шаг, и свои темы. */
 @Composable
 private fun ThemeStrip(
     saved: List<Theme>, selectedId: String,
@@ -205,8 +226,8 @@ private fun ThemeStrip(
     Column(Modifier.padding(vertical = 6.dp)) {
         Text(look.title("Мои темы"), style = look.sectionTitle, color = look.text)
         Text(
-            if (saved.isEmpty()) "Своих тем пока нет. Нажмите «Фото» или настройте фон и цвета ниже, затем «Сохранить как свою тему» — тема появится здесь."
-            else "Нажмите тему или «Фото» — обои, виджеты и циферблат подстроятся под цвета.",
+            if (saved.isEmpty()) "Нажмите «Из фото» — тема соберётся из снимка сама: фон, цвета цифр, виджетов и циферблата. Или настройте всё ниже и «Сохранить как свою тему»."
+            else "Нажмите тему или «Из фото» — новая тема из снимка в один шаг.",
             style = MaterialTheme.typography.bodySmall, color = look.muted,
         )
         Spacer(Modifier.height(8.dp))
@@ -218,7 +239,7 @@ private fun ThemeStrip(
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Default.Add, contentDescription = null, tint = look.onPrimary, modifier = Modifier.size(30.dp)) }
                     Spacer(Modifier.height(4.dp))
-                    Text("Фото", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                    Text("Из фото", style = MaterialTheme.typography.labelMedium, maxLines = 1)
                 }
             }
             items(saved, key = { "s" + it.id }) { t ->
@@ -255,7 +276,7 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
         val look = LocalLook.current
         val context = LocalContext.current
         val weather = remember { WeatherRepository(context).cached }
-        val wallpaper = remember(theme.background, theme.dim) { ThemeRenderer.background(context, theme, 360, 360).asImageBitmap() }
+        val wallpaper = remember(theme) { ThemeRenderer.background(context, DayNight.of(context, theme), 360, 360).asImageBitmap() }
         Column(Modifier.padding(vertical = 6.dp)) {
             Text(look.title("Добавить виджет"), style = look.sectionTitle, color = look.text)
             Text(

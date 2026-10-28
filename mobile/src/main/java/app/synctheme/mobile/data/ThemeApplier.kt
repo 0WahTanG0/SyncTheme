@@ -2,6 +2,7 @@ package app.synctheme.mobile.data
 
 import android.content.Context
 import app.synctheme.core.Theme
+import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.DepthMasks
 import app.synctheme.mobile.render.WallpaperApplier
 import app.synctheme.mobile.watch.WatchFaceBuilder
@@ -32,6 +33,8 @@ class ThemeApplier(private val context: Context) {
             DepthMasks.ensureFor(context, t).forEach { errors += "глубина: $it" }
         }
         repo.setApplied(t)
+        // «Как в системе» — дальше обои и виджеты сами переходят между светлой и тёмной версией.
+        DayNight.ensure(context)
         suspend fun step(label: String, busy: String, block: suspend () -> Unit) {
             progress(busy)
             try {
@@ -45,8 +48,9 @@ class ThemeApplier(private val context: Context) {
         // Обычно циферблат уже собран заранее (пока тему настраивали), и он сразу уходит на часы.
         val watch = if (!targets.watch) null else async {
             runCatching {
-                val built = WatchFaceBuilder(context).build(t)
-                WatchSync(context).push(t, built)
+                val face = DayNight.forWatch(t)
+                val built = WatchFaceBuilder(context).build(face)
+                WatchSync(context).push(face, built)
                 WatchStatusStore.markPending(t.name)
             }
         }

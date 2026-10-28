@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.render.DayNight
 import kotlin.math.roundToInt
 import kotlinx.serialization.json.Json
 
@@ -82,7 +83,7 @@ class FolderDrawActivity : ComponentActivity() {
         val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
         val config = intent.getStringExtra(EXTRA_CONFIG)?.let { runCatching { Json.decodeFromString(WidgetConfig.serializer(), it) }.getOrNull() }
             ?: WidgetUpdater.config(this, widgetId, WidgetKind.APPS)
-        val theme = ThemeRepository.get(this).applied.value
+        val theme = DayNight.of(this, ThemeRepository.get(this).applied.value)
         onBackPressedDispatcher.addCallback(this) { done(null, widgetId) }
         setContent {
             FolderDrawOverlay(config, theme, onCancel = { done(null, widgetId) }) { line -> done(line, widgetId) }
