@@ -324,7 +324,7 @@ class FeaturesTest {
         val d = context.resources.displayMetrics.density
         val shapes = listOf(41 to 400, 96 to 400, 60 to 150, 75 to 75, 140 to 60, 300 to 60, 150 to 150, 300 to 105, 300 to 300)
         val theme = Presets.all[0]
-        for (family in listOf("bold", "glass", "neon", "blob", "minimal")) {
+        for (family in listOf("glass", "poster", "neon", "paper", "board")) {
             val kinds = WidgetKind.entries
             val gap = (10 * d).toInt()
             val rowH = (400 * d).toInt()
@@ -333,8 +333,7 @@ class FeaturesTest {
             val canvas = Canvas(sheet)
             canvas.drawColor(0xFF202024.toInt())
             kinds.forEachIndexed { r, kind ->
-                val style = kind.styles.firstOrNull { it.id == family }?.id
-                    ?: if (kind == WidgetKind.APPS) mapOf("bold" to "flower", "blob" to "cookie").getValue(family) else kind.defaultStyle
+                val style = family
                 val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
                 var x = gap
                 for ((w, h) in shapes) {
@@ -369,7 +368,7 @@ class FeaturesTest {
         val d = context.resources.displayMetrics.density
         val shapes = listOf(360 to 85, 41 to 625, 60 to 150, 56 to 330, 85 to 365, 96 to 625)
         val theme = Presets.all[0]
-        for (family in listOf("bold", "glass", "neon", "blob", "minimal")) {
+        for (family in listOf("glass", "poster", "neon", "paper", "board")) {
             val kinds = WidgetKind.entries
             val gap = (10 * d).toInt()
             val rowH = (625 * d).toInt()
@@ -378,8 +377,7 @@ class FeaturesTest {
             val canvas = Canvas(sheet)
             canvas.drawColor(0xFF202024.toInt())
             kinds.forEachIndexed { r, kind ->
-                val style = kind.styles.firstOrNull { it.id == family }?.id
-                    ?: if (kind == WidgetKind.APPS) mapOf("bold" to "flower", "blob" to "cookie").getValue(family) else kind.defaultStyle
+                val style = family
                 val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
                 var x = gap
                 for ((w, h) in shapes) {

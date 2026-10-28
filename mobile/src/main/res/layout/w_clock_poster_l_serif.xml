@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widgets.py — не редактировать вручную. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg_s"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/wbg_r10"
+        android:importantForAccessibility="no"
+        android:tint="#E61B1B24" />
+
+    <LinearLayout
+        android:id="@+id/box_al"
+        android:paddingHorizontal="18dp"
+        android:paddingVertical="14dp"
+        android:clipChildren="false"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <FrameLayout
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:layout_width="match_parent">
+
+            <TextClock
+                android:id="@+id/m_hours_al"
+                android:layout_marginTop="-59dp"
+                android:layout_marginBottom="-47dp"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:format12Hour="hh"
+                android:format24Hour="HH"
+                android:fontFamily="@font/dm_serif"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="30sp"
+                android:autoSizeMaxTextSize="500sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/tih_m_hours_al_s"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="-59dp"
+                android:layout_marginBottom="-47dp"
+                android:scaleType="fitStart"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/tih_m_hours_al_c"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="-59dp"
+                android:layout_marginBottom="-47dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/tih_m_hours_al_e"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="-59dp"
+                android:layout_marginBottom="-47dp"
+                android:scaleType="fitEnd"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:layout_width="match_parent">
+
+            <TextClock
+                android:id="@+id/a_minutes_al"
+                android:layout_marginTop="-59dp"
+                android:layout_marginBottom="-47dp"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:format12Hour="mm"
+                android:format24Hour="mm"
+                android:fontFamily="@font/dm_serif"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="30sp"
+                android:autoSizeMaxTextSize="500sp"
+                android:autoSizeStepGranularity="1sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <ImageView
+                android:id="@+id/tim_a_minutes_al_s"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="-59dp"
+                android:layout_marginBottom="-47dp"
+                android:scaleType="fitStart"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/tim_a_minutes_al_c"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="-59dp"
+                android:layout_marginBottom="-47dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/tim_a_minutes_al_e"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="-59dp"
+                android:layout_marginBottom="-47dp"
+                android:scaleType="fitEnd"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+
+        <TextClock
+            android:id="@+id/m_date_al"
+            android:layout_marginTop="6dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:format12Hour="EEEE, d MMMM"
+            android:format24Hour="EEEE, d MMMM"
+            android:fontFamily="sans-serif-condensed"
+            android:textSize="18sp"
+            android:textAllCaps="true"
+            android:letterSpacing="0.04"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+        <LinearLayout
+            android:id="@+id/row_alarm"
+            android:layout_width="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/is_alarm"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/wic_alarm"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/s_alarm"
+                android:layout_marginStart="5dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="start"
+                android:fontFamily="sans-serif-condensed"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

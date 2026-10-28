@@ -333,7 +333,7 @@ class ScreenshotTest {
         val out = File(System.getProperty("previewsDir")!!, "screen_widget_config.png")
         captureRoboImage(out.absolutePath) {
             AppTheme(theme.accentColor) {
-                WidgetConfigScreen(WidgetKind.WEATHER, WidgetConfig(style = "blob", opacity = 0.5f), theme, onCancel = {}) {}
+                WidgetConfigScreen(WidgetKind.WEATHER, WidgetConfig(style = "paper", opacity = 0.5f), theme, onCancel = {}) {}
             }
         }
     }

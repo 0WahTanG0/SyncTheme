@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.synctheme.core.DigitFont
+import app.synctheme.core.DigitFonts
 
 /** Шрифт цифр как FontFamily для Compose: файл из res/font или системный тонкий. */
 @SuppressLint("DiscouragedApi")
@@ -36,14 +37,14 @@ fun DigitFont.family(context: Context): FontFamily {
 }
 
 /**
- * Выбор шрифта цифр — одной прокручиваемой строкой: «Как в стиле» и все шрифты, каждый показан
+ * Выбор шрифта цифр — одной прокручиваемой строкой: «Как в стиле» и шесть шрифтов, каждый показан
  * своими цифрами. selected == null — шрифт по умолчанию для стиля (styleDefault).
  */
 @Composable
 fun DigitFontPicker(selected: DigitFont?, styleDefault: DigitFont, onPick: (DigitFont?) -> Unit) {
     val context = LocalContext.current
     val families = remember { DigitFont.entries.associateWith { it.family(context) } }
-    val options: List<DigitFont?> = listOf(null) + DigitFont.entries
+    val options: List<DigitFont?> = listOf(null) + DigitFonts.choices
     // Строка сразу прокручена к выбранному шрифту.
     val state = rememberLazyListState(initialFirstVisibleItemIndex = (options.indexOf(selected) - 1).coerceAtLeast(0))
     LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -45,7 +45,7 @@
                 android:gravity="start"
                 android:format12Hour="LLLL yyyy"
                 android:format24Hour="LLLL yyyy"
-                android:fontFamily="@font/unbounded_500"
+                android:fontFamily="sans-serif-light"
                 android:textSize="14sp"
                 android:textAllCaps="true"
                 android:letterSpacing="0.04"
@@ -75,7 +75,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/unbounded_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -88,7 +88,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/unbounded_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -101,7 +101,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/unbounded_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -114,7 +114,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/unbounded_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -127,7 +127,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/unbounded_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -140,7 +140,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/unbounded_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -153,7 +153,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/unbounded_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -179,7 +179,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -188,7 +188,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -206,7 +206,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -215,7 +215,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -233,7 +233,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -242,7 +242,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -260,7 +260,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -269,7 +269,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -287,7 +287,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -296,7 +296,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -314,7 +314,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -323,7 +323,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -341,7 +341,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -350,7 +350,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -376,7 +376,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -385,7 +385,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -403,7 +403,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -412,7 +412,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -430,7 +430,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -439,7 +439,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -457,7 +457,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -466,7 +466,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -484,7 +484,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -493,7 +493,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -511,7 +511,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -520,7 +520,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -538,7 +538,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -547,7 +547,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -573,7 +573,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -582,7 +582,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -600,7 +600,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -609,7 +609,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -627,7 +627,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -636,7 +636,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -654,7 +654,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -663,7 +663,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -681,7 +681,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -690,7 +690,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -708,7 +708,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -717,7 +717,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -735,7 +735,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -744,7 +744,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -770,7 +770,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -779,7 +779,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -797,7 +797,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -806,7 +806,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -824,7 +824,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -833,7 +833,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -851,7 +851,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -860,7 +860,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -878,7 +878,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -887,7 +887,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -905,7 +905,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -914,7 +914,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -932,7 +932,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -941,7 +941,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -967,7 +967,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -976,7 +976,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -994,7 +994,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1003,7 +1003,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1021,7 +1021,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1030,7 +1030,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1048,7 +1048,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1057,7 +1057,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1075,7 +1075,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1084,7 +1084,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1102,7 +1102,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1111,7 +1111,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1129,7 +1129,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1138,7 +1138,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1164,7 +1164,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1173,7 +1173,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1191,7 +1191,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1200,7 +1200,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1218,7 +1218,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1227,7 +1227,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1245,7 +1245,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1254,7 +1254,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1272,7 +1272,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1281,7 +1281,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1299,7 +1299,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1308,7 +1308,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1326,7 +1326,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wfx_ring_small"
                         android:importantForAccessibility="no" />
 
@@ -1335,7 +1335,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/onest_500"
+                        android:fontFamily="sans-serif-light"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1382,7 +1382,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="start"
-                    android:fontFamily="@font/onest_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -1419,7 +1419,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="start"
-                    android:fontFamily="@font/onest_500"
+                    android:fontFamily="sans-serif-light"
                     android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -1433,7 +1433,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="start"
-            android:fontFamily="@font/onest_500"
+            android:fontFamily="sans-serif-light"
             android:textSize="11sp"
             android:maxLines="1"
             android:ellipsize="end"

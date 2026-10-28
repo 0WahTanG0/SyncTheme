@@ -35,7 +35,7 @@
                 android:gravity="start"
                 android:format12Hour="LLLL yyyy"
                 android:format24Hour="LLLL yyyy"
-                android:fontFamily="@font/manrope_700"
+                android:fontFamily="sans-serif-medium"
                 android:textSize="14sp"
                 android:letterSpacing="0.04"
                 android:maxLines="1"
@@ -64,7 +64,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/manrope_700"
+                    android:fontFamily="sans-serif-medium"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -77,7 +77,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/manrope_700"
+                    android:fontFamily="sans-serif-medium"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -90,7 +90,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/manrope_700"
+                    android:fontFamily="sans-serif-medium"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -103,7 +103,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/manrope_700"
+                    android:fontFamily="sans-serif-medium"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -116,7 +116,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/manrope_700"
+                    android:fontFamily="sans-serif-medium"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -129,7 +129,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/manrope_700"
+                    android:fontFamily="sans-serif-medium"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -142,7 +142,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:fontFamily="@font/manrope_700"
+                    android:fontFamily="sans-serif-medium"
                     android:textSize="10sp"
                     android:textAllCaps="true"
                     android:maxLines="1"
@@ -168,7 +168,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -177,7 +177,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -195,7 +195,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -204,7 +204,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -222,7 +222,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -231,7 +231,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -249,7 +249,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -258,7 +258,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -276,7 +276,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -285,7 +285,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -303,7 +303,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -312,7 +312,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -330,7 +330,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -339,7 +339,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -365,7 +365,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -374,7 +374,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -392,7 +392,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -401,7 +401,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -419,7 +419,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -428,7 +428,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -446,7 +446,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -455,7 +455,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -473,7 +473,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -482,7 +482,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -500,7 +500,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -509,7 +509,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -527,7 +527,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -536,7 +536,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -562,7 +562,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -571,7 +571,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -589,7 +589,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -598,7 +598,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -616,7 +616,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -625,7 +625,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -643,7 +643,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -652,7 +652,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -670,7 +670,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -679,7 +679,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -697,7 +697,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -706,7 +706,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -724,7 +724,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -733,7 +733,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -759,7 +759,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -768,7 +768,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -786,7 +786,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -795,7 +795,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -813,7 +813,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -822,7 +822,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -840,7 +840,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -849,7 +849,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -867,7 +867,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -876,7 +876,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -894,7 +894,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -903,7 +903,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -921,7 +921,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -930,7 +930,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -956,7 +956,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -965,7 +965,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -983,7 +983,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -992,7 +992,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1010,7 +1010,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1019,7 +1019,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1037,7 +1037,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1046,7 +1046,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1064,7 +1064,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1073,7 +1073,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1091,7 +1091,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1100,7 +1100,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1118,7 +1118,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1127,7 +1127,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1153,7 +1153,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1162,7 +1162,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1180,7 +1180,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1189,7 +1189,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1207,7 +1207,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1216,7 +1216,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1234,7 +1234,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1243,7 +1243,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1261,7 +1261,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1270,7 +1270,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1288,7 +1288,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1297,7 +1297,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1315,7 +1315,7 @@
                         android:visibility="gone"
                         android:layout_width="26dp"
                         android:layout_height="26dp"
-                        android:scaleType="fitCenter"
+                        android:scaleType="fitXY"
                         android:src="@drawable/wdot"
                         android:importantForAccessibility="no" />
 
@@ -1324,7 +1324,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:fontFamily="@font/manrope_600"
+                        android:fontFamily="sans-serif"
                         android:textSize="12sp"
                         android:maxLines="1"
                         android:ellipsize="end"
@@ -1371,7 +1371,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="start"
-                    android:fontFamily="@font/manrope_600"
+                    android:fontFamily="sans-serif"
                     android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -1408,7 +1408,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="start"
-                    android:fontFamily="@font/manrope_600"
+                    android:fontFamily="sans-serif"
                     android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -1422,7 +1422,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="start"
-            android:fontFamily="@font/manrope_600"
+            android:fontFamily="sans-serif"
             android:textSize="11sp"
             android:maxLines="1"
             android:ellipsize="end"

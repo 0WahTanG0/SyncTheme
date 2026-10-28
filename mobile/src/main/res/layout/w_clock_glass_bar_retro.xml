@@ -65,7 +65,7 @@
             android:gravity="center"
             android:format12Hour="EEE, d MMM"
             android:format24Hour="EEE, d MMM"
-            android:fontFamily="@font/manrope_600"
+            android:fontFamily="sans-serif"
             android:autoSizeTextType="uniform"
             android:autoSizeMinTextSize="7sp"
             android:autoSizeMaxTextSize="12sp"

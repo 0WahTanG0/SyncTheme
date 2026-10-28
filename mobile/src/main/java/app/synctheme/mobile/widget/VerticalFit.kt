@@ -53,13 +53,17 @@ internal object VerticalFit {
     /** Размеры текста в долях кегля: ширина, поля над и под «чернилами», высота «чернил». */
     private class Em(val advance: Float, val above: Float, val below: Float, val ink: Float)
 
-    /** Главный шрифт стиля — тот же, что в разметке (FONTS["main"] в gen_widgets.py). */
-    private fun mainFont(family: String): DigitFont = when (family) {
-        "bold" -> DigitFont.NARROW
-        "blob" -> DigitFont.ROUND
-        "glass" -> DigitFont.GROTESK
-        "neon" -> DigitFont.WIDE
-        else -> DigitFont.THIN
+    /** Главный шрифт стиля (число месяца, температура, заряд) — тот же системный, что в разметке (FONTS["main"] в gen_widgets.py). */
+    private fun mainFont(family: String): Typeface = synchronized(typefaces) {
+        typefaces.getOrPut("main_$family") {
+            when (family) {
+                "poster" -> Typeface.create("sans-serif-condensed", Typeface.BOLD)
+                "neon" -> Typeface.create("sans-serif-thin", Typeface.NORMAL)
+                "paper" -> Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+                "board" -> Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                else -> Typeface.create("sans-serif-light", Typeface.NORMAL)
+            }
+        }
     }
 
     fun typeface(context: Context, font: DigitFont): Typeface = synchronized(typefaces) {
@@ -74,10 +78,13 @@ internal object VerticalFit {
      * Метрики текста. Для цифр (digits = true) — самая широкая пара цифр и общая высота всех цифр:
      * часы, минуты и число месяца меняются, а кегль должен подходить всем.
      */
-    private fun measure(context: Context, font: DigitFont, text: String, digits: Boolean): Em = synchronized(metrics) {
-        metrics.getOrPut("${font.name}|$digits|${if (digits) "" else text}") {
+    private fun measure(context: Context, font: DigitFont, text: String, digits: Boolean): Em =
+        measure(font.name, typeface(context, font), text, digits)
+
+    private fun measure(key: String, face: Typeface, text: String, digits: Boolean): Em = synchronized(metrics) {
+        metrics.getOrPut("$key|$digits|${if (digits) "" else text}") {
             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                typeface = typeface(context, font)
+                typeface = face
                 textSize = 100f
             }
             val fm = p.fontMetrics
@@ -138,7 +145,7 @@ internal object VerticalFit {
                 if (alarm && !tall) rv.setTextViewText(R.id.s_alarm, content.alarm!!.substringAfterLast(' '))
             }
             WidgetKind.CALENDAR -> {
-                val em = measure(context, mainFont(family), "", digits = true)
+                val em = measure("main_$family", mainFont(family), "", digits = true)
                 val head = 2 * sp(spec.labelBox) + spec.gap
                 val s = fit(em, h - head)
                 main(R.id.m_day, s, em, top = spec.gap, bottom = 2f)
@@ -153,7 +160,7 @@ internal object VerticalFit {
                 show(R.id.if_line, rows > 0 || hint)
             }
             WidgetKind.WEATHER -> {
-                val em = measure(context, mainFont(family), content.main, digits = false)
+                val em = measure("main_$family", mainFont(family), content.main, digits = false)
                 val head = spec.icon + spec.gap + sp(spec.smallBox) + if (tall) sp(spec.cityBox) + sp(spec.descBox) else 0f
                 val s = fit(em, h - head)
                 main(R.id.m_temp, s, em, top = spec.gap, bottom = 2f)
@@ -166,7 +173,7 @@ internal object VerticalFit {
                 show(R.id.if_line, rows > 0)
             }
             WidgetKind.BATTERY -> {
-                val em = measure(context, mainFont(family), content.main, digits = false)
+                val em = measure("main_$family", mainFont(family), content.main, digits = false)
                 val bolt = if (!tall && content.charging) 14f else 0f
                 val state = sp(spec.stateBox)
                 var extras = if (tall) sp(spec.extraBox) * (1 + if (content.remain) 1 else 0) else 0f

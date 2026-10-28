@@ -45,24 +45,78 @@ import kotlin.math.roundToInt
 object WidgetRenderer {
     private const val WHITE = 0xFFFFFFFF.toInt()
 
-    /** Цвета по ролям элементов разметки. */
+    private const val INK = 0xFF2B2622.toInt()
+    private const val PAPER = 0xFFF6F1E6.toInt()
+    private const val BOARD = 0xFF161619.toInt()
+
+    /**
+     * Цвета по ролям элементов разметки. У каждого стиля свои: «Стекло» и «Неон» — в цветах темы,
+     * «Плакат» — фон цвета акцента и контрастный к нему текст, «Бумага» — чернила на кремовом листе,
+     * «Табло» — светящиеся цифры цвета акцента на графите. Свои цвета виджета ([WidgetConfig]) — важнее.
+     */
     private class Palette(theme: Theme, config: WidgetConfig, family: String, accentBackground: Boolean) {
-        val main = config.textColor ?: theme.textColor
-        val accent = config.accentColor ?: theme.accentColor
-        val sub = Colors.withAlpha(main, 0.72f)
-        val faint = Colors.withAlpha(main, 0.3f)
-        val label = if (family == "neon") ColorUtils.blendARGB(accent, WHITE, 0.35f) else accent
-        val onAccent = if (Colors.isLight(accent)) 0xFF141414.toInt() else WHITE
+        val main: Int
+        val accent: Int
+        val label: Int
+        val bg: Int
+        val onAccent: Int
+
+        init {
+            val text = config.textColor ?: theme.textColor
+            val themeAccent = config.accentColor ?: theme.accentColor
+            when (family) {
+                "poster" -> {
+                    val ink = if (Colors.isLight(themeAccent)) 0xFF111111.toInt() else WHITE
+                    bg = themeAccent
+                    main = config.textColor ?: ink
+                    accent = main
+                    label = main
+                    onAccent = themeAccent
+                }
+                "paper" -> {
+                    // Акцент на бумаге — как чернила: глубокий, не кричащий.
+                    val deep = if (ColorUtils.calculateLuminance(themeAccent) > 0.2) ColorUtils.blendARGB(themeAccent, 0xFF000000.toInt(), 0.35f) else themeAccent
+                    bg = PAPER
+                    main = config.textColor ?: INK
+                    accent = deep
+                    label = deep
+                    onAccent = PAPER
+                }
+                "board" -> {
+                    // Огоньки табло: цвет акцента, высветленный, чтобы гореть на графите.
+                    val led = if (ColorUtils.calculateLuminance(themeAccent) < 0.3) ColorUtils.blendARGB(themeAccent, WHITE, 0.45f) else themeAccent
+                    bg = BOARD
+                    main = config.textColor ?: led
+                    accent = led
+                    label = led
+                    onAccent = BOARD
+                }
+                "neon" -> {
+                    // Неон горит только на тёмном: цифры светлые и у светлых тем.
+                    bg = 0xFF0B0B12.toInt()
+                    main = config.textColor ?: if (Colors.isLight(text)) text else 0xFFF4F4FA.toInt()
+                    accent = themeAccent
+                    label = ColorUtils.blendARGB(themeAccent, WHITE, 0.35f)
+                    onAccent = if (Colors.isLight(themeAccent)) 0xFF141414.toInt() else WHITE
+                }
+                else -> {
+                    bg = Colors.widgetSurface(theme)
+                    main = text
+                    accent = themeAccent
+                    label = themeAccent
+                    onAccent = if (Colors.isLight(themeAccent)) 0xFF141414.toInt() else WHITE
+                }
+            }
+        }
+
+        /** Подписи «Табло» — белые приглушённые, на остальных — цвет текста приглушённый. */
+        val sub = if (family == "board") Colors.withAlpha(WHITE, 0.62f) else Colors.withAlpha(main, 0.72f)
+        val faint = if (family == "board") Colors.withAlpha(WHITE, 0.28f) else Colors.withAlpha(main, 0.3f)
         /** Текст на фигуре: если сама фигура почти прозрачна, он стоит прямо на обоях. */
         val on = if (accentBackground && config.opacity < 0.5f) main else onAccent
         val onSub = Colors.withAlpha(on, 0.75f)
-        private val surface = Colors.widgetSurface(theme)
-        val bg = when (family) {
-            "blob" -> ColorUtils.blendARGB(surface, accent, 0.3f) or 0xFF000000.toInt()
-            "neon" -> 0xFF0B0B12.toInt()
-            else -> surface
-        }
-        val alpha = (config.opacity.coerceIn(0f, 1f) * 255).roundToInt()
+        /** Плакат, неон, лист бумаги и табло совсем прозрачными не становятся — без фона стиль теряется. */
+        val alpha = config.opacity.coerceIn(0f, 1f).let { o -> SOLID[family]?.let { min -> min + (1 - min) * o } ?: o }.times(255).roundToInt()
     }
 
     /**
@@ -116,30 +170,17 @@ object WidgetRenderer {
         }
     }
 
-    /** Стиль оформления, к которому относится стиль виджета (для цветов). */
-    fun family(kind: WidgetKind, style: String): String = when {
-        kind == WidgetKind.CLOCK && style.startsWith("analog_") -> when (style) {
-            "analog_blob" -> "blob"
-            "analog_neon" -> "neon"
-            "analog_minimal" -> "minimal"
-            else -> "glass"
-        }
-        kind == WidgetKind.APPS -> when (style) {
-            "glass", "neon", "minimal" -> style
-            else -> "blob"
-        }
-        else -> style
-    }
+    /** Стили со своим фоном (плакат, неон на тёмном, лист бумаги, табло): наименьшая непрозрачность подложки. */
+    private val SOLID = mapOf("poster" to 0.6f, "paper" to 0.88f, "board" to 0.8f, "neon" to 0.7f)
+
+    /** Стиль оформления виджета (для цветов): у всех видов одни и те же пять стилей. */
+    fun family(kind: WidgetKind, style: String): String = kind.style(style).id
 
     fun layoutKey(kind: WidgetKind, config: WidgetConfig, size: WidgetSize): String {
         val style = kind.style(config.style).id
         val base = "${kind.prefix}_${style}_${size.key}"
-        return when {
-            style.startsWith("analog_") -> if (config.showSeconds) base else base + "_ns"
-            // У цифровых часов своя разметка на каждый шрифт цифр.
-            kind == WidgetKind.CLOCK -> base + "_" + config.copy(style = style).digitFont().name.lowercase()
-            else -> base
-        }
+        // У часов своя разметка на каждый шрифт цифр.
+        return if (kind == WidgetKind.CLOCK) base + "_" + config.copy(style = style).digitFont().name.lowercase() else base
     }
 
     /**
@@ -211,10 +252,10 @@ object WidgetRenderer {
         if (scene != null) v.sky(scene, config.opacity)
         when (kind) {
             WidgetKind.CLOCK -> {
-                v.clock(style, data, p)
+                v.clock(data)
                 val font = config.copy(style = style).digitFont()
-                if (!style.startsWith("analog_") && ClockDigits.enabled(context, font)) {
-                    v.digits(context, font, family(kind, style) == "neon", config.align, dp, data, p)
+                if (ClockDigits.enabled(context, font)) {
+                    v.digits(context, font, family(kind, style), config.align, dp, data, p)
                 }
             }
             WidgetKind.CALENDAR -> v.calendar(context, family(kind, style), data, p)
@@ -310,25 +351,20 @@ object WidgetRenderer {
 
         // ------------------------------------------------------------ часы
 
-        fun clock(style: String, data: Data, p: Paints) {
+        fun clock(data: Data) {
             val alarm = data.alarm
             visible("row_alarm", alarm != null)
             if (alarm != null) text("alarm", alarm)
-            if (!style.startsWith("analog_") || !layout.has(R.id.analog) || !Compat.modernWidgets) return
-            val dial: (Palette) -> Int = if (style == "analog_numbers") { c -> c.main } else { c -> c.accent }
-            val hands: (Palette) -> Int = if (style == "analog_blob") { c -> c.onAccent } else { c -> c.main }
-            val second: (Palette) -> Int = if (style == "analog_blob") { c -> c.onAccent } else { c -> c.accent }
-            p.list(rv, R.id.analog, "setDialTintList", dial)
-            p.list(rv, R.id.analog, "setHourHandTintList", hands)
-            p.list(rv, R.id.analog, "setMinuteHandTintList", hands)
-            if (data.config.showSeconds) p.list(rv, R.id.analog, "setSecondHandTintList", second)
         }
 
         /**
          * Цифры выбранным шрифтом: картинка встаёт на место TextClock (в разметке рядом — с теми же
          * размерами), сам TextClock прячется. У выравниваемых цифр три картинки — видна та, что по выравниванию.
          */
-        fun digits(context: Context, font: DigitFont, glow: Boolean, align: WidgetAlign, dp: SizeF, data: Data, p: Paints) {
+        fun digits(context: Context, font: DigitFont, family: String, align: WidgetAlign, dp: SizeF, data: Data, p: Paints) {
+            val glow = family == "neon"
+            // На плашках «Табло» — только сами цифры, без полей шрифта: так они заполняют плашку.
+            val tight = family == "board"
             val side = when (align) {
                 WidgetAlign.START -> 's'
                 WidgetAlign.CENTER -> 'c'
@@ -344,7 +380,7 @@ object WidgetRenderer {
                 if (!show) continue
                 rv.setViewVisibility(t.clock, View.GONE)
                 val text = ClockDigits.text(context, t.format)
-                val bmp = data.digits.getOrPut("$text|$px") { ClockDigits.render(context, font, text, glow, px) }
+                val bmp = data.digits.getOrPut("$text|$px|$tight") { ClockDigits.render(context, font, text, glow, px, tight) }
                 rv.setImageViewBitmap(t.image, bmp)
                 val role = layout.ids.indexOf(t.clock).takeIf { it >= 0 }?.let { layout.roles[2 * it] }
                 p.tint(rv, t.image) {
@@ -387,7 +423,8 @@ object WidgetRenderer {
             if (!layout.has(R.id.m_cd0)) return
             val grid = data.month
             grid.weekdays.forEachIndexed { i, name -> text("wd$i", name.take(2)) }
-            val ownToday = family == "neon" || family == "minimal"
+            // Сегодня: у «Неона» — кольцо, у «Бумаги» — черта под числом; число — цветом подписи, у остальных — на фигуре.
+            val ownToday = family == "neon" || family == "paper"
             grid.cells.forEachIndexed { i, cell ->
                 text("cd$i", cell.day.toString())
                 textColor("cd$i", p) {

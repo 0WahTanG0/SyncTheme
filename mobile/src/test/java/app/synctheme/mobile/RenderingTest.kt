@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.BatteryManager
+import android.util.SizeF
 import android.os.Looper
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -84,7 +85,7 @@ class RenderingTest {
                 val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
                 val variants = kind.styles.map { it.title to WidgetConfig(style = it.id, opacity = 0.45f, apps = apps) } +
                     listOf("Свои настройки" to WidgetConfig(style = kind.defaultStyle, align = WidgetAlign.START, opacity = 0.85f,
-                        showSeconds = false, colorIcons = false, title = "Избранное", apps = apps.take(3), sky = true, scene = false))
+                        colorIcons = false, title = "Избранное", apps = apps.take(3), sky = true, scene = false))
                 val gap = (12 * d).toInt()
                 val cellW = WidgetSize.entries.map { (it.previewW * d).toInt() }
                 val rowH = (WidgetSize.entries.maxOf { it.previewH } * d).toInt()
@@ -111,6 +112,65 @@ class RenderingTest {
                 val all = WidgetRenderer.build(context, kind, variants.first().second, theme, weather)
                 assertTrue(all.apply(activity, FrameLayout(activity)) != null)
             }
+        }
+    }
+
+    /** Пять стилей виджетов рядом — каждый как рабочий стол телефона со всеми видами виджетов. */
+    @Test
+    fun widgetStylesShowcase() {
+        org.robolectric.shadows.ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        val weather = WeatherRepository.parseForecast(
+            javaClass.classLoader!!.getResource("forecast.json")!!.readText(), "Москва", System.currentTimeMillis(),
+        )
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val d = context.resources.displayMetrics.density
+        shadowOf(context.getSystemService(BatteryManager::class.java)).setIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY, 72)
+        // Место на «экране» (dp): вид, размер, x, y, ширина, высота.
+        val slots = listOf(
+            listOf(WidgetKind.CLOCK, WidgetSize.WIDE, 16, 70, 380, 170),
+            listOf(WidgetKind.WEATHER, WidgetSize.M, 16, 256, 182, 182),
+            listOf(WidgetKind.CALENDAR, WidgetSize.M, 214, 256, 182, 182),
+            listOf(WidgetKind.BATTERY, WidgetSize.STRIP, 16, 454, 380, 84),
+            listOf(WidgetKind.CLOCK, WidgetSize.M, 16, 554, 182, 182),
+            listOf(WidgetKind.APPS, WidgetSize.M, 214, 554, 182, 182),
+            listOf(WidgetKind.CALENDAR, WidgetSize.STRIP, 16, 752, 380, 84),
+        )
+        for (theme in listOf(Presets.all[0], Presets.all.first { it.id == "sakura" })) {
+            val pw = (412 * d).toInt()
+            val ph = (860 * d).toInt()
+            val gap = (24 * d).toInt()
+            val styles = WidgetKind.CLOCK.styles
+            val sheet = Bitmap.createBitmap(styles.size * (pw + gap) + gap, ph + 2 * gap, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(sheet)
+            canvas.drawColor(0xFF111114.toInt())
+            val label = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFFFFFF.toInt()
+                textSize = 22 * d
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            styles.forEachIndexed { i, style ->
+                val screen = ThemeRenderer.background(context, theme, pw, ph)
+                val c = Canvas(screen)
+                c.drawText(style.title, 20 * d, 44 * d, label)
+                for (slot in slots) {
+                    val kind = slot[0] as WidgetKind
+                    val size = slot[1] as WidgetSize
+                    val (x, y, w, h) = slot.drop(2).map { it as Int }
+                    val apps = if (kind == WidgetKind.APPS) (1..8).map { "com.example.app$it/.Main" } else emptyList()
+                    val views = WidgetRenderer.buildSize(
+                        context, kind, WidgetConfig(style = style.id, opacity = 0.45f, apps = apps), theme, size, weather, SizeF(w.toFloat(), h.toFloat()),
+                    )
+                    val host = FrameLayout(activity)
+                    activity.setContentView(host)
+                    val view = views.apply(activity, host)
+                    host.addView(view)
+                    shadowOf(Looper.getMainLooper()).idle()
+                    val bg = Bitmap.createBitmap(screen, (x * d).toInt(), (y * d).toInt(), (w * d).toInt(), (h * d).toInt())
+                    c.drawBitmap(render(view, w, h, bg), x * d, y * d, null)
+                }
+                canvas.drawBitmap(screen, (gap + i * (pw + gap)).toFloat(), gap.toFloat(), null)
+            }
+            sheet.save("widget_styles_${theme.id}.png")
         }
     }
 
@@ -154,7 +214,7 @@ class RenderingTest {
         }
         weathers.forEachIndexed { c, (code, day) ->
             val w = forecast.copy(now = forecast.now.copy(code = code, isDay = day))
-            draw(WidgetRenderer.buildSize(context, WidgetKind.WEATHER, WidgetConfig(style = "bold", opacity = 0.6f), theme, size, w), 1, c)
+            draw(WidgetRenderer.buildSize(context, WidgetKind.WEATHER, WidgetConfig(style = "poster", opacity = 0.6f), theme, size, w), 1, c)
         }
         sheet.save("widget_skies.png")
     }
@@ -170,7 +230,7 @@ class RenderingTest {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val d = context.resources.displayMetrics.density
         val theme = Presets.all[0]
-        val styles = WidgetKind.CLOCK.styles.filter { !it.id.startsWith("analog_") }
+        val styles = WidgetKind.CLOCK.styles
         for (size in WidgetSize.entries) for (style in styles) for (font in DigitFont.entries) {
             val config = WidgetConfig(style = style.id, font = font.name, align = WidgetAlign.entries[font.ordinal % 3])
             val view = WidgetRenderer.buildSize(context, WidgetKind.CLOCK, config, theme, size).apply(activity, FrameLayout(activity))

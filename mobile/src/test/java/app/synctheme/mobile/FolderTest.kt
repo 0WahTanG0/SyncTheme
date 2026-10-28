@@ -104,7 +104,7 @@ class FolderTest {
             }
         }
         val steps = listOf(0.12f, 0.3f, 0.55f, 0.8f, 1f)
-        val styles = listOf("glass", "neon", "flower", "minimal", "cookie")
+        val styles = listOf("glass", "poster", "neon", "paper", "board")
         // Кадры: строки — анимации, столбцы — моменты раскрытия (лист собирается из файлов).
         FolderAnim.entries.forEachIndexed { r, anim ->
             steps.forEachIndexed { c, p ->

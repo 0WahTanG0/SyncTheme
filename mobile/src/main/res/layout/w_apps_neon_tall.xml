@@ -39,7 +39,7 @@
             android:layout_width="match_parent"
             android:layout_height="17sp"
             android:gravity="center"
-            android:fontFamily="@font/unbounded_500"
+            android:fontFamily="sans-serif-light"
             android:textSize="12sp"
             android:textAllCaps="true"
             android:maxLines="1"

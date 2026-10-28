@@ -55,16 +55,16 @@ enum class ClockStyle {
     val defaultDigitFont: DigitFont?
         get() = when (this) {
             BOLD -> DigitFont.NARROW
-            ORBIT -> DigitFont.SPACE
-            NEON -> DigitFont.TUBE
-            GLASS -> DigitFont.ITALIC
+            ORBIT -> DigitFont.NARROW
+            NEON -> DigitFont.RETRO
+            GLASS -> DigitFont.SERIF
             MINIMAL -> DigitFont.THIN
-            DRUM -> DigitFont.MONO
+            DRUM -> DigitFont.DOTS
             COLUMNS -> DigitFont.SERIF
-            PLANETS -> DigitFont.WIDE
+            PLANETS -> DigitFont.BUBBLE
             MATRIX -> DigitFont.DOTS
             LIQUID -> DigitFont.BUBBLE
-            DIAGONAL -> DigitFont.BLOCK
+            DIAGONAL -> DigitFont.NARROW
             DIGITAL, STACKED, ANALOG, BLOB -> null
         }
 }

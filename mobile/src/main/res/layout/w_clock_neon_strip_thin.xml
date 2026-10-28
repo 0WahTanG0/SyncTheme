@@ -61,7 +61,7 @@
             android:gravity="end|center_vertical"
             android:format12Hour="EEE, d MMM"
             android:format24Hour="EEE, d MMM"
-            android:fontFamily="@font/unbounded_500"
+            android:fontFamily="sans-serif-light"
             android:textSize="12sp"
             android:textAllCaps="true"
             android:letterSpacing="0.06"

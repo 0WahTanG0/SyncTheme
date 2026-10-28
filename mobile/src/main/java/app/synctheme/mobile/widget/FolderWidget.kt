@@ -102,25 +102,29 @@ object FolderWidget {
                 paint.maskFilter = null
                 mark = ColorUtils.blendARGB(accent, 0xFFFFFFFF.toInt(), 0.35f)
             }
-            "flower", "cookie" -> {
-                val shape = context.getDrawable(if (config.style == "flower") R.drawable.wsh_clover else R.drawable.wsh_cookie)!!.mutate()
-                shape.setTint(accent)
-                shape.alpha = (opacity * 255).roundToInt()
-                shape.setBounds(0, 0, px, px)
-                shape.draw(c)
-                if (opacity >= 0.5f) mark = if (Colors.isLight(accent)) 0xFF141414.toInt() else 0xFFFFFFFF.toInt()
+            "poster" -> {
+                // Плакат: квадрат цвета акцента с чуть скруглёнными углами, рисунок — контрастный к нему.
+                paint.color = Colors.withAlpha(accent, 0.55f + 0.45f * opacity)
+                c.drawRoundRect(RectF(s * 0.06f, s * 0.06f, s * 0.94f, s * 0.94f), s * 0.12f, s * 0.12f, paint)
+                mark = config.textColor ?: if (Colors.isLight(accent)) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
             }
-            "capsule" -> {
-                paint.color = Colors.withAlpha(ColorUtils.blendARGB(surface, accent, 0.3f) or 0xFF000000.toInt(), opacity)
-                c.drawCircle(s / 2, s / 2, s * 0.46f, paint)
+            "paper" -> {
+                // Бумага: кремовый квадрат с тенью снизу, рисунок — чернилами.
+                val r = RectF(s * 0.07f, s * 0.05f, s * 0.93f, s * 0.9f)
+                paint.color = Colors.withAlpha(0xFF000000.toInt(), 0.18f * (0.55f + 0.45f * opacity))
+                c.drawRoundRect(RectF(r.left, r.top + s * 0.04f, r.right, r.bottom + s * 0.04f), s * 0.1f, s * 0.1f, paint)
+                paint.color = Colors.withAlpha(0xFFF6F1E6.toInt(), 0.55f + 0.45f * opacity)
+                c.drawRoundRect(r, s * 0.1f, s * 0.1f, paint)
+                mark = config.textColor ?: 0xFF2B2622.toInt()
             }
-            else -> { // «Минимал»: еле заметный круг и тонкий контур.
-                paint.color = Colors.withAlpha(surface, opacity * 0.8f)
-                c.drawCircle(s / 2, s / 2, s * 0.45f, paint)
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = s * 0.012f
-                paint.color = Colors.withAlpha(main, 0.28f)
-                c.drawCircle(s / 2, s / 2, s * 0.45f, paint)
+            else -> {
+                // Табло: графитовая плашка со щелью посередине, рисунок — огоньками цвета акцента.
+                val r = RectF(s * 0.06f, s * 0.06f, s * 0.94f, s * 0.94f)
+                paint.color = Colors.withAlpha(0xFF26262B.toInt(), 0.55f + 0.45f * opacity)
+                c.drawRoundRect(r, s * 0.14f, s * 0.14f, paint)
+                paint.color = Colors.withAlpha(0xFF0C0C0E.toInt(), 0.55f + 0.45f * opacity)
+                c.drawRect(r.left, s / 2 - s * 0.008f, r.right, s / 2 + s * 0.008f, paint)
+                mark = config.textColor ?: if (ColorUtils.calculateLuminance(accent) < 0.3) ColorUtils.blendARGB(accent, 0xFFFFFFFF.toInt(), 0.45f) else accent
             }
         }
         paint.style = Paint.Style.FILL

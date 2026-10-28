@@ -45,13 +45,15 @@ internal object ClockDigits {
      * Строка текста как в TextView без отступов шрифта: высота — от ascent до descent, ширина — по ширине
      * текста. Тогда картинка, вписанная в место TextClock, совпадает с тем, как он подобрал бы кегль.
      * Одноцветная маска (ALPHA_8): цвет даёт фильтр ImageView. [glow] — свечение «Неона».
+     * [tight] — без полей шрифта, только сами цифры (на плашках «Табло» они занимают плашку целиком).
      */
-    fun render(context: Context, font: DigitFont, text: String, glow: Boolean, maxHeightPx: Int): Bitmap {
+    fun render(context: Context, font: DigitFont, text: String, glow: Boolean, maxHeightPx: Int, tight: Boolean = false): Bitmap {
         val lines = text.split('\n')
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = VerticalFit.typeface(context, font)
             textSize = 100f
         }
+        if (tight && lines.size == 1) return renderTight(paint, font, text, glow, maxHeightPx)
         val probe = paint.fontMetrics
         val unit = probe.descent - probe.ascent
         // Две строки («чч» над «мм») — с тем же сжатием межстрочья, что в разметке.
@@ -78,6 +80,26 @@ internal object ClockDigits {
         draw(255)
         return bmp
     }
+
+    /** Одна строка: высота картинки — высота цифр с небольшим запасом, цифры по центру. */
+    private fun renderTight(paint: Paint, font: DigitFont, text: String, glow: Boolean, heightPx: Int): Bitmap {
+        paint.textSize = 0.88f * heightPx / font.digitHeight
+        val size = paint.textSize
+        val width = max(1, ceil(paint.measureText(text)).toInt())
+        val height = max(1, heightPx)
+        val baseline = height / 2f + (font.top + font.bottom) / 2f * size
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8)
+        val canvas = Canvas(bmp)
+        if (glow) {
+            paint.maskFilter = BlurMaskFilter(size * 0.08f, BlurMaskFilter.Blur.NORMAL)
+            paint.alpha = 140
+            canvas.drawText(text, 0f, baseline, paint)
+            paint.maskFilter = null
+        }
+        paint.alpha = 255
+        canvas.drawText(text, 0f, baseline, paint)
+        return bmp
+    }
 }
 
 /**
@@ -102,11 +124,9 @@ object ClockTicker {
         runCatching { am.setExact(AlarmManager.RTC, now - now % 60_000 + 60_000 + 150, pending) }
     }
 
-    /** Есть цифровые часы со шрифтом из ресурсов — им нужны картинки. */
+    /** Есть часы со шрифтом из ресурсов — им нужны картинки. */
     private fun needed(context: Context): Boolean = WidgetUpdater.ids(context, WidgetKind.CLOCK).any { id ->
-        val config = WidgetUpdater.config(context, id, WidgetKind.CLOCK)
-        val style = WidgetKind.CLOCK.style(config.style).id
-        !style.startsWith("analog_") && ClockDigits.enabled(context, config.copy(style = style).digitFont())
+        ClockDigits.enabled(context, WidgetUpdater.config(context, id, WidgetKind.CLOCK).digitFont())
     }
 
     private fun pending(context: Context): PendingIntent = PendingIntent.getBroadcast(

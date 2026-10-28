@@ -22,28 +22,18 @@ LICENSES = os.path.join(ROOT, "mobile", "src", "main", "assets", "licenses", "fo
 KT = os.path.join(ROOT, "core", "src", "main", "kotlin", "app", "synctheme", "core", "DigitFont.kt")
 GF = "https://raw.githubusercontent.com/google/fonts/main/ofl/"
 
+# Шесть шрифтов, разных по форме: узкий гротеск, антиква, рукописный, точечный, пузырчатый и ретро-линии.
 # имя константы, ресурс, подпись, путь в google/fonts, оси
 NEW = [
-    ("BLOCK", "bungee", "Блоки", "bungee/Bungee-Regular.ttf", {}),
-    ("OUTLINE", "bungee_outline", "Контур", "bungeeoutline/BungeeOutline-Regular.ttf", {}),
-    ("DOTS", "doto", "Точки", "doto/Doto%5BROND,wght%5D.ttf", {"wght": 800, "ROND": 100}),
-    ("TUBE", "tilt_neon", "Неон", "tiltneon/TiltNeon%5BXROT,YROT%5D.ttf", {}),
-    ("PIXEL", "pixelify", "Пиксели", "pixelifysans/PixelifySans%5Bwght%5D.ttf", {"wght": 700}),
     ("SERIF", "dm_serif", "Антиква", "dmserifdisplay/DMSerifDisplay-Regular.ttf", {}),
-    ("ITALIC", "instrument_italic", "Курсив", "instrumentserif/InstrumentSerif-Italic.ttf", {}),
-    ("BUBBLE", "dynapuff", "Пузыри", "dynapuff/DynaPuff%5Bwdth,wght%5D.ttf", {"wght": 700, "wdth": 100}),
-    ("MONO", "space_mono", "Моно", "spacemono/SpaceMono-Bold.ttf", {}),
-    ("STENCIL", "stencil", "Трафарет", "bigshouldersstencil/BigShouldersStencil%5Bopsz,wght%5D.ttf", {"wght": 800, "opsz": 72}),
-    ("SPACE", "orbitron", "Космос", "orbitron/Orbitron%5Bwght%5D.ttf", {"wght": 800}),
-    ("RETRO", "monoton", "Ретро", "monoton/Monoton-Regular.ttf", {}),
     ("HAND", "caveat", "Рукопись", "caveat/Caveat%5Bwght%5D.ttf", {"wght": 700}),
+    ("DOTS", "doto", "Точки", "doto/Doto%5BROND,wght%5D.ttf", {"wght": 800, "ROND": 100}),
+    ("BUBBLE", "dynapuff", "Пузыри", "dynapuff/DynaPuff%5Bwdth,wght%5D.ttf", {"wght": 700, "wdth": 100}),
+    ("RETRO", "monoton", "Ретро", "monoton/Monoton-Regular.ttf", {}),
 ]
 # Шрифты, которые уже есть в приложении (полные, с кириллицей).
 EXISTING = [
     ("NARROW", "oswald_700", "Узкий"),
-    ("WIDE", "unbounded_700", "Широкий"),
-    ("ROUND", "nunito_900", "Округлый"),
-    ("GROTESK", "manrope_800", "Гротеск"),
 ]
 TEXT = "0123456789: AMPamp"
 
@@ -108,12 +98,12 @@ kt = ["package app.synctheme.core", "", "import kotlinx.serialization.Serializab
       " * циферблата; null — системный тонкий шрифт. Метрики — в долях кегля: ascent/descent строки,",
       " * верх и низ цифр над базовой линией, ширина цифры и двоеточия.",
       " */",
-      "@Serializable",
+      "@Serializable(with = DigitFontSerializer::class)",
       "enum class DigitFont(",
       "    val res: String?, val title: String,",
       "    val ascent: Float, val descent: Float, val top: Float, val bottom: Float, val digit: Float, val colon: Float,",
       ") {"]
-order = ["NARROW", "WIDE", "ROUND", "GROTESK"] + [r[0] for r in NEW]
+order = ["NARROW"] + [r[0] for r in NEW]
 by = {r[0]: r for r in rows}
 for const in order:
     _, res, title, m = by[const]

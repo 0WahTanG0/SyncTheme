@@ -74,7 +74,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import app.synctheme.core.DigitFont
+import app.synctheme.core.DigitFonts
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.CalendarData
 import app.synctheme.mobile.data.ThemeRepository
@@ -191,9 +191,9 @@ fun WidgetConfigScreen(
         config = config.copy() // перерисовать превью с событиями
     }
     val style = kind.style(config.style).id
-    val analog = style.startsWith("analog_")
-    val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("bold", "glass", "minimal")
-    val digital = kind == WidgetKind.CLOCK && !analog
+    val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("glass", "poster", "paper")
+    // Небо (по погоде или времени суток) — под «Стеклом»: у остальных стилей свой фон.
+    val skyStyle = style == "glass"
 
     // Линия, нарисованная поверх рабочего стола, приходит, когда настройка снова на экране.
     LifecycleResumeEffect(Unit) {
@@ -256,16 +256,14 @@ fun WidgetConfigScreen(
                     }
                 }
             }
-            if (analog) {
-                SwitchRow("Секундная стрелка", config.showSeconds) { config = config.copy(showSeconds = it) }
-            }
+            Text(styleNote(style), style = MaterialTheme.typography.bodySmall, color = look.muted)
         }
     }
-    if (digital) {
+    if (kind == WidgetKind.CLOCK) {
         item {
             Section("Шрифт цифр") {
                 DigitFontPicker(
-                    selected = config.font?.let { f -> DigitFont.entries.firstOrNull { it.name == f } },
+                    selected = DigitFonts.of(config.font),
                     styleDefault = defaultDigitFont(style),
                 ) { font -> config = config.copy(font = font?.name) }
             }
@@ -306,19 +304,18 @@ fun WidgetConfigScreen(
                 }
             }
             if (kind == WidgetKind.CLOCK) {
-                val neon = style == "neon" || style == "analog_neon"
-                SwitchRow("Небо по времени суток", config.sky, enabled = !neon) { config = config.copy(sky = it) }
+                SwitchRow("Небо по времени суток", config.sky, enabled = skyStyle) { config = config.copy(sky = it) }
                 Text(
-                    if (neon) "У «Неона» своё свечение — небо в других стилях."
+                    if (!skyStyle) "Небо — под «Стеклом»: у других стилей свой фон."
                     else "Вместо подложки — небо: рассвет, день, закат, вечер и ночь сменяются сами.",
                     style = MaterialTheme.typography.bodySmall, color = look.muted,
                 )
             }
             if (kind == WidgetKind.WEATHER) {
                 SwitchRow("Цветные иконки погоды", config.colorIcons) { config = config.copy(colorIcons = it) }
-                SwitchRow("Фон по погоде", config.scene, enabled = style != "neon") { config = config.copy(scene = it) }
+                SwitchRow("Фон по погоде", config.scene, enabled = skyStyle) { config = config.copy(scene = it) }
                 Text(
-                    if (style == "neon") "У «Неона» своё свечение — фон по погоде в других стилях."
+                    if (!skyStyle) "Фон по погоде — под «Стеклом»: у других стилей свой фон."
                     else "Небо под текущую погоду: ясно, облачно, дождь, снег, гроза, туман — днём и ночью.",
                     style = MaterialTheme.typography.bodySmall, color = look.muted,
                 )
@@ -622,4 +619,13 @@ private fun Modifier.dashedBorder(color: Color, radius: Dp) = drawBehind {
         color, cornerRadius = CornerRadius(radius.toPx()),
         style = Stroke(width = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx()))),
     )
+}
+
+/** Чем стиль отличается от других — одной строкой под выбором стиля. */
+private fun styleNote(style: String): String = when (style) {
+    "poster" -> "Сплошной цвет акцента и огромные узкие цифры — как афиша."
+    "neon" -> "Светящийся контур и цифры на чёрном."
+    "paper" -> "Кремовый лист с тенью, буквы с засечками — как карточка из блокнота."
+    "board" -> "Графитовая панель: цифры на перекидных плашках, как на вокзальном табло."
+    else -> "Матовое стекло: обои просвечивают, тонкие цифры."
 }

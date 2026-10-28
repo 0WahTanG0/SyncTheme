@@ -240,24 +240,36 @@ private fun stagger(i: Int, n: Int, p: Float, span: Float): Float {
 
 /** Внешний вид папки в стиле виджета. */
 private class FolderLook(config: WidgetConfig, theme: Theme) {
-    val text = Color(config.textColor ?: theme.textColor)
-    val accent = Color(config.accentColor ?: theme.accentColor)
+    private val themeAccent = config.accentColor ?: theme.accentColor
     private val surface = Colors.widgetSurface(theme)
+    val accent = Color(themeAccent)
+    val text: Color = Color(
+        config.textColor ?: when (config.style) {
+            "poster" -> if (Colors.isLight(themeAccent)) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
+            "paper" -> 0xFF2B2622.toInt()
+            "board" -> 0xFFF2F2F2.toInt()
+            else -> theme.textColor
+        },
+    )
     val radius = when (config.style) {
         "glass" -> 34.dp
         "neon" -> 26.dp
-        "minimal" -> 24.dp
-        else -> 38.dp
+        "poster" -> 14.dp
+        "paper" -> 12.dp
+        else -> 18.dp
     }
     val background: Color = when (config.style) {
         "glass" -> Color(Colors.withAlpha(ColorUtils.blendARGB(surface, 0xFFFFFFFF.toInt(), 0.12f), 0.55f))
         "neon" -> Color(0xEE0B0B12)
-        "minimal" -> Color(Colors.withAlpha(surface, 0.94f))
-        else -> Color(Colors.withAlpha(ColorUtils.blendARGB(surface, config.accentColor ?: theme.accentColor, 0.26f), 0.96f))
+        "poster" -> Color(Colors.withAlpha(themeAccent, 0.97f))
+        "paper" -> Color(0xFAF6F1E6)
+        else -> Color(0xF5161619)
     }
     val border: Color? = when (config.style) {
         "glass" -> Color.White.copy(alpha = 0.28f)
         "neon" -> accent
+        "paper" -> Color(0x335A4630)
+        "board" -> Color(0xFF2E2E34)
         else -> null
     }
     val glow = config.style == "neon"

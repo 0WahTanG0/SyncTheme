@@ -70,7 +70,7 @@
             android:gravity="center"
             android:format12Hour="EEE, d MMM"
             android:format24Hour="EEE, d MMM"
-            android:fontFamily="@font/onest_500"
+            android:fontFamily="sans-serif-light"
             android:autoSizeTextType="uniform"
             android:autoSizeMinTextSize="8sp"
             android:autoSizeMaxTextSize="14sp"

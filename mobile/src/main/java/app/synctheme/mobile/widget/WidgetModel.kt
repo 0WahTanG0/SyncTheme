@@ -3,58 +3,51 @@ package app.synctheme.mobile.widget
 import android.content.Context
 import android.util.SizeF
 import app.synctheme.core.DigitFont
+import app.synctheme.core.DigitFonts
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
+/** Пять стилей, общих для всех видов виджетов, — непохожих друг на друга (см. scripts/gen_widgets.py). */
 private val FAMILY_STYLES = listOf(
-    WidgetStyle("bold", "Крупно"),
-    WidgetStyle("blob", "Облако"),
     WidgetStyle("glass", "Стекло"),
+    WidgetStyle("poster", "Плакат"),
     WidgetStyle("neon", "Неон"),
-    WidgetStyle("minimal", "Минимал"),
+    WidgetStyle("paper", "Бумага"),
+    WidgetStyle("board", "Табло"),
+)
+
+/** Стили до 1.21 — самый похожий из новых. */
+private val LEGACY_STYLES = mapOf(
+    "bold" to "poster", "blob" to "poster", "diag" to "board", "minimal" to "paper",
+    "analog_blob" to "poster", "analog_neon" to "neon", "analog_numbers" to "glass", "analog_minimal" to "paper",
+    "flower" to "poster", "cookie" to "poster", "capsule" to "glass",
 )
 
 /** Вид виджета: у каждого свой набор стилей; prefix — начало имён его разметки. */
 enum class WidgetKind(val title: String, val description: String, val prefix: String, val styles: List<WidgetStyle>) {
-    CLOCK(
-        "Часы", "Цифры или стрелки; на большом виджете — дата и будильник", "clock",
-        FAMILY_STYLES + listOf(
-            WidgetStyle("diag", "Диагональ"),
-            WidgetStyle("analog_blob", "Стрелки: облако"),
-            WidgetStyle("analog_neon", "Стрелки: неон"),
-            WidgetStyle("analog_numbers", "Стрелки: цифры"),
-            WidgetStyle("analog_minimal", "Стрелки: минимал"),
-        ),
-    ),
+    CLOCK("Часы", "Время любым из шести шрифтов; на большом виджете — дата и будильник", "clock", FAMILY_STYLES),
     CALENDAR("Календарь", "Число, ближайшие события и месяц", "cal", FAMILY_STYLES),
     WEATHER("Погода", "Сейчас, по часам и на 5 дней", "wx", FAMILY_STYLES),
     BATTERY("Батарея", "Заряд, время до полной зарядки, температура", "bat", FAMILY_STYLES),
-    APPS(
-        "Приложения", "Папка с любимыми приложениями", "apps",
-        listOf(
-            WidgetStyle("flower", "Цветок"),
-            WidgetStyle("cookie", "Печенье"),
-            WidgetStyle("glass", "Стекло"),
-            WidgetStyle("neon", "Неон"),
-            WidgetStyle("capsule", "Капсула"),
-            WidgetStyle("minimal", "Минимал"),
-        ),
-    );
+    APPS("Приложения", "Папка с любимыми приложениями", "apps", FAMILY_STYLES);
 
     val defaultStyle: String get() = styles.first().id
 
-    fun style(id: String): WidgetStyle = styles.firstOrNull { it.id == id } ?: styles.first()
+    /** Стиль по id; стиль прошлых версий — самый похожий из новых, неизвестный — первый. */
+    fun style(id: String): WidgetStyle = (LEGACY_STYLES[id] ?: id).let { key -> styles.firstOrNull { it.id == key } } ?: styles.first()
 }
 
 data class WidgetStyle(val id: String, val title: String)
 
-/** Шрифт цифр, с которым стиль цифровых часов выглядит задуманно. */
+/**
+ * Шрифт цифр, с которым стиль часов выглядит задуманно: тонкие системные цифры на стекле, узкий
+ * гротеск на плакате, светящиеся линии в неоне, антиква на бумаге и точки на табло.
+ */
 fun defaultDigitFont(style: String): DigitFont = when (style) {
-    "blob" -> DigitFont.BUBBLE
-    "glass" -> DigitFont.SERIF
-    "neon" -> DigitFont.TUBE
-    "minimal" -> DigitFont.THIN
-    "diag" -> DigitFont.BLOCK
+    "glass" -> DigitFont.THIN
+    "neon" -> DigitFont.RETRO
+    "paper" -> DigitFont.SERIF
+    "board" -> DigitFont.DOTS
     else -> DigitFont.NARROW
 }
 
@@ -170,8 +163,6 @@ data class WidgetConfig(
     val align: WidgetAlign = WidgetAlign.CENTER,
     /** Непрозрачность подложки 0..1 (0 — без фона). */
     val opacity: Float = 0.35f,
-    /** Секундная стрелка у стрелочных часов. */
-    val showSeconds: Boolean = true,
     /** null — как в теме. */
     val textColor: Int? = null,
     val accentColor: Int? = null,
@@ -216,7 +207,7 @@ data class WidgetConfig(
     /** Приложения раскрываются из папки, а не лежат на виджете. */
     val isFolder get() = folder != FolderMode.ICONS
 
-    fun digitFont(): DigitFont = font?.let { f -> DigitFont.entries.firstOrNull { it.name == f } } ?: defaultDigitFont(style)
+    fun digitFont(): DigitFont = DigitFonts.of(font) ?: defaultDigitFont(style)
 }
 
 /** Хранит настройки каждого виджета по его appWidgetId. */
@@ -229,8 +220,8 @@ object WidgetConfigStore {
         val stored = prefs(context).getString(id.toString(), null)
             ?.let { runCatching { json.decodeFromString(WidgetConfig.serializer(), it) }.getOrNull() }
             ?: return WidgetConfig(style = kind.defaultStyle, opacity = defaultOpacity)
-        // Стили прошлых версий («classic», «big_day» …) заменяются на стиль по умолчанию.
-        return stored.copy(style = kind.style(stored.style).id)
+        // Стили прошлых версий заменяются на самый похожий из новых, шрифты — тоже ([DigitFonts.of]).
+        return stored.copy(style = kind.style(stored.style).id, font = DigitFonts.of(stored.font)?.name)
     }
 
     fun set(context: Context, id: Int, config: WidgetConfig) {

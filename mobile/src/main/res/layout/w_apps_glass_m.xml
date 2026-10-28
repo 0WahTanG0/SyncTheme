@@ -27,7 +27,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:fontFamily="@font/manrope_700"
+            android:fontFamily="sans-serif-medium"
             android:textSize="12sp"
             android:maxLines="1"
             android:ellipsize="end"

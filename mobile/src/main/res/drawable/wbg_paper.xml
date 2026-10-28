@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано scripts/gen_widgets.py — не редактировать вручную. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:top="3dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#2E000000" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <item android:bottom="3dp">
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#FFFAF6EC" android:endColor="#FFF1EADB" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <item android:bottom="3dp" android:left="0.8dp" android:right="0.8dp" android:top="0.8dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="0.8dp" android:color="#1A5A4630" />
+            <corners android:radius="7.5dp" />
+        </shape>
+    </item>
+</layer-list>

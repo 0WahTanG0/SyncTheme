@@ -39,7 +39,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:fontFamily="@font/manrope_800"
+            android:fontFamily="sans-serif-light"
             android:maxLines="1"
             android:textColor="#FFFFFFFF" />
 
@@ -69,7 +69,7 @@
             android:layout_width="match_parent"
             android:layout_height="24sp"
             android:gravity="center"
-            android:fontFamily="@font/manrope_600"
+            android:fontFamily="sans-serif"
             android:autoSizeTextType="uniform"
             android:autoSizeMinTextSize="6sp"
             android:autoSizeMaxTextSize="9sp"
