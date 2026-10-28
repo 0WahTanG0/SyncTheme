@@ -11,6 +11,7 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
 import app.synctheme.core.ClockStyle
+import app.synctheme.core.DialStyle
 import app.synctheme.core.DigitFont
 import app.synctheme.core.Presets
 import app.synctheme.mobile.data.ThemeRepository
@@ -259,6 +260,14 @@ class RenderingTest {
             println("Built ${theme.id}: ${result.apk.size / 1024} KB, token=${result.token.take(12)}…")
             assertTrue(result.token.isNotEmpty())
             File(out, "${theme.id}_watchface.apk").writeBytes(result.apk)
+        }
+        // Каждый стиль, шрифт и вид делений проходит тот же валидатор, что на телефоне.
+        val base = Presets.all[1]
+        ClockStyle.entries.forEachIndexed { i, style ->
+            val font = DigitFont.entries[i % DigitFont.entries.size]
+            val dial = DialStyle.entries[i % DialStyle.entries.size]
+            val t = base.copy(watch = base.followPhone().copy(clockStyle = style, digitFont = font, dialStyle = dial, complications = i % 2 == 0, showSeconds = i % 3 != 0))
+            assertTrue(style.name, WatchFaceBuilder(context).build(t).token.isNotEmpty())
         }
     }
 

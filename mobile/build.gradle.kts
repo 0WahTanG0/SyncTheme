@@ -74,10 +74,18 @@ android {
         }
     }
     packaging {
+        // Код и библиотеки в APK — сжатыми: файл обновления почти вдвое меньше. Телефон распакует их при установке.
+        dex { useLegacyPackaging = true }
+        jniLibs { useLegacyPackaging = true }
         resources {
             excludes += setOf(
                 "/META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*",
                 "META-INF/*.kotlin_module", "META-INF/versions/**", "META-INF/INDEX.LIST",
+                // Таблицы постквантовой подписи Picnic из BouncyCastle: ADB по Wi‑Fi их не использует.
+                "org/bouncycastle/pqc/crypto/picnic/**",
+                // Данные ICU: валидатор циферблатов тянет ICU через XPath 2, но для наших циферблатов
+                // до него не доходит (RenderingTest проверяет все стили — классы ICU не загружаются).
+                "com/ibm/icu/impl/data/**",
             )
         }
     }
