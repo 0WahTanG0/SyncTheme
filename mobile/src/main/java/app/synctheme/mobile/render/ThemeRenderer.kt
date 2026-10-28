@@ -4,17 +4,18 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
+import android.text.format.DateFormat
 import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockPlace
@@ -23,16 +24,18 @@ import app.synctheme.core.DialStyle
 import app.synctheme.core.DigitFont
 import app.synctheme.core.FontWeight
 import app.synctheme.core.Theme
+import app.synctheme.core.TimeShift
 import app.synctheme.core.WallClock
 import app.synctheme.core.WallClockLayout
-import app.synctheme.core.TimeShift
-import app.synctheme.core.WatchSettings
 import app.synctheme.core.WatchFaceXml
-import android.text.format.DateFormat
+import app.synctheme.core.WatchSettings
 import app.synctheme.faces.FaceFonts
 import app.synctheme.faces.FaceRenderer
 import app.synctheme.faces.FaceState
 import app.synctheme.mobile.data.ThemeRepository
+import app.synctheme.mobile.data.WeatherCodes
+import app.synctheme.mobile.data.WeatherRepository
+import app.synctheme.mobile.widget.WidgetRenderer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -397,10 +400,10 @@ object ThemeRenderer {
             val spot = wallClockSpot(context, theme, width, height)
             clockArea = wallClockArea(theme, spot)
             drawWallClock(context, canvas, theme, spot, previewMillis())
+            // Объект с фото целиком закрывает часы — они за ним.
             if (wall.depth) foreground(context, theme.background, theme.dim, width, height)?.let {
                 canvas.drawBitmap(it, 0f, 0f, null)
                 it.recycle()
-                drawWallClock(context, canvas, theme, spot, previewMillis(), alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
             }
         } else if (widgets) {
             // Виджет часов 4x2.
@@ -479,10 +482,7 @@ object ThemeRenderer {
         val t = tvTheme(theme)
         val spot = tvClockSpot(t, width, height, dx, dy)
         drawWallClock(context, canvas, t, spot, millis)
-        if (foreground != null) {
-            canvas.drawBitmap(foreground, 0f, 0f, null)
-            drawWallClock(context, canvas, t, spot, millis, alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
-        }
+        if (foreground != null) canvas.drawBitmap(foreground, 0f, 0f, null)
     }
 
     /** Обои телевизора и, с эффектом глубины, объект с фото отдельным слоем. */
@@ -665,6 +665,10 @@ object ThemeRenderer {
             area = area?.apply { union(r) } ?: r
         }
         spot.date?.let { d -> area?.union(d.cx - d.size * 5, d.cy - d.size, d.cx + d.size * 5, d.cy + d.size) }
+        val wall = theme.wallClock
+        if (wall != null && (wall.weather || wall.battery)) infoLabel(theme, spot)?.let { l ->
+            area?.union(l.cx - l.size * 6, l.cy - l.size, l.cx + l.size * 6, l.cy + l.size)
+        }
         return area
     }
 
@@ -682,26 +686,55 @@ object ThemeRenderer {
         val hh = "%02d".format(hours)
         val mm = "%02d".format(cal.get(java.util.Calendar.MINUTE))
         val shadow = Colors.withAlpha(Color.BLACK, 0.35f)
-        // alpha < 255 — время поверх объекта с фото (эффект глубины): без тени и даты.
-        val ghost = alpha < 255
+        val fade = alpha / 255f
         for (line in spot.lines) {
             val text = when (line.part) {
                 WallClockSpot.Part.TIME -> "$hh:$mm"
                 WallClockSpot.Part.HOURS -> hh
                 WallClockSpot.Part.MINUTES -> mm
             }
-            val p = textPaint(Colors.withAlpha(if (line.accent) theme.accentColor else theme.textColor, alpha / 255f), line.size, tf)
-            if (!ghost) p.setShadowLayer(line.size * 0.04f, 0f, line.size * 0.02f, shadow)
+            val p = textPaint(Colors.withAlpha(if (line.accent) theme.accentColor else theme.textColor, fade), line.size, tf)
+            p.setShadowLayer(line.size * 0.04f, 0f, line.size * 0.02f, shadow)
             canvas.drawText(text, line.cx, line.cy + (font.top + font.bottom) / 2 * line.size, p)
         }
         val d = spot.date
-        if (d != null && wall.showDate && !ghost) {
-            val p = textPaint(theme.accentColor, d.size, fonts(context).label).apply {
+        if (d != null && wall.showDate) {
+            val p = textPaint(Colors.withAlpha(theme.accentColor, fade), d.size, fonts(context).label).apply {
                 textAlign = d.align
                 setShadowLayer(d.size * 0.15f, 0f, 2f, shadow)
             }
             canvas.textCentered(dateString(millis, d.pattern), d.cx, d.cy, p)
         }
+        // Погода и заряд — строкой под цифрами, тоже на обоях: объект с фото закрывает их вместе с часами.
+        val info = wallInfo(context, wall) ?: return
+        val label = infoLabel(theme, spot) ?: return
+        val p = textPaint(Colors.withAlpha(theme.textColor, 0.92f * fade), label.size, fonts(context).label).apply {
+            textAlign = label.align
+            setShadowLayer(label.size * 0.15f, 0f, 2f, shadow)
+        }
+        canvas.textCentered(info, label.cx, label.cy, p)
+    }
+
+    /** Строка «погода · заряд» под часами на обоях; null — ничего не включено или данных ещё нет. */
+    fun wallInfo(context: Context, wall: WallClock): String? {
+        val parts = buildList {
+            if (wall.weather) WeatherRepository(context).cached?.now?.let { now ->
+                add("${now.temp.roundToInt()}° ${WeatherCodes.description(now.code)}")
+            }
+            if (wall.battery) runCatching { WidgetRenderer.Battery.read(context) }.getOrNull()?.let { b ->
+                add(if (b.charging) "заряд ${b.level}% ⚡" else "заряд ${b.level}%")
+            }
+        }
+        return parts.takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
+    }
+
+    /** Где строка под часами: по центру нижней строки цифр, чуть ниже них. */
+    private fun infoLabel(theme: Theme, spot: WallClockSpot): WallClockSpot.DateLabel? {
+        val font = wallClockFont(theme)
+        val last = spot.lines.maxByOrNull { it.cy } ?: return null
+        val size = spot.date?.size ?: (last.size * 0.18f)
+        val bottom = last.cy + font.digitHeight * last.size / 2
+        return WallClockSpot.DateLabel(last.cx, bottom + size * 1.5f, size, "", Paint.Align.CENTER)
     }
 
     private fun dateString(millis: Long, pattern: String) =
@@ -727,19 +760,12 @@ object ThemeRenderer {
             if (wall.depth) foreground(context, lock.background, lock.dim, width, height)?.let {
                 canvas.drawBitmap(it, 0f, 0f, null)
                 it.recycle()
-                drawWallClock(context, canvas, lock, spot, previewMillis(), alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
             }
             return bmp
         }
-        val depth = if (theme.lockDepth) foreground(context, theme.lockScreenBackground(), theme.lockScreenDim(), width, height) else null
+        // Без своих часов — часы самого телефона.
         canvas.textCentered(dateString("EEE, d MMMM"), cx, 22 * u, textPaint(white, 4.6f * u))
-        if (depth != null) {
-            canvas.textCentered("10:08", cx, 46 * u, textPaint(white, 38 * u, typeface(FontWeight.BOLD)))
-            canvas.drawBitmap(depth, 0f, 0f, null)
-            depth.recycle()
-        } else {
-            canvas.textCentered("10:08", cx, 40 * u, textPaint(white, 26 * u, typeface(FontWeight.LIGHT)))
-        }
+        canvas.textCentered("10:08", cx, 40 * u, textPaint(white, 26 * u, typeface(FontWeight.LIGHT)))
         val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Colors.withAlpha(Color.BLACK, 0.35f) }
         canvas.drawCircle(cx - 36 * u, height - 14 * u, 7 * u, icon)
         canvas.drawCircle(cx + 36 * u, height - 14 * u, 7 * u, icon)

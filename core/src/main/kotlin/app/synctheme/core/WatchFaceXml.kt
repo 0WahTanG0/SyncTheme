@@ -33,12 +33,6 @@ object WatchFaceXml {
     const val FONT_GLASS = "manrope_800"
     const val FONT_LABEL = "onest_600"
 
-    /**
-     * Прозрачность времени, нарисованного поверх объекта с фото (0..255): объект остаётся впереди,
-     * но цифры и стрелки сквозь него видно — время понятно, даже если объект закрыл их целиком.
-     */
-    const val DEPTH_TIME_ALPHA = 0x73
-
     private const val C = SIZE / 2
 
     /** Внешний радиус делений и кольца секунд: почти у самого края экрана. */
@@ -139,7 +133,6 @@ object WatchFaceXml {
             x.line("""<Variant mode="AMBIENT" target="alpha" value="0"/>""")
             x.line("""<Image resource="$FG_RESOURCE"/>""")
             x.close("PartImage")
-            group(x, "timeOverDepth", alpha = DEPTH_TIME_ALPHA, ambientAlpha = 0) { style(x, forLayer(w, Layer.TIME), Layer.TIME) }
         }
         x.flushDeferred()
         x.shift = null

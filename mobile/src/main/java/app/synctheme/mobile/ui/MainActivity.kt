@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
                     viewModel, initialTab,
                     onOpenInstaller = { open(InstallTarget.WATCH) { installer = it } },
                     onOpenTvInstaller = { open(InstallTarget.TV) { installer = it } },
+                    firstLaunchCheck = true,
                 )
             }
         }

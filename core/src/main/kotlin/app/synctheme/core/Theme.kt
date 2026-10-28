@@ -126,6 +126,10 @@ data class WallClock(
     val openApp: String? = null,
     /** Показывать эти часы и на экране блокировки; иначе там только часы самого телефона. */
     val onLock: Boolean = false,
+    /** Погода строкой под часами — на обоях, поэтому за объектом фото, как и время. */
+    val weather: Boolean = false,
+    /** Заряд батареи строкой под часами. */
+    val battery: Boolean = false,
 )
 
 /**
@@ -217,10 +221,7 @@ data class Theme(
     val watchPhotoCrop: PhotoCrop? = null,
     /** Часы на обоях телефона; null — обычные обои без часов. */
     val wallClock: WallClock? = null,
-    /**
-     * Глубина на экране блокировки: там часы рисует One UI («Адаптивные часы» обтекают объект фото),
-     * поэтому обои блокировки ставятся чистым фото — без затемнения, чтобы телефон нашёл объект.
-     */
+    /** Устарело (до 1.19 — «Адаптивные часы» Samsung); глубина на экране блокировки теперь у [WallClock.onLock]. */
     val lockDepth: Boolean = false,
 ) {
     /** Итоговые настройки циферблата: свои или повторяющие телефон. */
@@ -249,8 +250,7 @@ data class Theme(
 
     fun lockScreenBackground(): Background = lockBackground ?: background
 
-    /** С глубиной на экране блокировки фото ставится без затемнения: так One UI надёжнее находит объект. */
-    fun lockScreenDim(): Float = if (lockDepth && lockScreenBackground().type == BackgroundType.PHOTO) 0f else lockDim ?: dim
+    fun lockScreenDim(): Float = lockDim ?: dim
 
     fun toJson(): String = json.encodeToString(serializer(), this)
 

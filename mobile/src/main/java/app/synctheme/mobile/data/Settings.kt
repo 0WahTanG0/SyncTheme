@@ -63,6 +63,21 @@ object DeviceSettings {
 
     fun setWatch(context: Context, on: Boolean) = prefs(context).edit().putBoolean("dev_watch", on).apply()
 
+    /**
+     * «Проф. версия»: часы, планшеты, телевизоры, другие телефоны и установка на них. Без неё приложение —
+     * только для этого телефона. Кто уже подключал устройства, после обновления её не теряет.
+     */
+    fun pro(context: Context): Boolean {
+        val p = prefs(context)
+        if (p.contains("pro")) return p.getBoolean("pro", false)
+        val used = watch(context) || app.synctheme.mobile.link.LinkStore.peers(context).isNotEmpty() ||
+            app.synctheme.mobile.link.LinkStore.receiving(context)
+        p.edit().putBoolean("pro", used).apply()
+        return used
+    }
+
+    fun setPro(context: Context, on: Boolean) = prefs(context).edit().putBoolean("pro", on).apply()
+
     /** Телевизор (Android TV / Google TV): тема идёт в заставку, управление — пультом. */
     fun isTv(context: Context): Boolean =
         context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||

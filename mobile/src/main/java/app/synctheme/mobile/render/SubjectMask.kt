@@ -43,6 +43,88 @@ object SubjectMask {
 
     private val cache = LinkedHashMap<String, Bitmap>()
 
+    /** Растёт, когда маску выделили заново (в том числе вручную): обои и превью перерисовываются. */
+    val version = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    /** Маска, выделенная вручную в редакторе: сохраняется рядом с фото вместо найденной автоматически. */
+    suspend fun save(context: Context, photo: String, mask: Bitmap) {
+        withContext(Dispatchers.IO) {
+            file(context, photo).outputStream().use { mask.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        synchronized(this) { cache[photo] = mask.copy(Bitmap.Config.ARGB_8888, false) }
+        version.value++
+    }
+
+    /** Фото, уменьшенное так же, как для распознавания: по нему и строится маска (в том числе вручную). */
+    suspend fun preparedPhoto(context: Context, photo: String): Bitmap = withContext(Dispatchers.Default) {
+        val source = ThemeRepository.get(context).photoFile(photo)
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(source.path, opts)
+        var sample = 1
+        while (max(opts.outWidth, opts.outHeight) / (sample * 2) >= MAX_SIDE) sample *= 2
+        val decoded = BitmapFactory.decodeFile(source.path, BitmapFactory.Options().apply { inSampleSize = sample })
+            ?: throw DepthException("Не удалось открыть фото")
+        val scale = MAX_SIDE.toFloat() / max(decoded.width, decoded.height)
+        if (scale < 1f) {
+            Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt(), (decoded.height * scale).toInt(), true)
+                .also { decoded.recycle() }
+        } else decoded
+    }
+
+    /**
+     * Умная обводка: пользователь примерно обвёл объект пальцем ([lasso] — точки в координатах [photo]).
+     * Распознаватель ищет объект только в обведённом месте (крупнее — значит точнее), а результат
+     * ограничивается обводкой с запасом: край объекта может чуть выходить за линию пальца.
+     * Если распознаватель там ничего не увидел — объектом считается сама обводка с мягким краем.
+     */
+    suspend fun fromLasso(context: Context, photo: Bitmap, lasso: List<android.graphics.PointF>): Bitmap = withContext(Dispatchers.Default) {
+        val w = photo.width
+        val h = photo.height
+        val path = android.graphics.Path().apply {
+            lasso.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) }
+            close()
+        }
+        val bounds = android.graphics.RectF().also { path.computeBounds(it, true) }
+        val margin = max(bounds.width(), bounds.height()) * 0.12f + 8f
+        val crop = android.graphics.Rect(
+            (bounds.left - margin).toInt().coerceAtLeast(0), (bounds.top - margin).toInt().coerceAtLeast(0),
+            (bounds.right + margin).toInt().coerceAtMost(w), (bounds.bottom + margin).toInt().coerceAtMost(h),
+        )
+        // Обводка с запасом: залитый контур, расширенный толстой линией по краю.
+        val region = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8)
+        android.graphics.Canvas(region).apply {
+            val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            drawPath(path, fill)
+            fill.style = android.graphics.Paint.Style.STROKE
+            fill.strokeJoin = android.graphics.Paint.Join.ROUND
+            fill.strokeWidth = margin
+            drawPath(path, fill)
+        }
+        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(result)
+        val found = if (crop.width() > 8 && crop.height() > 8) {
+            val part = Bitmap.createBitmap(photo, crop.left, crop.top, crop.width(), crop.height())
+            runCatching { segmenter(context, part) }.getOrNull().also { part.recycle() }
+        } else null
+        val inside = found?.let { coverage(it) } ?: 0f
+        if (found != null && inside > 0.02f) {
+            canvas.drawBitmap(found, null, android.graphics.RectF(crop), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            // Только то, что внутри обводки (с запасом): соседние объекты не цепляются.
+            canvas.drawBitmap(region, 0f, 0f, android.graphics.Paint().apply {
+                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
+            })
+        } else {
+            // Распознаватель ничего не нашёл — объект по линии пальца, с мягким краем.
+            canvas.drawPath(path, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.WHITE
+                maskFilter = android.graphics.BlurMaskFilter(max(2f, margin * 0.15f), android.graphics.BlurMaskFilter.Blur.NORMAL)
+            })
+        }
+        found?.recycle()
+        region.recycle()
+        result
+    }
+
     fun file(context: Context, photo: String): File =
         ThemeRepository.get(context).photoFile(photo.substringBeforeLast('.') + ".mask.png")
 
@@ -77,11 +159,12 @@ object SubjectMask {
             } else decoded
             segmenter(context, small).also { small.recycle() }
         }
-        if (coverage(mask) < 0.01f) throw DepthException("На фото не нашлось главного объекта — попробуйте снимок, где он крупнее")
+        if (coverage(mask) < 0.01f) throw DepthException("Объект на фото не нашёлся сам — обведите его пальцем: «Выбрать объект»")
         withContext(Dispatchers.IO) {
             file(context, photo).outputStream().use { mask.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
         synchronized(this) { cache[photo] = mask }
+        version.value++
     }
 
     /** Доля «объекта» на маске (по альфе). */
@@ -151,7 +234,8 @@ object DepthMasks {
     /** Фото, для которых нужна маска: часы на обоях, экран блокировки, циферблат. */
     fun photosFor(theme: Theme): List<String> = buildList {
         if (theme.wallClock?.depth == true) photo(theme.background)?.let(::add)
-        if (theme.lockDepth) photo(theme.lockScreenBackground())?.let(::add)
+        val wall = theme.wallClock
+        if (wall?.depth == true && wall.onLock) photo(theme.lockScreenBackground())?.let(::add)
         if (theme.watchSettings().depth) photo(theme.watchBackground())?.let(::add)
     }.distinct()
 

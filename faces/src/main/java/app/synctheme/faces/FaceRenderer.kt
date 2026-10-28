@@ -74,13 +74,8 @@ object FaceRenderer {
         bg?.let { canvas.drawBitmap(it, null, RectF(0f, 0f, SIZE, SIZE), Paint(Paint.FILTER_BITMAP_FLAG)) }
         val full = Frame(canvas, w, state, fonts, Layer.FULL, moved)
         full.style()
-        if (w.depth && fg != null) {
-            canvas.drawBitmap(fg, null, RectF(0f, 0f, SIZE, SIZE), Paint(Paint.FILTER_BITMAP_FLAG))
-            // Время поверх объекта — полупрозрачное, чтобы его было видно сквозь объект.
-            canvas.saveLayerAlpha(0f, 0f, SIZE, SIZE, WatchFaceXml.DEPTH_TIME_ALPHA)
-            Frame(canvas, WatchFaceXml.forLayer(w, Layer.TIME), state, fonts, Layer.TIME, moved).style()
-            canvas.restore()
-        }
+        // Объект с фото целиком закрывает цифры — время за ним.
+        if (w.depth && fg != null) canvas.drawBitmap(fg, null, RectF(0f, 0f, SIZE, SIZE), Paint(Paint.FILTER_BITMAP_FLAG))
         // Мини-виджеты — поверх слоя глубины, как в WatchFaceXml.
         full.complications.forEach { it() }
         canvas.restore()

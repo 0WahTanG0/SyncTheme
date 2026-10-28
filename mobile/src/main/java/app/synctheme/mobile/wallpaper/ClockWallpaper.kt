@@ -20,7 +20,6 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import app.synctheme.core.Theme
-import app.synctheme.core.WatchFaceXml
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
@@ -284,14 +283,8 @@ class ClockWallpaperService : WallpaperService() {
                     val pressed = SystemClock.uptimeMillis() < pressedUntil
                     ThemeRenderer.drawWallClock(this@ClockWallpaperService, canvas, theme, l.spot, now, alpha = if (pressed) 150 else 255)
                     canvas.restore()
-                    l.foreground?.let { fg ->
-                        canvas.drawBitmap(fg, null, dst, null)
-                        // Время поверх объекта — полупрозрачное: объект впереди, но время читается.
-                        canvas.save()
-                        canvas.scale(canvas.width / l.width.toFloat(), canvas.height / l.height.toFloat())
-                        ThemeRenderer.drawWallClock(this@ClockWallpaperService, canvas, theme, l.spot, now, alpha = WatchFaceXml.DEPTH_TIME_ALPHA)
-                        canvas.restore()
-                    }
+                    // Объект с фото целиком закрывает часы и подписи — они за ним.
+                    l.foreground?.let { fg -> canvas.drawBitmap(fg, null, dst, null) }
                 }
             } finally {
                 holder.unlockCanvasAndPost(canvas)

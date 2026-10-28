@@ -25,6 +25,8 @@ import app.synctheme.mobile.ui.MainViewModel
 import app.synctheme.mobile.ui.AppMode
 import app.synctheme.mobile.ui.AppStyle
 import app.synctheme.mobile.ui.AppTheme
+import app.synctheme.mobile.ui.CompatScreen
+import app.synctheme.mobile.ui.SubjectEditorScreen
 import app.synctheme.mobile.ui.Appearance
 import app.synctheme.mobile.ui.AppearanceStore
 import app.synctheme.mobile.ui.SyncThemeScreen
@@ -139,14 +141,16 @@ class ScreenshotTest {
         ThemeRepository.get(app).setDraft(Presets.all[2].copy(clockStyle = ClockStyle.LIQUID))
     }
 
-    /** Экран блокировки: эффект глубины через «Адаптивные часы» One UI. */
+    /** Экран блокировки: свои часы SyncTheme за объектом фото — одинаково на любом телефоне. */
     @Test
     @Config(qualifiers = "w412dp-h2000dp-560dpi")
     fun lockDepth() = screen("screen_lock_depth", Tab.WALLPAPER, Appearance(AppStyle.GLASS, AppMode.DARK), lock = true, expand = true) { app ->
-        ShadowBuild.setManufacturer("samsung")
         val t = Presets.all[1]
         // Фото нет — рисуется градиент, но раздел ведёт себя как с фото.
-        ThemeRepository.get(app).setDraft(t.copy(background = t.background.copy(type = BackgroundType.PHOTO, photoFile = "none.jpg"), lockDepth = true))
+        ThemeRepository.get(app).setDraft(t.copy(
+            background = t.background.copy(type = BackgroundType.PHOTO, photoFile = "none.jpg"),
+            wallClock = WallClock(depth = true, onLock = true),
+        ))
     }
 
     /** «Ещё»: мои устройства и инструкция. */
@@ -355,6 +359,41 @@ class ScreenshotTest {
         vm.setManual(true)
         val out = File(System.getProperty("previewsDir")!!, "screen_installer_detected.png")
         captureRoboImage(out.absolutePath) { WatchInstallerScreen(vm, Presets.all[0].accentColor, onClose = {}) }
+    }
+
+    /** Проверка совместимости при первом запуске. */
+    @Test
+    @Config(qualifiers = "w412dp-h1500dp-560dpi")
+    fun compatScreen() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
+        captureRoboImage(File(System.getProperty("previewsDir")!!, "screen_compat.png").absolutePath) {
+            AppTheme(Presets.all[0].accentColor) { CompatScreen {} }
+        }
+    }
+
+    /** Без «Проф. версии» — только телефон: в «Настройках» нет устройств, на главном экране — один телефон. */
+    @Test
+    fun phoneOnly() = screen("screen_more_phone_only", Tab.MORE, Appearance(AppStyle.GLASS, AppMode.DARK)) { app ->
+        DeviceSettings.setPro(app, false)
+    }
+
+    /** Редактор объекта для глубины: обводка пальцем. */
+    @Test
+    fun subjectEditor() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        AppearanceStore.set(app, Appearance(AppStyle.GLASS, AppMode.DARK))
+        val photo = "subject_photo.jpg"
+        val bmp = android.graphics.Bitmap.createBitmap(600, 1000, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bmp).apply {
+            drawColor(0xFF2B6CB0.toInt())
+            drawCircle(300f, 600f, 200f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFDD6B20.toInt() })
+        }
+        ThemeRepository.get(app).photoFile(photo).outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }
+        val dir = System.getProperty("previewsDir")!!
+        captureRoboImage(File(dir, "screen_subject_editor.png").absolutePath) {
+            AppTheme(Presets.all[0].accentColor) { SubjectEditorScreen(photo) {} }
+        }
     }
 
     /** Установка на телевизор: шаги для Google TV, адрес введён вручную. */

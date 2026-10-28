@@ -106,12 +106,16 @@ fun SyncThemeScreen(
     initialLock: Boolean = false,
     onOpenTvInstaller: () -> Unit = {},
     expandSections: Boolean = false,
+    /** При первом запуске — проверка совместимости (из MainActivity; в тестах экран сразу главный). */
+    firstLaunchCheck: Boolean = false,
 ) = androidx.compose.runtime.CompositionLocalProvider(LocalExpandAll provides expandSections) {
-    SyncThemeContent(vm, initialTab, onOpenInstaller, initialLock, onOpenTvInstaller)
+    SyncThemeContent(vm, initialTab, onOpenInstaller, initialLock, onOpenTvInstaller, firstLaunchCheck)
 }
 
 @Composable
-private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller: () -> Unit, initialLock: Boolean, onOpenTvInstaller: () -> Unit) {
+private fun SyncThemeContent(
+    vm: MainViewModel, initialTab: Tab, onOpenInstaller: () -> Unit, initialLock: Boolean, onOpenTvInstaller: () -> Unit, firstLaunchCheck: Boolean,
+) {
     val theme by vm.theme.collectAsStateWithLifecycle()
     val applied by vm.applied.collectAsStateWithLifecycle()
     val phonePreview by vm.phonePreview.collectAsStateWithLifecycle()
@@ -139,6 +143,8 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     var photoTarget by remember { mutableStateOf(BgTarget.HOME) }
     /** Открыт редактор расположения (часы и фото). */
     var arrange by rememberSaveable { mutableStateOf<ArrangeTarget?>(null) }
+    /** Открыта проверка совместимости: при первом запуске сама, потом — из «Настроек». */
+    var compat by rememberSaveable { mutableStateOf(firstLaunchCheck && !CompatCheck.shown(context)) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { vm.pickPhoto(it, photoTarget) }
     }
@@ -153,6 +159,7 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
             openInstaller = onOpenInstaller,
             openTvInstaller = onOpenTvInstaller,
             arrange = { arrange = it },
+            openCompat = { compat = true },
             configureWidget = { id ->
                 context.startActivity(
                     Intent(context, WidgetConfigActivity::class.java)
@@ -164,6 +171,21 @@ private fun SyncThemeContent(vm: MainViewModel, initialTab: Tab, onOpenInstaller
     }
     var colorTarget by remember { mutableStateOf<ColorTarget?>(null) }
 
+    if (compat) {
+        val close = {
+            CompatCheck.markShown(context)
+            compat = false
+        }
+        androidx.activity.compose.BackHandler(onBack = close)
+        CompatScreen(close)
+        return
+    }
+    val subject by vm.subjectEditor.collectAsStateWithLifecycle()
+    subject?.let { photo ->
+        androidx.activity.compose.BackHandler { vm.closeSubjectEditor() }
+        SubjectEditorScreen(photo, vm::closeSubjectEditor)
+        return
+    }
     arrange?.let { target ->
         androidx.activity.compose.BackHandler { arrange = null }
         ArrangeScreen(vm, target) { arrange = null }
@@ -287,6 +309,8 @@ class ScreenActions(
     val configureWidget: (Int) -> Unit,
     /** Редактор расположения: подвинуть часы (время) и фото. */
     val arrange: (ArrangeTarget) -> Unit = {},
+    /** Проверка совместимости с этим телефоном. */
+    val openCompat: () -> Unit = {},
 ) {
     /** Меняет циферблат: в отдельных настройках часов или, если их нет, в общей теме. */
     fun editWatchFace(transform: (app.synctheme.core.WatchSettings) -> app.synctheme.core.WatchSettings) {

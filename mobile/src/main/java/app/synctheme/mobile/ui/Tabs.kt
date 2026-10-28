@@ -158,15 +158,16 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
             }
         }
         item {
+            val own = theme.wallClock?.onLock == true
             ExpandableSection(
-                "Эффект глубины", summary = if (theme.lockDepth) "Часы за объектом фото" else "Выключен",
-                initiallyExpanded = theme.lockDepth,
-            ) { LockDepthContent(theme, a.vm) }
+                "Часы и эффект глубины", summary = if (own) "Часы SyncTheme" + (if (theme.wallClock?.depth == true) " за объектом фото" else "") else "Часы телефона",
+                initiallyExpanded = own,
+            ) { LockClockContent(theme, a.vm) }
         }
         item {
             Text(
-                "Часы и дату на экране блокировки рисует сам телефон: их стиль меняется в настройках экрана блокировки " +
-                    "(на Samsung — зажать экран блокировки → «Изменить»).",
+                "Свои часы телефона на экране блокировки остаются всегда — их стиль и размер меняются в настройках " +
+                    "экрана блокировки самого телефона.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
             )
@@ -464,8 +465,12 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
 // ---------------------------------------------------------------- Настройки
 
 fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable () -> Unit) {
-    // Устройства — первыми: сюда приходят подключить часы, планшет или телефон.
-    item { DevicesSection(a.vm, a.openInstaller, a.openTvInstaller) }
+    // «Проф. версия» — первой: с ней появляются устройства (часы, планшет, телевизор) и установка на них.
+    item { ProSection(a.vm) }
+    item {
+        val pro by a.vm.pro.collectAsStateWithLifecycle()
+        if (pro) DevicesSection(a.vm, a.openInstaller, a.openTvInstaller)
+    }
     item { AppearanceSection(theme.accentColor) }
     item { updates() }
     item {
@@ -473,6 +478,7 @@ fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable (
         var licenses by remember { mutableStateOf<String?>(null) }
         Section("О приложении") {
             Text("SyncTheme — обои, виджеты и циферблат часов в одном стиле.", style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = a.openCompat) { Text("Что работает на этом телефоне") }
             TextButton(onClick = {
                 licenses = listOf("licenses/fonts.txt", "licenses/fonts-digits.txt").joinToString("\n\n") { path ->
                     runCatching { context.assets.open(path).bufferedReader().readText() }.getOrDefault("")

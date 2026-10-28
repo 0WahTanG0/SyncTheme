@@ -47,6 +47,7 @@ class AddDeviceTest {
         ThemeRepository.get(app).setDraft(Presets.all[0])
         DeviceSettings.setWatch(app, false)
         LinkStore.reload()
+        DeviceSettings.setPro(app, true)
         val vm = MainViewModel(app)
         compose.setContent { SyncThemeScreen(vm, Tab.MORE) }
         compose.onNodeWithText("Добавить устройство").performScrollTo()

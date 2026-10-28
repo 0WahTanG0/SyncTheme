@@ -22,7 +22,6 @@ import app.synctheme.core.BackgroundType
 import app.synctheme.core.Theme
 import app.synctheme.core.WallClock
 import app.synctheme.core.WallClockLayout
-import app.synctheme.mobile.devices.PhoneInfo
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.wallpaper.ClockWallpaper
 import app.synctheme.mobile.widget.AppCatalog
@@ -63,12 +62,13 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
     Text(
         when {
             !photo -> "Эффект глубины работает с фото — выберите фото в «Фон»."
-            depth -> "Часы встают с противоположной от объекта стороны: объект справа — часы слева, слева — справа, " +
-                "снизу — сверху, сверху — снизу. Объект лишь слегка заходит на цифры, а их видно сквозь него."
+            depth -> "Объект с фото стоит перед часами и закрывает их — как на iPhone. Часы встают с противоположной " +
+                "от объекта стороны; если телефон выбрал не тот объект или не нашёл его — «Выбрать объект»."
             else -> "Объект с фото встанет перед часами, а сами часы — рядом с ним."
         },
         style = MaterialTheme.typography.bodySmall, color = muted,
     )
+    if (depth) OutlinedButton(onClick = { vm.editSubject(theme.background) }) { Text("Выбрать объект") }
     val place = wall.place
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedButton(onClick = onArrange) { Text(arrangeLabel(theme, ArrangeTarget.HOME) ?: "Подвинуть часы") }
@@ -87,6 +87,15 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
     SwitchRow("Часы на экране блокировки", wall.onLock) { on -> vm.setWallClock(wall.copy(onLock = on)) }
     LockClockHint(wall.onLock)
     SwitchRow("Дата над часами", wall.showDate) { on -> vm.setWallClock(wall.copy(showDate = on)) }
+    SwitchRow("Погода под часами", wall.weather) { on -> vm.setWallClock(wall.copy(weather = on)) }
+    SwitchRow("Заряд под часами", wall.battery) { on -> vm.setWallClock(wall.copy(battery = on)) }
+    if (wall.weather || wall.battery) {
+        Text(
+            "Они на обоях, как и часы, — поэтому тоже уходят за объект фото." +
+                if (wall.weather) " Погода — для города из «Виджеты» → «Город для погоды»." else "",
+            style = MaterialTheme.typography.bodySmall, color = muted,
+        )
+    }
     SwitchRow("Открывать приложение по нажатию", wall.tapToOpen) { on -> vm.setWallClock(wall.copy(tapToOpen = on)) }
     if (wall.tapToOpen) {
         var picking by remember { mutableStateOf(false) }
@@ -150,55 +159,30 @@ private fun LockClockHint(onLock: Boolean) {
 }
 
 /**
- * Глубина на экране блокировки. Часы там рисует One UI: начиная с One UI 8 его «Адаптивные часы»
- * сами встают за объект фото. SyncTheme ставит фото без затемнения и подсказывает, что включить.
+ * Экран блокировки: свои часы SyncTheme (живые обои) с эффектом глубины — одинаково на любом телефоне.
+ * Часы самого телефона там остаются: их убрать нельзя, только уменьшить в настройках телефона.
  */
 @Composable
-fun LockDepthContent(theme: Theme, vm: MainViewModel) {
-    val context = LocalContext.current
+fun LockClockContent(theme: Theme, vm: MainViewModel) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val wall = theme.wallClock
     val photo = theme.lockScreenBackground().type == BackgroundType.PHOTO
-    val phone = remember { PhoneInfo.detect() }
-    // Часы экрана блокировки рисует система; за объект их ставят «Адаптивные часы» One UI 8 у Samsung.
-    if (!phone.samsung) {
+    SwitchRow("Часы SyncTheme на экране блокировки", wall?.onLock == true) { on ->
+        vm.setWallClock((wall ?: WallClock(depth = photo)).copy(onLock = on))
+    }
+    if (wall == null || !wall.onLock) {
         Text(
-            "На этом телефоне часы экрана блокировки рисует система — поставить их за объект фото она не умеет. " +
-                "Эффект глубины на экране блокировки есть у Samsung с One UI 8. Обои блокировки SyncTheme ставит и здесь, " +
-                "а часы за объектом работают на рабочем столе («Часы на обоях») и на циферблате.",
+            "Крупные часы прямо на обоях экрана блокировки — с эффектом глубины: объект с фото встаёт перед ними.",
             style = MaterialTheme.typography.bodySmall, color = muted,
         )
         return
     }
-    SwitchRow("Эффект глубины", theme.lockDepth && photo, enabled = photo) { vm.setLockDepth(it) }
+    SwitchRow("За объектом фото", wall.depth && photo, enabled = photo) { on -> vm.setWallClock(wall.copy(depth = on)) }
     if (!photo) {
-        Text(
-            "Нужно фото: поставьте фото на рабочий стол или включите «Свои обои для экрана блокировки» и выберите фото.",
-            style = MaterialTheme.typography.bodySmall, color = muted,
-        )
-        return
+        Text("Эффект глубины работает с фото на экране блокировки.", style = MaterialTheme.typography.bodySmall, color = muted)
+    } else if (wall.depth) {
+        OutlinedButton(onClick = { vm.editSubject(theme.lockScreenBackground()) }) { Text("Выбрать объект") }
     }
-    val oneUi = phone.oneUi
-    if (oneUi != null && oneUi < 8.0) {
-        Text(
-            "Нужен One UI 8 или новее, на телефоне — One UI ${PhoneInfo.format(oneUi)}. Обновите телефон: «Настройки» → «Обновление ПО».",
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error,
-        )
-    }
-    if (!theme.lockDepth) {
-        Text(
-            "Часы экрана блокировки встанут за главный объект фото, как на iPhone.",
-            style = MaterialTheme.typography.bodySmall, color = muted,
-        )
-        return
-    }
-    Text("Один раз на телефоне:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-    StepText(1, "Нажмите «Применить» (значок «Блок.» включён) — SyncTheme поставит фото на экран блокировки без затемнения.")
-    StepText(2, "Заблокируйте телефон, зажмите пустое место на экране блокировки → «Изменить».")
-    StepText(3, "Нажмите на часы → вкладка «Шрифт и цвет» → «Адаптивные часы». Если пункта нет — выберите на вкладке «Стиль» простые цифровые часы.")
-    StepText(4, "Готово: часы обтекают объект. One UI 8 узнаёт людей и животных, One UI 8.5 — и другие объекты.")
-    Text(
-        "Часы не встают за объект? Поставьте эти обои через приложение обоев Samsung — так телефон заново найдёт объект:",
-        style = MaterialTheme.typography.bodySmall, color = muted,
-    )
-    OutlinedButton(onClick = { vm.lockViaSystem { context.startActivity(it) } }) { Text("Поставить через «Обои Samsung»") }
+    Text("Шрифт, место, погода и заряд — в «Обои» → «Часы на обоях».", style = MaterialTheme.typography.bodySmall, color = muted)
+    LockClockHint(true)
 }

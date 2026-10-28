@@ -199,13 +199,49 @@ class FeaturesTest {
         variants.forEachIndexed { i, v ->
             c.drawBitmap(ThemeRenderer.phonePreview(context, v, 540, 1170), null, RectF(16f + i * (pw + 16), 16f, 16f + i * (pw + 16) + pw, 16f + ph), null)
         }
-        val lock = ThemeRenderer.lockPreview(context, base.copy(lockDepth = true), 540, 1170)
+        val lock = ThemeRenderer.lockPreview(context, base.copy(wallClock = WallClock(depth = true, onLock = true, weather = true, battery = true)), 540, 1170)
         c.drawBitmap(lock, null, RectF(16f + 3 * (pw + 16), 16f, 16f + 3 * (pw + 16) + pw, 16f + ph), null)
         sheet.save("depth_phone.png")
-        // Часы SyncTheme на экране блокировки: в превью блокировки — они, а не часы телефона.
-        ThemeRenderer.lockPreview(context, base.copy(wallClock = WallClock(depth = true, onLock = true)), 540, 1170).save("lock_own_clock.png")
-        // Фото экрана блокировки с глубиной ставится без затемнения.
-        assertEquals(0f, base.copy(lockDepth = true).lockScreenDim())
+    }
+
+    /**
+     * Умная обводка: палец примерно обвёл правый объект — в маску попадает он целиком (по его настоящим
+     * границам), а левый объект рядом — нет. Обводка там, где распознаватель ничего не нашёл, — сама становится объектом.
+     */
+    @Test
+    fun lassoFindsSubjectBounds() = runBlocking<Unit> {
+        val w = 600
+        val h = 400
+        val photo = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        Canvas(photo).apply {
+            drawColor(0xFF2B6CB0.toInt())
+            val orange = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFDD6B20.toInt() }
+            drawCircle(150f, 200f, 90f, orange)
+            drawCircle(440f, 200f, 110f, orange)
+        }
+        // Распознаватель: объект — всё оранжевое на переданном куске фото.
+        SubjectMask.segmenter = { _, input ->
+            val px = IntArray(input.width * input.height).also { input.getPixels(it, 0, input.width, 0, 0, input.width, input.height) }
+            for (i in px.indices) px[i] = if (Color.red(px[i]) > 180 && Color.blue(px[i]) < 100) Color.WHITE else 0
+            Bitmap.createBitmap(px, input.width, input.height, Bitmap.Config.ARGB_8888)
+        }
+        // Неровная обводка вокруг правого круга: местами внутри него, местами снаружи.
+        val lasso = (0 until 24).map { i ->
+            val a = i * Math.PI * 2 / 24
+            val r = if (i % 2 == 0) 100f else 125f
+            android.graphics.PointF(440f + r * Math.cos(a).toFloat(), 200f + r * Math.sin(a).toFloat())
+        }
+        val mask = SubjectMask.fromLasso(context, photo, lasso)
+        fun alpha(x: Int, y: Int) = mask.getPixel(x, y) ushr 24
+        assertTrue("центр правого объекта выбран", alpha(440, 200) > 200)
+        assertTrue("край правого объекта (за линией пальца) выбран", alpha(545, 200) > 200)
+        assertTrue("небо рядом не выбрано", alpha(440, 60) < 40)
+        assertTrue("левый объект не выбран", alpha(150, 200) < 40)
+        // Обвели пустое небо — объектом становится сама обводка.
+        val sky = listOf(20f to 20f, 120f to 20f, 120f to 80f, 20f to 80f).map { (x, y) -> android.graphics.PointF(x, y) }
+        val manual = SubjectMask.fromLasso(context, photo, sky)
+        assertTrue(manual.getPixel(70, 50) ushr 24 > 200)
+        assertTrue(manual.getPixel(200, 50) ushr 24 < 40)
     }
 
     /**

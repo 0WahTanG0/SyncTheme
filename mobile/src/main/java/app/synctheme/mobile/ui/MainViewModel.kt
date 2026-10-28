@@ -33,7 +33,6 @@ import app.synctheme.mobile.data.ThemeApplier
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.DepthException
 import app.synctheme.mobile.render.DepthMasks
-import app.synctheme.mobile.render.LockScreenImage
 import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.data.WeatherRepository
 import app.synctheme.mobile.install.WatchAppInstaller
@@ -107,8 +106,25 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Подключённые устройства: телефон всегда, часы и устройства по Wi‑Fi (планшет, ТВ, телефон) — по желанию. */
     private val _watchOn = MutableStateFlow(DeviceSettings.watch(app))
-    val devices: StateFlow<DeviceSet> = combine(_watchOn, LinkStore.observePeers(app)) { w, p -> DeviceSet(w, p) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, DeviceSet(_watchOn.value, LinkStore.peers(app)))
+    private val _pro = MutableStateFlow(DeviceSettings.pro(app))
+
+    /** «Проф. версия» включена: другие устройства и установка на них. */
+    val pro: StateFlow<Boolean> = _pro.asStateFlow()
+
+    /** Подключённые устройства; без «Проф. версии» — только телефон: на экране и по «Применить» их нет. */
+    val devices: StateFlow<DeviceSet> = combine(_watchOn, LinkStore.observePeers(app), _pro) { w, p, pro -> devicesOf(w, p, pro) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, devicesOf(_watchOn.value, LinkStore.peers(app), _pro.value))
+
+    private fun devicesOf(watch: Boolean, peers: List<app.synctheme.mobile.link.Peer>, pro: Boolean) =
+        if (pro) DeviceSet(watch, peers) else DeviceSet()
+
+    fun setPro(on: Boolean) {
+        DeviceSettings.setPro(app, on)
+        _pro.value = on
+        // Без «Проф. версии» этот телефон и тему с другого не принимает.
+        if (!on && _receiving.value) setReceiving(false)
+        if (on) refreshWatch()
+    }
 
     /** Приложение открыто на планшете: превью — его экран, а не телефона. */
     val selfTablet = DeviceSettings.isTablet(app)
@@ -169,7 +185,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             // Подключили или отключили планшет либо телевизор — нужны (или больше не нужны) их превью.
             val kinds = devices.map { d -> d.peers.map { it.kind }.toSet() }.distinctUntilChanged()
-            combine(theme, masks, kinds) { t, _, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
+            combine(theme, masks, kinds, SubjectMask.version) { t, _, _, _ -> t }.debounce(60).collectLatest { renderPreviews(it) }
         }
         // Сменили фото, а глубина уже включена, — сразу ищем объект на новом фото (каждое фото — один раз).
         viewModelScope.launch {
@@ -456,7 +472,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             SubjectMask.ensure(app, photo)
             enable()
         } catch (e: DepthException) {
+            // Объект не нашёлся сам — глубину всё равно включаем и сразу даём обвести его пальцем.
+            enable()
             _messages.tryEmit(e.message.orEmpty())
+            _subjectEditor.value = photo
         } catch (e: Exception) {
             _messages.tryEmit("Не удалось выделить объект: ${e.message ?: e.javaClass.simpleName}")
         } finally {
@@ -479,29 +498,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         withSubject(photoOf(theme.value.background)) { update { it.copy(wallClock = clock) } }
     }
 
-    /**
-     * Глубина на экране блокировки: часы там рисует One UI, его «Адаптивные часы» обтекают объект
-     * фото. SyncTheme проверяет, что объект на фото есть, и ставит фото без затемнения.
-     */
-    fun setLockDepth(enabled: Boolean) {
-        if (!enabled) return update { it.copy(lockDepth = false) }
-        withSubject(photoOf(theme.value.lockScreenBackground())) { update { it.copy(lockDepth = true) } }
+    private val _subjectEditor = MutableStateFlow<String?>(null)
+
+    /** Фото, на котором сейчас вручную выделяют объект для глубины; null — редактор закрыт. */
+    val subjectEditor: StateFlow<String?> = _subjectEditor.asStateFlow()
+
+    /** Выбрать объект вручную: обвести пальцем на фото [bg]. */
+    fun editSubject(bg: Background) {
+        val photo = photoOf(bg) ?: return run { _messages.tryEmit("Эффект глубины работает с фото: выберите фото для фона") }
+        _subjectEditor.value = photo
     }
 
-    /**
-     * Запасной способ для экрана блокировки: отдать картинку системному «Установить как» — тогда
-     * её ставит приложение обоев Samsung, и адаптивные часы точно знают про объект на фото.
-     */
-    fun lockViaSystem(onIntent: (android.content.Intent) -> Unit) = viewModelScope.launch {
-        _busy.value = "Готовлю обои блокировки…"
-        try {
-            val uri = withContext(Dispatchers.Default) { LockScreenImage.export(app, theme.value) }
-            onIntent(LockScreenImage.setAsIntent(uri))
-        } catch (e: Exception) {
-            _messages.tryEmit("Не удалось подготовить обои: ${e.message ?: e.javaClass.simpleName}")
-        } finally {
-            _busy.value = null
-        }
+    fun closeSubjectEditor() {
+        _subjectEditor.value = null
     }
 
     fun refreshWatch() = viewModelScope.launch { _connection.value = sync.connection() }

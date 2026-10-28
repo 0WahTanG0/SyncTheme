@@ -152,6 +152,23 @@ fun DevicesSection(vm: MainViewModel, onOpenInstaller: () -> Unit, onOpenTvInsta
     if (adding) AddDeviceDialog(vm, onOpenInstaller, onOpenTvInstaller) { adding = false }
 }
 
+/**
+ * «Проф. версия»: без неё SyncTheme — для одного телефона. С ней — часы, планшеты, телевизоры и другие
+ * телефоны в одной теме и установка на них. Подключённые устройства видны на главном экране рядом с телефоном.
+ */
+@Composable
+fun ProSection(vm: MainViewModel) {
+    val pro by vm.pro.collectAsStateWithLifecycle()
+    Section("Проф. версия") {
+        SwitchRow("Другие устройства", pro, onChange = vm::setPro)
+        Text(
+            if (pro) "Часы, планшеты, телевизор и другие телефоны получают ту же тему по «Применить». Подключить — ниже, в «Устройствах»."
+            else "Сейчас SyncTheme работает только с этим телефоном. Включите, чтобы добавить часы, планшет, телевизор или другой телефон.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 /** Строка устройства по Wi‑Fi: состояние, получает ли тему, отправить сейчас, отключить. */
 @Composable
 private fun PeerRow(vm: MainViewModel, peer: Peer, push: LinkPush?) {

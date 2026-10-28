@@ -128,17 +128,6 @@
                 android:resource="@xml/clock_wallpaper" />
         </service>
 
-        <!-- Обои блокировки файлом для системного «Установить как» (адаптивные часы One UI). -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.files"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-
         <receiver
             android:name=".mobile.widget.ClockWidget"
             android:exported="false"
