@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.os.Build
 import android.text.format.DateFormat
 import app.synctheme.core.DigitFont
@@ -62,14 +63,16 @@ internal object ClockDigits {
         paint.textSize = 100f * maxHeightPx / (unit * rows)
         val fm = paint.fontMetrics
         val line = fm.descent - fm.ascent
-        val width = max(1, ceil(lines.maxOf { paint.measureText(it) }).toInt())
+        val spans = lines.map { inkSpan(paint, it, glow) }
+        val width = max(1, ceil(spans.maxOf { it.second - it.first }).toInt())
         val height = max(1, ceil(line * rows).toInt())
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8)
         val canvas = Canvas(bmp)
         fun draw(alpha: Int) {
             paint.alpha = alpha
             lines.forEachIndexed { i, s ->
-                canvas.drawText(s, (width - paint.measureText(s)) / 2, -fm.ascent + i * line * mult, paint)
+                val (left, right) = spans[i]
+                canvas.drawText(s, (width - (right - left)) / 2 - left, -fm.ascent + i * line * mult, paint)
             }
         }
         if (glow) {
@@ -85,7 +88,8 @@ internal object ClockDigits {
     private fun renderTight(paint: Paint, font: DigitFont, text: String, glow: Boolean, heightPx: Int): Bitmap {
         paint.textSize = 0.88f * heightPx / font.digitHeight
         val size = paint.textSize
-        val width = max(1, ceil(paint.measureText(text)).toInt())
+        val (left, right) = inkSpan(paint, text, glow)
+        val width = max(1, ceil(right - left).toInt())
         val height = max(1, heightPx)
         val baseline = height / 2f + (font.top + font.bottom) / 2f * size
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8)
@@ -93,12 +97,23 @@ internal object ClockDigits {
         if (glow) {
             paint.maskFilter = BlurMaskFilter(size * 0.08f, BlurMaskFilter.Blur.NORMAL)
             paint.alpha = 140
-            canvas.drawText(text, 0f, baseline, paint)
+            canvas.drawText(text, -left, baseline, paint)
             paint.maskFilter = null
         }
         paint.alpha = 255
-        canvas.drawText(text, 0f, baseline, paint)
+        canvas.drawText(text, -left, baseline, paint)
         return bmp
+    }
+
+    /**
+     * Где строка оставляет «чернила» по горизонтали: от начала до конца самих цифр, а не только по ширине
+     * текста — наклонные цифры («Рукопись») выходят за неё, и картинка обрезала бы последнюю цифру.
+     * Со свечением — с запасом на его размытие.
+     */
+    private fun inkSpan(paint: Paint, text: String, glow: Boolean): Pair<Float, Float> {
+        val bounds = Rect().also { paint.getTextBounds(text, 0, text.length, it) }
+        val pad = paint.textSize * (if (glow) 0.16f else 0.02f)
+        return minOf(0f, bounds.left.toFloat()) - pad to maxOf(paint.measureText(text), bounds.right.toFloat()) + pad
     }
 }
 
