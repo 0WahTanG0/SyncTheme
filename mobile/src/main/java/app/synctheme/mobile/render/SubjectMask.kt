@@ -41,6 +41,13 @@ object SubjectMask {
     @Volatile
     var segmenter: suspend (Context, Bitmap) -> Bitmap = ::mlKit
 
+    /**
+     * Отдельные объекты на фото: по маске на каждый (того же размера, что фото). По ним обводка берёт
+     * именно обведённый предмет, а не всё, что на переднем плане. В тестах подменяется.
+     */
+    @Volatile
+    var subjects: suspend (Context, Bitmap) -> List<Bitmap> = ::mlKitSubjects
+
     private val cache = LinkedHashMap<String, Bitmap>()
 
     /** Растёт, когда маску выделили заново (в том числе вручную): обои и превью перерисовываются. */
@@ -73,19 +80,16 @@ object SubjectMask {
 
     /**
      * Умная обводка: пользователь примерно обвёл объект пальцем ([lasso] — точки в координатах [photo]).
-     * Распознаватель ищет объект только в обведённом месте (крупнее — значит точнее), а результат
+     * Распознаватель ищет объект только в обведённом месте (крупнее — значит точнее) и берёт те предметы,
+     * что в основном внутри обводки, — соседние не цепляются; результат
      * ограничивается обводкой с запасом: край объекта может чуть выходить за линию пальца.
      * Если распознаватель там ничего не увидел — объектом считается сама обводка с мягким краем.
      */
     suspend fun fromLasso(context: Context, photo: Bitmap, lasso: List<android.graphics.PointF>): Bitmap = withContext(Dispatchers.Default) {
         val w = photo.width
         val h = photo.height
-        // Линия пальца неровная — сглаживаем её: углы между точками скругляются кривыми через середины отрезков.
         val path = android.graphics.Path().apply {
-            val n = lasso.size
-            fun mid(i: Int) = android.graphics.PointF((lasso[i % n].x + lasso[(i + 1) % n].x) / 2, (lasso[i % n].y + lasso[(i + 1) % n].y) / 2)
-            mid(0).let { moveTo(it.x, it.y) }
-            for (i in 1..n) mid(i).let { m -> quadTo(lasso[i % n].x, lasso[i % n].y, m.x, m.y) }
+            lasso.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) }
             close()
         }
         val bounds = android.graphics.RectF().also { path.computeBounds(it, true) }
@@ -101,14 +105,19 @@ object SubjectMask {
             drawPath(path, fill)
             fill.style = android.graphics.Paint.Style.STROKE
             fill.strokeJoin = android.graphics.Paint.Join.ROUND
-            fill.strokeWidth = margin * 0.6f
+            fill.strokeWidth = margin
             drawPath(path, fill)
         }
         val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(result)
         val found = if (crop.width() > 8 && crop.height() > 8) {
             val part = Bitmap.createBitmap(photo, crop.left, crop.top, crop.width(), crop.height())
-            runCatching { segmenter(context, part) }.getOrNull().also { part.recycle() }
+            // Сначала — отдельные объекты: те, что в основном внутри обводки. Соседние (ягоды рядом, второй
+            // человек) не цепляются, даже если вплотную. Не нашлось — весь передний план, как раньше.
+            val inCrop = Bitmap.createBitmap(region, crop.left, crop.top, crop.width(), crop.height())
+            val picked = runCatching { pick(subjects(context, part), inCrop) }.getOrNull()
+            inCrop.recycle()
+            (picked ?: runCatching { segmenter(context, part) }.getOrNull()).also { part.recycle() }
         } else null
         val inside = found?.let { coverage(it) } ?: 0f
         if (found != null && inside > 0.02f) {
@@ -117,13 +126,8 @@ object SubjectMask {
             canvas.drawBitmap(region, 0f, 0f, android.graphics.Paint().apply {
                 xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
             })
-        }
-        // Распознаватель взял почти всю обводку целиком (фото из одинаковых предметов: ягоды, листья, камни) —
-        // он не отделил объект от соседних, и выделение стало бы прямоугольником куска фото. Тогда — по линии пальца.
-        val isolated = found != null && inside > 0.02f && coverage(result, crop) < 0.9f * coverage(region, crop)
-        if (!isolated) {
-            result.eraseColor(android.graphics.Color.TRANSPARENT)
-            // Объект — по сглаженной линии пальца, с мягким краем.
+        } else {
+            // Распознаватель ничего не нашёл — объект по линии пальца, с мягким краем.
             canvas.drawPath(path, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 color = android.graphics.Color.WHITE
                 maskFilter = android.graphics.BlurMaskFilter(max(2f, margin * 0.15f), android.graphics.BlurMaskFilter.Blur.NORMAL)
@@ -132,6 +136,40 @@ object SubjectMask {
         found?.recycle()
         region.recycle()
         result
+    }
+
+    /**
+     * Объекты, которые пользователь обвёл: большая часть объекта — внутри обводки [area] (с запасом).
+     * Объект, обведённый лишь краешком, — чужой. Возвращает их общую маску или null, если таких нет.
+     */
+    private fun pick(found: List<Bitmap>, area: Bitmap): Bitmap? {
+        val w = area.width
+        val h = area.height
+        val inside = IntArray(w * h).also { area.getPixels(it, 0, w, 0, 0, w, h) }
+        var areaSum = 0L
+        for (px in inside) if (px ushr 24 > 127) areaSum++
+        val px = IntArray(w * h)
+        val chosen = found.filter { m ->
+            if (m.width != w || m.height != h) return@filter false
+            m.getPixels(px, 0, w, 0, 0, w, h)
+            var total = 0L
+            var within = 0L
+            for (i in px.indices) {
+                val a = (px[i] ushr 24).toLong()
+                total += a
+                if (inside[i] ushr 24 > 127) within += a
+            }
+            total > 0 && within >= 0.6 * total && within >= 0.03 * 255 * areaSum
+        }
+        if (chosen.isEmpty()) {
+            found.forEach { it.recycle() }
+            return null
+        }
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(out)
+        chosen.forEach { canvas.drawBitmap(it, 0f, 0f, null) }
+        found.forEach { it.recycle() }
+        return out
     }
 
     fun file(context: Context, photo: String): File =
@@ -177,12 +215,11 @@ object SubjectMask {
     }
 
     /** Доля «объекта» на маске (по альфе). */
-    /** Доля непрозрачного в маске (или в её части [area]). */
-    private fun coverage(mask: Bitmap, area: android.graphics.Rect = android.graphics.Rect(0, 0, mask.width, mask.height)): Float {
+    private fun coverage(mask: Bitmap): Float {
         val step = 4
         var sum = 0L
         var n = 0
-        for (y in area.top until area.bottom step step) for (x in area.left until area.right step step) {
+        for (y in 0 until mask.height step step) for (x in 0 until mask.width step step) {
             sum += mask.getPixel(x, y) ushr 24
             n++
         }
@@ -207,6 +244,32 @@ object SubjectMask {
                 pixels[i] = ((a * 255).toInt() shl 24) or 0xFFFFFF
             }
             return Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
+        } finally {
+            segmenter.close()
+        }
+    }
+
+    private suspend fun mlKitSubjects(context: Context, bitmap: Bitmap): List<Bitmap> {
+        val segmenter = SubjectSegmentation.getClient(
+            SubjectSegmenterOptions.Builder()
+                .enableMultipleSubjects(SubjectSegmenterOptions.SubjectResultOptions.Builder().enableConfidenceMask().build())
+                .build(),
+        )
+        try {
+            ensureModel(context, segmenter)
+            val result = segmenter.process(InputImage.fromBitmap(bitmap, 0)).await()
+            return result.subjects.mapNotNull { subject ->
+                val confidence = subject.confidenceMask ?: return@mapNotNull null
+                val pixels = IntArray(bitmap.width * bitmap.height)
+                confidence.rewind()
+                for (y in 0 until subject.height) for (x in 0 until subject.width) {
+                    val a = ((confidence.get() - 0.3f) / 0.4f).coerceIn(0f, 1f)
+                    val tx = subject.startX + x
+                    val ty = subject.startY + y
+                    if (tx < bitmap.width && ty < bitmap.height) pixels[ty * bitmap.width + tx] = ((a * 255).toInt() shl 24) or 0xFFFFFF
+                }
+                Bitmap.createBitmap(pixels, bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+            }
         } finally {
             segmenter.close()
         }
