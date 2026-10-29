@@ -242,6 +242,15 @@ class FeaturesTest {
         val manual = SubjectMask.fromLasso(context, photo, sky)
         assertTrue(manual.getPixel(70, 50) ushr 24 > 200)
         assertTrue(manual.getPixel(200, 50) ushr 24 < 40)
+        // Фото из одинаковых предметов: распознаватель берёт весь кусок фото — выделение по обводке, а не прямоугольник.
+        SubjectMask.segmenter = { _, input -> Bitmap.createBitmap(input.width, input.height, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.WHITE) } }
+        val round = (0 until 32).map { i ->
+            val a = i * Math.PI * 2 / 32
+            android.graphics.PointF(300f + 80f * Math.cos(a).toFloat(), 200f + 80f * Math.sin(a).toFloat())
+        }
+        val berry = SubjectMask.fromLasso(context, photo, round)
+        assertTrue("внутри обводки выбрано", berry.getPixel(300, 200) ushr 24 > 200)
+        assertTrue("угол прямоугольника вокруг обводки не выбран", berry.getPixel(235, 135) ushr 24 < 40)
     }
 
     /**

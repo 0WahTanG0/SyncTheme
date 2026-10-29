@@ -80,8 +80,12 @@ object SubjectMask {
     suspend fun fromLasso(context: Context, photo: Bitmap, lasso: List<android.graphics.PointF>): Bitmap = withContext(Dispatchers.Default) {
         val w = photo.width
         val h = photo.height
+        // Линия пальца неровная — сглаживаем её: углы между точками скругляются кривыми через середины отрезков.
         val path = android.graphics.Path().apply {
-            lasso.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) }
+            val n = lasso.size
+            fun mid(i: Int) = android.graphics.PointF((lasso[i % n].x + lasso[(i + 1) % n].x) / 2, (lasso[i % n].y + lasso[(i + 1) % n].y) / 2)
+            mid(0).let { moveTo(it.x, it.y) }
+            for (i in 1..n) mid(i).let { m -> quadTo(lasso[i % n].x, lasso[i % n].y, m.x, m.y) }
             close()
         }
         val bounds = android.graphics.RectF().also { path.computeBounds(it, true) }
@@ -97,7 +101,7 @@ object SubjectMask {
             drawPath(path, fill)
             fill.style = android.graphics.Paint.Style.STROKE
             fill.strokeJoin = android.graphics.Paint.Join.ROUND
-            fill.strokeWidth = margin
+            fill.strokeWidth = margin * 0.6f
             drawPath(path, fill)
         }
         val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -113,8 +117,13 @@ object SubjectMask {
             canvas.drawBitmap(region, 0f, 0f, android.graphics.Paint().apply {
                 xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
             })
-        } else {
-            // Распознаватель ничего не нашёл — объект по линии пальца, с мягким краем.
+        }
+        // Распознаватель взял почти всю обводку целиком (фото из одинаковых предметов: ягоды, листья, камни) —
+        // он не отделил объект от соседних, и выделение стало бы прямоугольником куска фото. Тогда — по линии пальца.
+        val isolated = found != null && inside > 0.02f && coverage(result, crop) < 0.9f * coverage(region, crop)
+        if (!isolated) {
+            result.eraseColor(android.graphics.Color.TRANSPARENT)
+            // Объект — по сглаженной линии пальца, с мягким краем.
             canvas.drawPath(path, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 color = android.graphics.Color.WHITE
                 maskFilter = android.graphics.BlurMaskFilter(max(2f, margin * 0.15f), android.graphics.BlurMaskFilter.Blur.NORMAL)
@@ -168,11 +177,12 @@ object SubjectMask {
     }
 
     /** Доля «объекта» на маске (по альфе). */
-    private fun coverage(mask: Bitmap): Float {
+    /** Доля непрозрачного в маске (или в её части [area]). */
+    private fun coverage(mask: Bitmap, area: android.graphics.Rect = android.graphics.Rect(0, 0, mask.width, mask.height)): Float {
         val step = 4
         var sum = 0L
         var n = 0
-        for (y in 0 until mask.height step step) for (x in 0 until mask.width step step) {
+        for (y in area.top until area.bottom step step) for (x in area.left until area.right step step) {
             sum += mask.getPixel(x, y) ushr 24
             n++
         }
