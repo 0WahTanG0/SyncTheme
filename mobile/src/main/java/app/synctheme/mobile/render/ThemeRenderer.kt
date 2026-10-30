@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -23,7 +24,7 @@ import app.synctheme.core.ClockStyle
 import app.synctheme.core.DialStyle
 import app.synctheme.core.DigitFont
 import app.synctheme.core.FontWeight
-import app.synctheme.core.LabelPlace
+import app.synctheme.core.LabelOffset
 import app.synctheme.core.Theme
 import app.synctheme.core.TimeShift
 import app.synctheme.core.WallClock
@@ -691,46 +692,62 @@ object ThemeRenderer {
     /** Подпись (или несколько в одну строку) в своём месте. */
     class PlacedLabel(val kinds: List<WallLabel>, val at: WallClockSpot.DateLabel)
 
+    /** Центр цифр часов на обоях — от него отсчитываются передвинутые подписи. */
+    private fun digitsCenter(theme: Theme, spot: WallClockSpot): PointF? {
+        if (spot.lines.isEmpty()) return null
+        val font = wallClockFont(theme)
+        val top = spot.lines.minOf { it.cy - font.digitHeight * it.size / 2 }
+        val bottom = spot.lines.maxOf { it.cy + font.digitHeight * it.size / 2 }
+        return PointF(spot.lines.first().cx, (top + bottom) / 2)
+    }
+
     /**
      * Где подписи часов: дата — над цифрами, погода и заряд — строкой под ними, а передвинутые вручную —
-     * каждая в своём месте ([WallClock.datePlace] …).
+     * каждая на своём месте относительно цифр ([WallClock.dateOffset] …): подписи привязаны к часам и
+     * едут вместе с ними.
      */
     fun wallLabels(theme: Theme, spot: WallClockSpot): List<PlacedLabel> {
         val wall = theme.wallClock ?: return emptyList()
         val dateSize = spot.date?.size ?: (spot.width * 0.042f)
-        fun placed(p: LabelPlace?, size: Float, pattern: String) = p?.takeIf { spot.width > 0f }?.let {
-            WallClockSpot.DateLabel(it.x * spot.width, it.y * spot.height, size * it.scale.coerceIn(0.5f, 3f), pattern, Paint.Align.CENTER)
+        val center = digitsCenter(theme, spot)
+        fun placed(o: LabelOffset?, size: Float, pattern: String) = o?.takeIf { spot.width > 0f && center != null }?.let {
+            WallClockSpot.DateLabel(
+                (center!!.x + it.dx * spot.width).coerceIn(spot.width * 0.1f, spot.width * 0.9f),
+                (center.y + it.dy * spot.height).coerceIn(spot.height * 0.04f, spot.height * 0.96f),
+                size * it.scale.coerceIn(0.5f, 3f), pattern, Paint.Align.CENTER,
+            )
         }
         val out = mutableListOf<PlacedLabel>()
         if (wall.showDate) {
-            (placed(wall.datePlace, dateSize, spot.date?.pattern ?: "EEEE, d MMMM") ?: spot.date)?.let { out += PlacedLabel(listOf(WallLabel.DATE), it) }
+            (placed(wall.dateOffset, dateSize, spot.date?.pattern ?: "EEEE, d MMMM") ?: spot.date)?.let { out += PlacedLabel(listOf(WallLabel.DATE), it) }
         }
         val under = infoLabel(theme, spot)
         val infoSize = under?.size ?: dateSize
         val rest = mutableListOf<WallLabel>()
-        if (wall.weather) placed(wall.weatherPlace, infoSize, "")?.let { out += PlacedLabel(listOf(WallLabel.WEATHER), it) } ?: rest.add(WallLabel.WEATHER)
-        if (wall.battery) placed(wall.batteryPlace, infoSize, "")?.let { out += PlacedLabel(listOf(WallLabel.BATTERY), it) } ?: rest.add(WallLabel.BATTERY)
+        if (wall.weather) placed(wall.weatherOffset, infoSize, "")?.let { out += PlacedLabel(listOf(WallLabel.WEATHER), it) } ?: rest.add(WallLabel.WEATHER)
+        if (wall.battery) placed(wall.batteryOffset, infoSize, "")?.let { out += PlacedLabel(listOf(WallLabel.BATTERY), it) } ?: rest.add(WallLabel.BATTERY)
         if (rest.isNotEmpty() && under != null) out += PlacedLabel(rest, under)
         return out
     }
 
-    /** Подпись там, где она сейчас (своё место или у цифр), как [LabelPlace] — с него начинается перетаскивание. */
-    fun labelPlaceOf(context: Context, theme: Theme, label: WallLabel, width: Int, height: Int): LabelPlace? {
+    /**
+     * Подпись там, где она сейчас, как сдвиг от центра цифр — с него начинается перетаскивание. Подпись
+     * на экране не дальше полей от краёв: сдвиг, уводящий её за край, укорачивается.
+     */
+    fun labelOffsetOf(context: Context, theme: Theme, label: WallLabel, width: Int, height: Int): LabelOffset? {
         val wall = theme.wallClock ?: return null
-        when (label) {
-            WallLabel.DATE -> wall.datePlace
-            WallLabel.WEATHER -> wall.weatherPlace
-            WallLabel.BATTERY -> wall.batteryPlace
-        }?.let { return it }
         val spot = wallClockSpot(context, theme, width, height)
-        val at = wallLabels(theme, spot).firstOrNull { label in it.kinds }?.at ?: return null
-        // Из общей строки «погода · заряд» подпись уходит на своё место — чуть в стороне от неё.
-        val shift = if (label == WallLabel.BATTERY && WallLabel.WEATHER in wallLabels(theme, spot).first { label in it.kinds }.kinds) at.size * 1.8f else 0f
-        return LabelPlace(at.cx / width, (at.cy + shift) / height)
+        val center = digitsCenter(theme, spot) ?: return null
+        val group = wallLabels(theme, spot).firstOrNull { label in it.kinds } ?: return null
+        val own = when (label) {
+            WallLabel.DATE -> wall.dateOffset
+            WallLabel.WEATHER -> wall.weatherOffset
+            WallLabel.BATTERY -> wall.batteryOffset
+        }
+        // Из общей строки «погода · заряд» заряд уходит на своё место — строкой ниже.
+        val shift = if (own == null && label == WallLabel.BATTERY && WallLabel.WEATHER in group.kinds) group.at.size * 1.8f else 0f
+        return LabelOffset((group.at.cx - center.x) / width, (group.at.cy + shift - center.y) / height, own?.scale ?: 1f)
     }
-
-    /** Подпись целиком на экране: центр не ближе полей к краям. */
-    fun clampLabel(p: LabelPlace): LabelPlace = p.copy(x = p.x.coerceIn(0.12f, 0.88f), y = p.y.coerceIn(0.05f, 0.95f), scale = p.scale.coerceIn(0.5f, 3f))
 
     /**
      * Часы на обоях телефона (рисуют живые обои SyncTheme) в месте [spot]: время шрифтом цифр темы,

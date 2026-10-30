@@ -110,7 +110,7 @@ class ArrangeTest {
         assertTrue("фото сдвинуто: ${t.background.focusX}", t.background.focusX < 0.5f)
     }
 
-    /** Дата, погода и заряд ставятся в любое место отдельно от часов. */
+    /** Дата, погода и заряд двигаются вокруг часов, оставаясь привязанными к ним. */
     @Test
     fun movesWallClockLabels() {
         ThemeRepository.get(app).setDraft(theme().let { it.copy(wallClock = it.wallClock!!.copy(weather = true, battery = true)) })
@@ -134,11 +134,11 @@ class ArrangeTest {
         compose.onRoot().captureRoboImage(File(out, "screen_arrange_labels.png").absolutePath)
         compose.onNodeWithText("Готово").performClick()
         val wall = vm.theme.value.wallClock!!
-        assertNotNull("дата на своём месте", wall.datePlace)
-        assertTrue("дата внизу: ${wall.datePlace!!.y}", wall.datePlace!!.y > 0.5f)
-        assertNotNull("заряд на своём месте", wall.batteryPlace)
-        assertTrue("заряд слева: ${wall.batteryPlace!!.x}", wall.batteryPlace!!.x < 0.4f)
-        assertEquals("часы и погода не тронуты", null, wall.place ?: wall.weatherPlace)
+        assertNotNull("дата на своём месте", wall.dateOffset)
+        assertTrue("дата под часами: ${wall.dateOffset!!.dy}", wall.dateOffset!!.dy > 0.1f)
+        assertNotNull("заряд на своём месте", wall.batteryOffset)
+        assertTrue("заряд левее часов: ${wall.batteryOffset!!.dx}", wall.batteryOffset!!.dx < -0.1f)
+        assertEquals("часы и погода не тронуты", null, wall.place ?: wall.weatherOffset)
     }
 
     /** Телефон боком: холст расположения вписывается по высоте, кнопки не уезжают. */

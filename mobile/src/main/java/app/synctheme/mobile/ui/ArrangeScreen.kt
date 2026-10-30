@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.dp
 import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockPlace
-import app.synctheme.core.LabelPlace
+import app.synctheme.core.LabelOffset
 import app.synctheme.core.PhotoCrop
 import app.synctheme.core.Theme
 import app.synctheme.core.TimeShift
@@ -123,9 +123,9 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
                     when (mode) {
                         ArrangeMode.CLOCK -> "Двигайте ${if (target == ArrangeTarget.HOME) "часы" else "время"} пальцем, щипком меняйте размер."
                         ArrangeMode.PHOTO -> "Двигайте фото пальцем, щипком увеличивайте."
-                        ArrangeMode.DATE -> "Ставьте дату в любое место экрана, щипком меняйте размер."
-                        ArrangeMode.WEATHER -> "Ставьте погоду в любое место экрана, щипком меняйте размер."
-                        ArrangeMode.BATTERY -> "Ставьте заряд в любое место экрана, щипком меняйте размер."
+                        ArrangeMode.DATE -> "Двигайте дату вокруг часов, щипком меняйте размер. Она привязана к часам и едет вместе с ними."
+                        ArrangeMode.WEATHER -> "Двигайте погоду вокруг часов, щипком меняйте размер. Она привязана к часам и едет вместе с ними."
+                        ArrangeMode.BATTERY -> "Двигайте заряд вокруг часов, щипком меняйте размер. Он привязан к часам и едет вместе с ними."
                     },
                     style = MaterialTheme.typography.bodySmall, color = look.muted, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
                 )
@@ -185,7 +185,7 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
                             }
                         }
                         ArrangeMode.PHOTO -> TextButton(onClick = { edited = setCrop(edited, target, PhotoCrop()) }) { Text("По центру") }
-                        else -> TextButton(onClick = { edited = placeLabel(edited, mode.label!!, null) }) { Text("Вернуть к часам") }
+                        else -> TextButton(onClick = { edited = placeLabel(edited, mode.label!!, null) }) { Text("На обычное место") }
                     }
                 }
             }
@@ -246,20 +246,20 @@ private fun moveClock(context: android.content.Context, t: Theme, target: Arrang
     }
 }
 
-/** Подпись часов на обоях — палец тянет её в любое место экрана, щипок меняет размер. */
+/** Подпись часов на обоях — палец двигает её вокруг часов, щипок меняет размер; с часами она едет вместе. */
 private fun moveLabel(context: android.content.Context, t: Theme, label: ThemeRenderer.WallLabel, fx: Float, fy: Float, zoom: Float): Theme {
-    val start = ThemeRenderer.labelPlaceOf(context, t, label, PHONE_W, PHONE_H) ?: return t
-    return placeLabel(t, label, ThemeRenderer.clampLabel(LabelPlace(start.x + fx, start.y + fy, start.scale * zoom)))
+    val start = ThemeRenderer.labelOffsetOf(context, t, label, PHONE_W, PHONE_H) ?: return t
+    return placeLabel(t, label, LabelOffset(start.dx + fx, start.dy + fy, (start.scale * zoom).coerceIn(0.5f, 3f)))
 }
 
-/** Своё место подписи; null — обратно к часам. */
-private fun placeLabel(t: Theme, label: ThemeRenderer.WallLabel, place: LabelPlace?): Theme {
+/** Своё место подписи относительно часов; null — обратно на обычное место у цифр. */
+private fun placeLabel(t: Theme, label: ThemeRenderer.WallLabel, offset: LabelOffset?): Theme {
     val wall = t.wallClock ?: return t
     return t.copy(
         wallClock = when (label) {
-            ThemeRenderer.WallLabel.DATE -> wall.copy(datePlace = place)
-            ThemeRenderer.WallLabel.WEATHER -> wall.copy(weatherPlace = place)
-            ThemeRenderer.WallLabel.BATTERY -> wall.copy(batteryPlace = place)
+            ThemeRenderer.WallLabel.DATE -> wall.copy(dateOffset = offset)
+            ThemeRenderer.WallLabel.WEATHER -> wall.copy(weatherOffset = offset)
+            ThemeRenderer.WallLabel.BATTERY -> wall.copy(batteryOffset = offset)
         },
     )
 }
@@ -319,7 +319,7 @@ fun arrangeLabel(t: Theme, target: ArrangeTarget): String? {
 
 /** Пометка, что расположение задано вручную (для подписей). */
 fun arrangedManually(t: Theme, target: ArrangeTarget): Boolean = when (target) {
-    ArrangeTarget.HOME -> t.wallClock?.place != null || t.wallClock?.datePlace != null || t.wallClock?.weatherPlace != null ||
-        t.wallClock?.batteryPlace != null || t.background.focusX != 0.5f || t.background.focusY != 0.5f || t.background.zoom != 1f
+    ArrangeTarget.HOME -> t.wallClock?.place != null || t.wallClock?.dateOffset != null || t.wallClock?.weatherOffset != null ||
+        t.wallClock?.batteryOffset != null || t.background.focusX != 0.5f || t.background.focusY != 0.5f || t.background.zoom != 1f
     ArrangeTarget.WATCH -> t.watchSettings().timeShift != null || t.watchPhotoCrop != null || t.watchSettings().background?.framed == true
 }
