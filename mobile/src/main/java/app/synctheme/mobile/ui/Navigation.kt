@@ -61,7 +61,7 @@ import app.synctheme.mobile.data.DeviceSet
 @Composable
 fun BottomNav(tab: Tab, tabs: List<Tab> = Tab.entries, onTab: (Tab) -> Unit) {
     val look = LocalLook.current
-    if (look.style == AppStyle.BENTO) return BentoNav(tab, tabs, onTab)
+    if (look.style == AppStyle.STEPS) return StepsNav(tab, tabs, onTab)
     NavigationBar(containerColor = look.bar, tonalElevation = 0.dp) {
         tabs.forEach { t ->
             NavigationBarItem(
@@ -110,6 +110,7 @@ fun SideNav(tab: Tab, tabs: List<Tab>, onTab: (Tab) -> Unit) {
 val Tab.icon: ImageVector
     get() = when (this) {
         Tab.WALLPAPER -> NavIcons.Wallpaper
+        Tab.THEMES -> NavIcons.Save
         Tab.WIDGETS -> NavIcons.Widgets
         Tab.WATCH -> NavIcons.Watch
         Tab.MORE -> NavIcons.Settings

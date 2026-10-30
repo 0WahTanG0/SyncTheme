@@ -164,6 +164,7 @@ class ClickThroughTest {
     }
 
     @Test fun wallpaper() = clickAll(Tab.WALLPAPER)
+    @Test fun themes() = clickAll(Tab.THEMES)
     @Test fun widgets() = clickAll(Tab.WIDGETS)
     @Test fun watch() = clickAll(Tab.WATCH)
     @Test fun settings() = clickAll(Tab.MORE)

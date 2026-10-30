@@ -156,7 +156,7 @@ fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: M
     }
     val shape = RoundedCornerShape(
         when (look.style) {
-            AppStyle.BENTO -> 16.dp
+            AppStyle.STEPS -> 14.dp
             AppStyle.GLASS -> 14.dp
             AppStyle.EXPRESSIVE -> 18.dp
             AppStyle.NEON -> 10.dp

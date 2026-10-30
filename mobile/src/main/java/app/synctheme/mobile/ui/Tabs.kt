@@ -208,52 +208,6 @@ private fun SwatchPair(text: Int, accent: Int) {
     }
 }
 
-/** Лента тем: «Из фото» — новая тема из снимка в один шаг, и свои темы. */
-@Composable
-fun ThemeStrip(
-    saved: List<Theme>, selectedId: String,
-    onPhoto: () -> Unit, onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit, onSave: () -> Unit,
-) {
-    val look = LocalLook.current
-    Column(Modifier.padding(vertical = 6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(look.title("Мои темы"), style = look.sectionTitle, color = look.text, modifier = Modifier.weight(1f))
-            TextButton(onClick = onSave) {
-                Icon(NavIcons.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Сохранить")
-            }
-        }
-        Text(
-            if (saved.isEmpty()) "Нажмите «Из фото» — тема соберётся из снимка сама: фон, цвета цифр, виджетов и циферблата. Или настройте плитки выше и «Сохранить»."
-            else "Нажмите тему или «Из фото» — новая тема из снимка в один шаг.",
-            style = MaterialTheme.typography.bodySmall, color = look.muted,
-        )
-        Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item(key = "photo") {
-                Column(Modifier.width(66.dp).clickable(onClick = onPhoto), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        Modifier.padding(bottom = 7.dp).size(54.dp, 117.dp).clip(RoundedCornerShape(14.dp)).background(look.primary),
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Default.Add, contentDescription = null, tint = look.onPrimary, modifier = Modifier.size(30.dp)) }
-                    Spacer(Modifier.height(4.dp))
-                    Text("Из фото", style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                }
-            }
-            items(saved, key = { "s" + it.id }) { t ->
-                Box {
-                    ThemeThumb(t, t.id == selectedId, onClick = { onSelect(t) })
-                    IconButton(
-                        onClick = { onDelete(t) },
-                        modifier = Modifier.align(Alignment.TopEnd).size(24.dp).clip(CircleShape).background(Color(0xCC000000)),
-                    ) { Icon(Icons.Default.Close, contentDescription = "Удалить", modifier = Modifier.size(14.dp), tint = Color.White) }
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun NameRow(theme: Theme, isSaved: Boolean, onRename: (String) -> Unit, onSave: (replace: Boolean) -> Unit) {
     OutlinedTextField(value = theme.name, onValueChange = onRename, singleLine = true, label = { Text("Название") }, modifier = Modifier.fillMaxWidth())
@@ -279,7 +233,8 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
         Column(Modifier.padding(vertical = 6.dp)) {
             Text(look.title("Добавить виджет"), style = look.sectionTitle, color = look.text)
             Text(
-                "Растяните виджет на рабочем столе — он покажет больше. Стиль, шрифт и цвета — в его настройке.",
+                "Виджеты — окошки на рабочем столе: часы, календарь, погода. Они сами берут цвета из вашего фото. " +
+                    "Растяните виджет — он покажет больше.",
                 style = MaterialTheme.typography.bodySmall, color = look.muted,
             )
             Spacer(Modifier.height(8.dp))

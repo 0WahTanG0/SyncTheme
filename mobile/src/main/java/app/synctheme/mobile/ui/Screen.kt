@@ -81,7 +81,7 @@ import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.widget.WidgetConfigActivity
 
 /** Разделы нижнего меню. */
-enum class Tab(val title: String) { WALLPAPER("Обои"), WIDGETS("Виджеты"), WATCH("Часы"), MORE("Настройки") }
+enum class Tab(val title: String) { WALLPAPER("Оформление"), THEMES("Мои темы"), WIDGETS("Виджеты"), WATCH("Часы"), MORE("Настройки") }
 
 /** Показывать ли часы в превью и миниатюрах (часы подключены). */
 val LocalShowWatch = androidx.compose.runtime.staticCompositionLocalOf { true }
@@ -158,6 +158,18 @@ private fun SyncThemeContent(
         uri?.let { if (photoTheme) vm.themeFromPhoto(it) else vm.pickPhoto(it, photoTarget) }
     }
 
+    // Один раз спрашиваем про уведомления: через них приходит «Вышла новая версия».
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        if (firstLaunchCheck && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && !prefs.getBoolean("asked_notifications", false) &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            prefs.edit().putBoolean("asked_notifications", true).apply()
+            notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     val actions = remember(vm) {
         ScreenActions(
             vm = vm,
@@ -209,11 +221,17 @@ private fun SyncThemeContent(
     if (tab == Tab.WALLPAPER && detail != null) androidx.activity.compose.BackHandler { detail = null }
 
     val density = LocalDensity.current
-    val header = remember(density) { CollapsingHeader(with(density) { 224.dp.toPx() }, with(density) { 96.dp.toPx() }) }
-    LaunchedEffect(tab, detail) { header.expand() }
+    val collapsing = remember(density) { CollapsingHeader(with(density) { 224.dp.toPx() }, with(density) { 96.dp.toPx() }) }
+    LaunchedEffect(tab, detail) { collapsing.expand() }
     val expandAll = LocalExpandAll.current
-    /** Плитки «Обоев»: превью — в самих плитках, без закреплённой шапки. */
+    /** Шаги «Оформления»: превью — внутри шага 2, без закреплённой шапки. */
     val hub = tab == Tab.WALLPAPER && detail == null
+    val saved by vm.saved.collectAsStateWithLifecycle()
+    /** Первый запуск: своих тем нет и фото не выбрано — открыт только шаг 1. */
+    val firstRun = saved.isEmpty() && theme.background.type != app.synctheme.core.BackgroundType.PHOTO
+    val hasPreviews = tab != Tab.MORE && tab != Tab.THEMES
+    /** «Применить» внизу — там, где нет шага 3: на вкладке «Часы» и в подробных разделах «Оформления». */
+    val showApply = tab == Tab.WATCH || (tab == Tab.WALLPAPER && detail != null)
 
     // Превью устройств: что сейчас видно на экранах (на вкладке «Часы» — только часы).
     val previews: @Composable (Dp) -> Unit = { height ->
@@ -226,30 +244,25 @@ private fun SyncThemeContent(
             else -> PreviewRow(phonePreview, watchPreview.takeIf { devices.watch }, tabletPreview, tvPreview, height, vm.selfTablet)
         }
     }
-    val devicesTile: (@Composable (Modifier) -> Unit)? = if (devices.watch || devices.peers.any { it.enabled }) {
-        { m ->
-            val peers = devices.peers.filter { it.enabled }
-            DevicesTile(
-                watchPreview.takeIf { devices.watch }, tabletPreview, tvPreview,
-                title = if (devices.watch && peers.isEmpty()) "Часы" else "Устройства",
-                status = { DeviceStatus(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) } },
-                onClick = { openTab(if (devices.watch) Tab.WATCH else Tab.MORE) },
-                modifier = m,
-            )
-        }
-    } else null
-    val settings: LazyListScope.(wide: Boolean) -> Unit = { wide ->
+    val header: @Composable () -> Unit = { Header(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) } }
+    val steps = StepsState(
+        phonePreview, watchPreview, theme != applied, busy, targets, devices,
+        onDetail = { detail = it }, editColor = { colorTarget = it }, header = header,
+    )
+    val settings: LazyListScope.() -> Unit = {
+        item(key = "update") { UpdateBanner(vm) }
         when (tab) {
             Tab.WALLPAPER -> {
                 val open = detail
                 if (open == null) {
-                    wallpaperHub(theme, actions, phonePreview, withPreview = !wide, onDetail = { detail = it }, devices = devicesTile.takeIf { !wide })
-                    // Для скриншотов во всю высоту — все разделы сразу под плитками.
+                    stepsHub(theme, actions, steps, firstRun)
+                    // Для скриншотов во всю высоту — все разделы сразу под шагами.
                     if (expandAll) WallDetail.entries.forEach { d -> wallpaperDetail(d, theme, actions) { colorTarget = it } }
                 } else {
                     wallpaperDetail(open, theme, actions) { colorTarget = it }
                 }
             }
+            Tab.THEMES -> themesTab(theme, actions) { openTab(Tab.WALLPAPER) }
             Tab.WIDGETS -> widgetsTab(theme, actions)
             Tab.WATCH -> watchTab(theme, actions) { colorTarget = it }
             Tab.MORE -> moreTab(theme, actions) { UpdateSection(vm) }
@@ -258,8 +271,7 @@ private fun SyncThemeContent(
     val applyStrip: @Composable () -> Unit = { ApplyStrip(targets, busy, theme != applied, devices, vm::setTargets, vm::setPeerEnabled, vm::apply) }
     val headerRow: @Composable () -> Unit = {
         val open = detail
-        if (tab == Tab.WALLPAPER && open != null) DetailHeader(open.title) { detail = null }
-        else Header(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) }
+        if (tab == Tab.WALLPAPER && open != null) DetailHeader(open.title) { detail = null } else header()
     }
 
     AppTheme(theme.accentColor) {
@@ -269,33 +281,34 @@ private fun SyncThemeContent(
                 val wide = maxWidth > maxHeight && maxWidth >= 600.dp
                 CompositionLocalProvider(LocalShowWatch provides devices.watch) {
                     if (wide) {
-                        WideLayout(tab, tabs, openTab, headerRow, previews, if (tab != Tab.MORE) applyStrip else null) { settings(true) }
+                        WideLayout(tab, tabs, openTab, headerRow, previews.takeIf { hasPreviews }, applyStrip.takeIf { showApply }, settings)
                     } else {
                         Scaffold(
                             containerColor = Color.Transparent,
                             snackbarHost = { SnackbarHost(snackbar) },
                             bottomBar = {
                                 Column {
-                                    if (tab != Tab.MORE) applyStrip()
+                                    if (showApply) applyStrip()
                                     BottomNav(tab, tabs, openTab)
                                 }
                             },
                         ) { padding ->
                             // На планшете в портрете — колонка по центру, а не растянутые на всю ширину карточки.
                             Column(
-                                Modifier.fillMaxSize().nestedScroll(header)
+                                Modifier.fillMaxSize().nestedScroll(collapsing)
                                     .padding(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())
                                     .wrapContentWidth().widthIn(max = 720.dp),
                             ) {
                                 // Шапка и превью закреплены; превью сжимается при прокрутке, но изменения видны сразу.
                                 if (!hub) Column(Modifier.padding(horizontal = 16.dp)) {
                                     headerRow()
-                                    if (tab != Tab.MORE) previews(with(density) { header.height.toDp() })
+                                    if (hasPreviews) previews(with(density) { collapsing.height.toDp() })
                                 }
                                 LazyColumn(
                                     modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (hub) 0.dp else 4.dp, bottom = 16.dp),
-                                ) { settings(false) }
+                                    content = settings,
+                                )
                             }
                         }
                     }
@@ -448,20 +461,20 @@ fun DeviceStatus(
 private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBitmap?, tv: ImageBitmap?, height: Dp, selfTablet: Boolean = false) {
     val look = LocalLook.current
     val outer = when (look.style) {
-        AppStyle.BENTO -> RoundedCornerShape(look.radius)
+        AppStyle.STEPS -> RoundedCornerShape(look.radius)
         AppStyle.GLASS -> RoundedCornerShape(28.dp)
         AppStyle.EXPRESSIVE -> RoundedCornerShape(36.dp)
         AppStyle.NEON -> RoundedCornerShape(22.dp)
     }
     val frameBorder = when (look.style) {
         AppStyle.GLASS -> look.cardBorder
-        AppStyle.EXPRESSIVE, AppStyle.BENTO -> Color.Transparent
+        AppStyle.EXPRESSIVE, AppStyle.STEPS -> Color.Transparent
         AppStyle.NEON -> look.accent.copy(alpha = 0.4f)
     }
     val watchOnly = phone == null
     val screenBorder = when (look.style) {
         AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White
-        AppStyle.EXPRESSIVE, AppStyle.BENTO -> Color.Transparent
+        AppStyle.EXPRESSIVE, AppStyle.STEPS -> Color.Transparent
         AppStyle.NEON -> look.accent
     }
     BoxWithConstraints(
@@ -521,7 +534,7 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBi
             // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
             val bezel = when (look.style) {
                 AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.16f) else Color.White
-                AppStyle.EXPRESSIVE, AppStyle.BENTO -> look.text
+                AppStyle.EXPRESSIVE, AppStyle.STEPS -> look.text
                 AppStyle.NEON -> Color(0xFF0C0C12)
             }
             Box(
@@ -553,7 +566,7 @@ private fun WideLayout(
     tabs: List<Tab>,
     onTab: (Tab) -> Unit,
     header: @Composable () -> Unit,
-    previews: @Composable (Dp) -> Unit,
+    previews: (@Composable (Dp) -> Unit)?,
     applyStrip: (@Composable () -> Unit)?,
     settings: LazyListScope.() -> Unit,
 ) {
@@ -565,7 +578,7 @@ private fun WideLayout(
         ) {
             header()
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                previews(maxHeight.coerceAtMost(520.dp) - 12.dp)
+                previews?.invoke(maxHeight.coerceAtMost(520.dp) - 12.dp)
             }
             applyStrip?.let {
                 val shape = RoundedCornerShape(look.radius)

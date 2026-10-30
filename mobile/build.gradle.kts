@@ -15,8 +15,8 @@ android {
         // Android 9+: работает на любом телефоне и планшете; новые API — через util/Compat.kt.
         minSdk = 28
         targetSdk = 36
-        versionCode = 39
-        versionName = "1.22.1"
+        versionCode = 40
+        versionName = "1.23.0"
         // Откуда приложение берёт обновления: релизы GitHub owner/repo (-PupdateRepo=... при сборке).
         resValue("string", "update_repo", providers.gradleProperty("updateRepo").getOrElse(""))
         // Galaxy S25+ и все современные телефоны — arm64; так APK заметно меньше.

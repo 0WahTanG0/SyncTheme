@@ -113,7 +113,7 @@ fun AppBackdrop(modifier: Modifier = Modifier, content: @Composable BoxScope.() 
 fun DrawScope.drawDecor(look: Look) {
     val w = size.width
     when (look.style) {
-        AppStyle.BENTO -> Unit
+        AppStyle.STEPS -> Unit
         AppStyle.GLASS -> {
             val r1 = w * 0.62f
             drawCircle(Brush.radialGradient(listOf(look.decor, Color.Transparent), Offset(w * 0.12f, w * 0.1f), r1), r1, Offset(w * 0.12f, w * 0.1f))
@@ -149,7 +149,7 @@ fun DrawScope.drawAppMark(look: Look) {
     val s = size.minDimension
     val u = s / 48f
     when (look.style) {
-        AppStyle.BENTO -> drawBentoMark(u)
+        AppStyle.STEPS -> drawStepsMark(u)
         AppStyle.GLASS -> {
             drawRoundRect(
                 Brush.linearGradient(listOf(mix(look.accent, Color.White, 0.45f), look.accent), Offset.Zero, Offset(s, s)),
@@ -172,15 +172,15 @@ fun DrawScope.drawAppMark(look: Look) {
     }
 }
 
-/** Значок «Плиток»: четыре цветные плитки, одна — с циферблатом. */
-private fun DrawScope.drawBentoMark(u: Float) {
-    drawRoundRect(BentoColors.Yellow, Offset(2 * u, 2 * u), Size(25 * u, 25 * u), CornerRadius(8 * u))
-    drawRoundRect(BentoColors.Coral, Offset(29 * u, 2 * u), Size(17 * u, 25 * u), CornerRadius(8 * u))
-    drawRoundRect(BentoColors.Mint, Offset(2 * u, 29 * u), Size(17 * u, 17 * u), CornerRadius(7 * u))
-    drawRoundRect(BentoColors.Ink, Offset(21 * u, 29 * u), Size(25 * u, 17 * u), CornerRadius(7 * u))
-    drawCircle(BentoColors.Ink, 7 * u, Offset(14.5f * u, 14.5f * u), style = Stroke(2.4f * u))
-    drawLine(BentoColors.Ink, Offset(14.5f * u, 14.5f * u), Offset(14.5f * u, 10.5f * u), 2.4f * u, StrokeCap.Round)
-    drawLine(BentoColors.Ink, Offset(14.5f * u, 14.5f * u), Offset(17.5f * u, 16f * u), 2.4f * u, StrokeCap.Round)
+/** Значок «Трёх шагов»: фотокарточка с солнцем и холмом — тема делается из фото. */
+private fun DrawScope.drawStepsMark(u: Float) {
+    drawRoundRect(StepColors.Ink, Offset(2 * u, 2 * u), Size(44 * u, 44 * u), CornerRadius(12 * u))
+    drawCircle(StepColors.Orange, 6 * u, Offset(32 * u, 15 * u))
+    val hill = Path().apply {
+        moveTo(2 * u, 39 * u); quadraticTo(16 * u, 30 * u, 28 * u, 37 * u); quadraticTo(38 * u, 33 * u, 46 * u, 38 * u)
+        lineTo(46 * u, 36 * u); quadraticTo(46 * u, 46 * u, 36 * u, 46 * u); lineTo(12 * u, 46 * u); quadraticTo(2 * u, 46 * u, 2 * u, 36 * u); close()
+    }
+    drawPath(hill, StepColors.Paper)
 }
 
 /** Кольцо «Неона» с разрывом — оно же иконка приложения. */
@@ -208,7 +208,8 @@ fun AppTitle(look: Look) {
             },
             fontFamily = look.headings, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, letterSpacing = 0.5.sp, color = look.text,
         )
-        AppStyle.EXPRESSIVE, AppStyle.BENTO -> Text("SyncTheme", fontFamily = look.headings, fontWeight = FontWeight.Black, fontSize = 24.sp, letterSpacing = (-0.4).sp, color = look.text)
+        AppStyle.EXPRESSIVE -> Text("SyncTheme", fontFamily = look.headings, fontWeight = FontWeight.Black, fontSize = 24.sp, letterSpacing = (-0.4).sp, color = look.text)
+        AppStyle.STEPS -> Text("SyncTheme", fontFamily = look.headings, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, color = look.text)
         AppStyle.GLASS -> Text("SyncTheme", fontFamily = look.headings, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, letterSpacing = (-0.3).sp, color = look.text)
     }
 }
@@ -219,20 +220,20 @@ fun StatusChip(dot: Color, text: String, onClick: () -> Unit) {
     val look = LocalLook.current
     val shape = if (look.style == AppStyle.NEON) RoundedCornerShape(8.dp) else CircleShape
     val container = when (look.style) {
-        AppStyle.BENTO -> look.card
+        AppStyle.STEPS -> look.card
         AppStyle.GLASS -> look.control
         AppStyle.EXPRESSIVE -> look.highlight
         AppStyle.NEON -> Color.Transparent
     }
     val border = when (look.style) {
         AppStyle.GLASS -> look.cardBorder
-        AppStyle.EXPRESSIVE, AppStyle.BENTO -> Color.Transparent
+        AppStyle.EXPRESSIVE, AppStyle.STEPS -> Color.Transparent
         AppStyle.NEON -> look.accent.copy(alpha = 0.6f)
     }
     val content = when (look.style) {
         AppStyle.EXPRESSIVE -> look.onHighlight
         AppStyle.NEON -> look.accentText
-        AppStyle.GLASS, AppStyle.BENTO -> look.text
+        AppStyle.GLASS, AppStyle.STEPS -> look.text
     }
     Row(
         Modifier.clip(shape).background(container).border(1.dp, border, shape).clickable(onClick = onClick)
@@ -254,7 +255,7 @@ fun StyledTabs(titles: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
     val look = LocalLook.current
     val font = look.body
     when (look.style) {
-        AppStyle.BENTO -> Row(
+        AppStyle.STEPS -> Row(
             modifier.fillMaxWidth().clip(CircleShape).background(look.card).padding(5.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -334,13 +335,13 @@ fun AccentButton(
 ) {
     val look = LocalLook.current
     val shape = when (look.style) {
-        AppStyle.GLASS, AppStyle.BENTO -> CircleShape
+        AppStyle.GLASS, AppStyle.STEPS -> CircleShape
         AppStyle.EXPRESSIVE -> RoundedCornerShape(22.dp)
         AppStyle.NEON -> RoundedCornerShape(14.dp)
     }
     val h = height ?: when (look.style) {
         AppStyle.EXPRESSIVE -> 58.dp
-        AppStyle.BENTO -> 56.dp
+        AppStyle.STEPS -> 56.dp
         else -> 52.dp
     }
     val loud = enabled && !quiet
@@ -389,7 +390,7 @@ fun AppearanceSection(accentColor: Int) {
                 ) {
                     Canvas(Modifier.fillMaxWidth().height(112.dp)) { drawMiniPreview(preview) }
                     Text(
-                        style.title, color = look.text, fontFamily = preview.headings, fontWeight = FontWeight.Bold,
+                        style.title, color = look.text, fontFamily = if (style == AppStyle.STEPS) preview.body else preview.headings, fontWeight = FontWeight.Bold,
                         fontSize = if (style == AppStyle.NEON) 10.sp else 13.sp, maxLines = 1, softWrap = false,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), textAlign = TextAlign.Center,
                     )
@@ -428,14 +429,20 @@ private fun DrawScope.drawMiniPreview(look: Look) {
     val markScope = Size(markSize, markSize)
     translate(pad, pad - 2.dp.toPx()) { drawMiniMark(look, markScope) }
     drawRoundRect(look.text.copy(alpha = 0.85f), Offset(pad + markSize + 5.dp.toPx(), pad + 2.dp.toPx()), Size(w * 0.36f, 5.dp.toPx()), CornerRadius(3.dp.toPx()))
-    if (look.style == AppStyle.BENTO) {
-        // Плитки: превью телефона слева, справа — цветные разделы.
+    if (look.style == AppStyle.STEPS) {
+        // Три шага: пройденный — серой строкой, открытый — тёмной карточкой, последний — оранжевой кнопкой.
         val gap = 4.dp.toPx()
-        val half = (card.width - gap) / 2
-        drawRoundRect(Brush.linearGradient(listOf(mix(look.accent, Color.Black, 0.35f), mix(look.accent, Color.Black, 0.8f)), cardTl, cardTl + Offset(half, card.height)), cardTl, Size(half, card.height), CornerRadius(r))
-        val small = (card.height - 2 * gap) / 3
-        listOf(BentoColors.Yellow, BentoColors.Coral, BentoColors.Periwinkle).forEachIndexed { i, c ->
-            drawRoundRect(c, Offset(cardTl.x + half + gap, cardTl.y + i * (small + gap)), Size(half, small), CornerRadius(r * 0.7f))
+        val row = card.height * 0.22f
+        drawRoundRect(look.card, cardTl, Size(card.width, row), CornerRadius(r * 0.7f))
+        drawCircle(StepColors.Green, row * 0.22f, Offset(cardTl.x + row * 0.5f, cardTl.y + row / 2))
+        val heroTl = Offset(cardTl.x, cardTl.y + row + gap)
+        val hero = Size(card.width, card.height - row - gap)
+        drawRoundRect(look.highlight, heroTl, hero, CornerRadius(r))
+        val phone = Size(hero.height * 0.42f, hero.height * 0.8f)
+        val phoneTl = Offset(heroTl.x + hero.width * 0.12f, heroTl.y + (hero.height - phone.height) / 2)
+        drawRoundRect(Brush.linearGradient(listOf(Color(0xFF1E2A4A), Color(0xFFF29E6D)), phoneTl, phoneTl + Offset(0f, phone.height)), phoneTl, phone, CornerRadius(phone.width * 0.2f))
+        repeat(3) { i ->
+            drawRoundRect(if (i == 0) StepColors.Orange else look.onHighlight.copy(alpha = 0.2f), Offset(heroTl.x + hero.width * (0.45f + i * 0.17f), heroTl.y + hero.height * 0.55f), Size(hero.width * 0.14f, hero.height * 0.3f), CornerRadius(r * 0.4f))
         }
     } else drawRoundRect(look.card, cardTl, card, CornerRadius(r))
     if (look.cardBorder.alpha > 0f) drawRoundRect(look.cardBorder, cardTl, card, CornerRadius(r), style = Stroke(1.dp.toPx()))
@@ -444,7 +451,7 @@ private fun DrawScope.drawMiniPreview(look: Look) {
         drawPath(wavyPath(Size(s, s), 6, 0.17f, center = Offset(cardTl.x + card.width * 0.85f, cardTl.y + card.height * 0.2f)), look.highlight)
     }
     // Телефон и часы внутри карточки.
-    if (look.style != AppStyle.BENTO) drawMiniDevices(look, cardTl, card)
+    if (look.style != AppStyle.STEPS) drawMiniDevices(look, cardTl, card)
     // Вкладки.
     val tabY = cardTl.y + card.height + 7.dp.toPx()
     val tabH = 9.dp.toPx()
@@ -460,7 +467,7 @@ private fun DrawScope.drawMiniPreview(look: Look) {
     val btnH = 12.dp.toPx()
     val btnTl = Offset(pad, size.height - pad - btnH)
     val corner = when (look.style) {
-        AppStyle.GLASS, AppStyle.BENTO -> CornerRadius(btnH / 2)
+        AppStyle.GLASS, AppStyle.STEPS -> CornerRadius(btnH / 2)
         AppStyle.EXPRESSIVE -> CornerRadius(btnH * 0.4f)
         AppStyle.NEON -> CornerRadius(3.dp.toPx())
     }
@@ -481,7 +488,7 @@ private fun DrawScope.drawMiniDevices(look: Look, cardTl: Offset, card: Size) {
 private fun DrawScope.drawMiniMark(look: Look, s: Size) {
     val u = s.minDimension / 48f
     when (look.style) {
-        AppStyle.BENTO -> drawBentoMark(u)
+        AppStyle.STEPS -> drawStepsMark(u)
         AppStyle.GLASS -> drawRoundRect(look.accent, Offset.Zero, s, CornerRadius(13 * u))
         AppStyle.EXPRESSIVE -> drawPath(wavyPath(s, 9, 0.09f), look.primary)
         AppStyle.NEON -> {

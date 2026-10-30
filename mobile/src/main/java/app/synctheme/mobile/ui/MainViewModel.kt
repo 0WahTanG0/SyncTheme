@@ -1,6 +1,7 @@
 package app.synctheme.mobile.ui
 
 import android.Manifest
+import android.graphics.Bitmap
 import android.app.Application
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -15,6 +16,8 @@ import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
 import app.synctheme.core.Theme
+import app.synctheme.core.ThemeMode
+import app.synctheme.core.resolved
 import app.synctheme.core.WatchSettings
 import app.synctheme.core.WallClock
 import app.synctheme.mobile.data.ApplyTargets
@@ -87,6 +90,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private val _phonePreview = MutableStateFlow<ImageBitmap?>(null)
     val phonePreview: StateFlow<ImageBitmap?> = _phonePreview.asStateFlow()
+
+    /** Маленькие телефоны для выбора картинками на шаге 2: каждая версия яркости и каждый вариант часов. */
+    private val _choicePreviews = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    val choicePreviews: StateFlow<Map<String, ImageBitmap>> = _choicePreviews.asStateFlow()
     private val _watchPreview = MutableStateFlow<ImageBitmap?>(null)
     val watchPreview: StateFlow<ImageBitmap?> = _watchPreview.asStateFlow()
     private val _lockPreview = MutableStateFlow<ImageBitmap?>(null)
@@ -240,8 +247,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             _bundledWatchVersion.value = runCatching { WatchAppInstaller(app).bundledVersion }.getOrDefault(0L)
         }
-        // Тихая проверка обновлений не чаще раза в 6 часов.
-        if (updater.repo.isNotBlank() && System.currentTimeMillis() - updater.lastCheck > 6 * 3600_000L) {
+        // Тихая проверка обновлений при каждом открытии (не чаще раза в час): о новой версии скажет плашка сверху.
+        if (updater.repo.isNotBlank() && System.currentTimeMillis() - updater.lastCheck > 3600_000L) {
             checkUpdates(silent = true)
         }
     }
@@ -258,13 +265,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _update.value = _update.value.copy(
             checking = false,
             available = result.getOrNull(),
-            status = when {
+            // Тихая проверка ничего не пишет: о новой версии и так скажет плашка.
+            status = if (silent) null else when {
                 result.isFailure -> "Не удалось проверить: ${result.exceptionOrNull()?.message}"
                 result.getOrNull() == null -> "У вас последняя версия"
                 else -> null
             },
         )
-        result.getOrNull()?.let { if (silent) _messages.tryEmit("Доступна версия ${it.versionName} — раздел «Обновления»") }
+        // Уже видели в приложении — уведомление об этой версии больше не нужно.
+        result.getOrNull()?.let { updater.notifiedCode = maxOf(updater.notifiedCode, it.versionCode) }
     }
 
     fun downloadAndInstall() = viewModelScope.launch {
@@ -304,11 +313,36 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val watch = ThemeRenderer.watchPreview(app, face, 450)
         _ambientPreview.value = ThemeRenderer.watchAmbientPreview(app, face, 240).asImageBitmap()
         _phonePreview.value = phone.asImageBitmap()
+        if (!selfTablet) _choicePreviews.value = runCatching { choiceShots(stored) }.getOrDefault(emptyMap())
         _lockPreview.value = lock.asImageBitmap()
         _watchPreview.value = watch.asImageBitmap()
         val kinds = devices.value.peers.map { it.kind }
         _tabletPreview.value = if (DeviceKind.TABLET in kinds) ThemeRenderer.tabletPreview(app, t, 800, 500).asImageBitmap() else null
         _tvPreview.value = if (DeviceKind.TV in kinds) ThemeRenderer.tvFrame(app, t, 960, 540).asImageBitmap() else null
+    }
+
+    /** Без виджетов — только фон и часы: так варианты рисуются быстро и отличаются тем, что выбирают. */
+    private fun choiceShots(stored: Theme): Map<String, ImageBitmap> {
+        val w = 160
+        val h = 347
+        val night = DayNight.isNight(app)
+        fun shot(t: Theme): Bitmap = ThemeRenderer.phonePreview(app, t, w, h, widgets = false)
+        val shown = DayNight.of(app, stored)
+        val light = shot(stored.copy(mode = ThemeMode.LIGHT).resolved(night))
+        val dark = shot(stored.copy(mode = ThemeMode.DARK).resolved(night))
+        // «Днём светло, ночью темно» — половина светлой версии и половина тёмной.
+        val split = light.copy(Bitmap.Config.ARGB_8888, true)
+        android.graphics.Canvas(split).drawBitmap(dark, android.graphics.Rect(w / 2, 0, w, h), android.graphics.Rect(w / 2, 0, w, h), null)
+        val wall = stored.wallClock ?: WallClock()
+        return mapOf(
+            ThemeMode.ORIGINAL.name to shot(stored.copy(mode = ThemeMode.ORIGINAL).resolved(night)),
+            ThemeMode.LIGHT.name to light,
+            ThemeMode.DARK.name to dark,
+            ThemeMode.AUTO.name to split,
+            "none" to shot(shown.copy(wallClock = null)),
+            "on" to shot(shown.copy(wallClock = wall.copy(depth = false))),
+            "depth" to shot(shown.copy(wallClock = wall.copy(depth = true))),
+        ).mapValues { it.value.asImageBitmap() }
     }
 
     fun update(transform: (Theme) -> Theme) = repo.setDraft(transform(theme.value))
@@ -452,6 +486,25 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         } finally {
             _busy.value = null
         }
+    }
+
+    /** «Попробовать на примере»: тема из готовой картинки — закат над холмами или море. */
+    fun themeFromSample(sea: Boolean) = viewModelScope.launch {
+        val file = withContext(Dispatchers.Default) {
+            val bmp = SamplePhotos.draw(sea)
+            java.io.File(app.cacheDir, if (sea) "sample_sea.jpg" else "sample_sunset.jpg").also { f ->
+                f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }
+            }
+        }
+        themeFromPhoto(Uri.fromFile(file)).join()
+        update { it.copy(name = if (sea) "Море" else "Закат") }
+        repo.save(theme.value, replace = true).let(repo::setDraft)
+    }
+
+    /** «Поставить на телефон»: правки своей темы запоминаются в «Мои темы», и тема применяется. */
+    fun applyAndKeep() {
+        if (repo.saved.value.any { it.id == theme.value.id }) repo.setDraft(repo.save(theme.value, replace = true))
+        apply()
     }
 
     /** Отдельные обои экрана блокировки (по умолчанию — как на рабочем столе). */

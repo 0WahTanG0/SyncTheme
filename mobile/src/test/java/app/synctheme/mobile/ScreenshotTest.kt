@@ -42,7 +42,9 @@ import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ThemeMode
 import app.synctheme.core.ClockStyle
+import app.synctheme.core.Theme
 import app.synctheme.core.WallClock
+import app.synctheme.mobile.ui.SamplePhotos
 import app.synctheme.core.WallClockLayout
 import app.synctheme.core.DialStyle
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -68,7 +70,7 @@ class ScreenshotTest {
     private fun screen(
         name: String,
         tab: Tab,
-        appearance: Appearance = Appearance(AppStyle.BENTO, AppMode.LIGHT),
+        appearance: Appearance = Appearance(AppStyle.STEPS, AppMode.LIGHT),
         lock: Boolean = false,
         expand: Boolean = false,
         detail: WallDetail? = null,
@@ -97,23 +99,47 @@ class ScreenshotTest {
     @Test
     fun mainScreen() = screen("screen_main", Tab.WALLPAPER)
 
-    /** «Плитки»: главный экран в тёмном режиме, с часами, и открытые разделы. */
+    /** Фото заката с деревом — как обычный снимок пользователя. */
+    private fun photoTheme(app: Application, saved: Boolean = true): Theme {
+        val repo = ThemeRepository.get(app)
+        val bmp = SamplePhotos.draw(sea = false)
+        repo.photoFile("steps.jpg").outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }
+        var t = Presets.all[0].copy(
+            name = "Закат",
+            background = Background(BackgroundType.PHOTO, listOf(0xFF1B2A4A.toInt(), 0xFFF29E6D.toInt()), photoFile = "steps.jpg"),
+            textColor = 0xFFFFFFFF.toInt(), accentColor = 0xFFF29E6D.toInt(), dim = 0.1f, wallClock = WallClock(depth = false),
+        )
+        if (saved) t = repo.save(t)
+        repo.setDraft(t)
+        return t
+    }
+
+    private fun clearSaved(app: Application) {
+        val repo = ThemeRepository.get(app)
+        repo.saved.value.forEach(repo::delete)
+    }
+
+    /** «Три шага»: первый запуск, после фото (светлое и тёмное), дополнительные настройки, «Мои темы». */
     @Test
-    fun bento() {
-        screen("bento_main_dark", Tab.WALLPAPER, Appearance(AppStyle.BENTO, AppMode.DARK))
-        screen("bento_main_watch", Tab.WALLPAPER) { app ->
+    fun steps() {
+        screen("steps_first", Tab.WALLPAPER) { app -> clearSaved(app) }
+        screen("steps_photo", Tab.WALLPAPER) { app -> clearSaved(app); photoTheme(app) }
+        screen("steps_photo_dark", Tab.WALLPAPER, Appearance(AppStyle.STEPS, AppMode.DARK)) { app -> clearSaved(app); photoTheme(app) }
+        screen("steps_watch", Tab.WALLPAPER) { app ->
+            clearSaved(app)
+            photoTheme(app)
             DeviceSettings.setPro(app, true)
             DeviceSettings.setWatch(app, true)
         }
-        screen("bento_background", Tab.WALLPAPER, detail = WallDetail.BACKGROUND)
-        screen("bento_colors", Tab.WALLPAPER, Appearance(AppStyle.BENTO, AppMode.DARK), detail = WallDetail.COLORS)
-        screen("bento_clock", Tab.WALLPAPER, detail = WallDetail.CLOCK) { app ->
-            ThemeRepository.get(app).setDraft(Presets.all[0].copy(wallClock = WallClock()))
-        }
-        screen("bento_widgets", Tab.WIDGETS)
-        screen("bento_watch", Tab.WATCH) { app -> DeviceSettings.setPro(app, true) }
-        screen("bento_more", Tab.MORE)
+        screen("steps_themes", Tab.THEMES) { app -> clearSaved(app); photoTheme(app); ThemeRepository.get(app).save(Presets.all[1]) }
+        screen("steps_widgets", Tab.WIDGETS) { app -> photoTheme(app) }
+        screen("steps_more", Tab.MORE)
     }
+
+    /** «Три шага» во всю высоту: дополнительные настройки раскрыты. */
+    @Test
+    @Config(qualifiers = "w412dp-h2600dp-560dpi")
+    fun stepsLong() = screen("steps_long", Tab.WALLPAPER, expand = true) { app -> clearSaved(app); photoTheme(app) }
 
     @Test
     fun widgetsTab() = screen("screen_widgets", Tab.WIDGETS)

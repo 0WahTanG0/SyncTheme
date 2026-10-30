@@ -45,6 +45,11 @@ class Updater(private val context: Context) {
         get() = prefs.getLong("last_check", 0L)
         private set(value) = prefs.edit().putLong("last_check", value).apply()
 
+    /** Версия, о которой уже сообщили уведомлением, — чтобы не повторять. */
+    var notifiedCode: Long
+        get() = prefs.getLong("notified_code", 0L)
+        set(value) = prefs.edit().putLong("notified_code", value).apply()
+
     /** null — обновлений нет. */
     suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {
         val repo = repo.ifBlank { throw IOException("Источник обновлений не настроен") }

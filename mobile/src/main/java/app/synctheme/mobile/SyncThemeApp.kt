@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import androidx.work.WorkManager
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.DayNight
+import app.synctheme.mobile.update.UpdateCheck
 import app.synctheme.mobile.util.CrashLog
 import app.synctheme.mobile.widget.WidgetScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,7 @@ open class SyncThemeApp : Application() {
         ThemeRepository.get(this)
         WidgetScheduler.ensure(this)
         DayNight.ensure(this)
+        UpdateCheck.ensure(this)
         // В 1.8.0 был «Хамелеон» с фоновой работой — убираем её и его настройки.
         runCatching {
             WorkManager.getInstance(this).cancelUniqueWork("chameleon")
