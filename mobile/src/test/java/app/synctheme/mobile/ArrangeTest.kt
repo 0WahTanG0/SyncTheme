@@ -110,6 +110,37 @@ class ArrangeTest {
         assertTrue("фото сдвинуто: ${t.background.focusX}", t.background.focusX < 0.5f)
     }
 
+    /** Дата, погода и заряд ставятся в любое место отдельно от часов. */
+    @Test
+    fun movesWallClockLabels() {
+        ThemeRepository.get(app).setDraft(theme().let { it.copy(wallClock = it.wallClock!!.copy(weather = true, battery = true)) })
+        val vm = MainViewModel(app)
+        compose.setContent { ArrangeScreen(vm, ArrangeTarget.HOME) {} }
+        waitPreview()
+        // Дату — вниз экрана.
+        compose.onNodeWithText("Дата").performClick()
+        compose.onNodeWithContentDescription("Расположение").performTouchInput {
+            swipe(center, center + Offset(0f, height * 0.5f), 300)
+        }
+        compose.waitForIdle()
+        // Заряд — влево вниз.
+        compose.onNodeWithText("Заряд").performClick()
+        compose.onNodeWithContentDescription("Расположение").performTouchInput {
+            swipe(center, center + Offset(-width * 0.3f, height * 0.3f), 300)
+        }
+        compose.waitForIdle()
+        Thread.sleep(1500)
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage(File(out, "screen_arrange_labels.png").absolutePath)
+        compose.onNodeWithText("Готово").performClick()
+        val wall = vm.theme.value.wallClock!!
+        assertNotNull("дата на своём месте", wall.datePlace)
+        assertTrue("дата внизу: ${wall.datePlace!!.y}", wall.datePlace!!.y > 0.5f)
+        assertNotNull("заряд на своём месте", wall.batteryPlace)
+        assertTrue("заряд слева: ${wall.batteryPlace!!.x}", wall.batteryPlace!!.x < 0.4f)
+        assertEquals("часы и погода не тронуты", null, wall.place ?: wall.weatherPlace)
+    }
+
     /** Телефон боком: холст расположения вписывается по высоте, кнопки не уезжают. */
     @Test
     @Config(qualifiers = "w915dp-h412dp-land-560dpi")

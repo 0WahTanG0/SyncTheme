@@ -130,7 +130,17 @@ data class WallClock(
     val weather: Boolean = false,
     /** Заряд батареи строкой под часами. */
     val battery: Boolean = false,
+    /** Дата, передвинутая вручную в любое место экрана; null — над часами. */
+    val datePlace: LabelPlace? = null,
+    /** Погода, передвинутая вручную; null — строкой под часами. */
+    val weatherPlace: LabelPlace? = null,
+    /** Заряд, передвинутый вручную; null — строкой под часами. */
+    val batteryPlace: LabelPlace? = null,
 )
+
+/** Подпись часов на обоях (дата, погода, заряд) в своём месте: центр (доли ширины и высоты экрана) и размер. */
+@Serializable
+data class LabelPlace(val x: Float, val y: Float, val scale: Float = 1f)
 
 /**
  * Часы на обоях, передвинутые вручную: центр цифр (доли ширины и высоты экрана), размер

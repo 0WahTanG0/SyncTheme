@@ -27,6 +27,7 @@ import app.synctheme.mobile.render.SubjectMask
 import app.synctheme.mobile.render.ThemeRenderer
 import app.synctheme.mobile.render.WallClockSpot
 import app.synctheme.mobile.widget.AppCatalog
+import app.synctheme.mobile.widget.FolderActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -109,6 +110,10 @@ class ClockWallpaperService : WallpaperService() {
         private val tap by lazy { TapDetector(TAP_MOVE_DP * resources.displayMetrics.density) }
         private var lastLaunch = 0L
         private var touchesEnabled = false
+        /** Нажатие по часам ждёт [LAUNCH_DELAY_MS]: не раскроется ли что-то поверх них. */
+        private var pendingLaunch: Runnable? = null
+        /** Когда лаунчер в последний раз что-то раскрыл поверх обоев. */
+        private var coveredAt = 0L
         /** До этого момента часы нарисованы «нажатыми» — отклик на нажатие. */
         private var pressedUntil = 0L
 
@@ -154,16 +159,40 @@ class ClockWallpaperService : WallpaperService() {
         }
 
         override fun onTouchEvent(event: MotionEvent) {
-            tap.onEvent(event.actionMasked, event.x, event.y, event.eventTime)?.let { onTap(it.x, it.y) }
+            tap.onEvent(event.actionMasked, event.x, event.y, event.eventTime)?.let { onTap(it.x, it.y, fromLauncher = false) }
         }
 
         override fun onCommand(action: String?, x: Int, y: Int, z: Int, extras: Bundle?, resultRequested: Boolean): Bundle? {
-            if (action == WallpaperManager.COMMAND_TAP) onTap(x.toFloat(), y.toFloat())
+            if (action == WallpaperManager.COMMAND_TAP) onTap(x.toFloat(), y.toFloat(), fromLauncher = true)
             return super.onCommand(action, x, y, z, extras, resultRequested)
         }
 
-        /** Касание пустого места рабочего стола: если на часах (с запасом под палец) — открываем приложение. */
-        private fun onTap(x: Float, y: Float) {
+        /** Лаунчер раскрыл что-то поверх обоев (папку, меню, список приложений) — нажатие было не по часам. */
+        override fun onZoomChanged(zoom: Float) {
+            super.onZoomChanged(zoom)
+            if (zoom > 0f) {
+                coveredAt = SystemClock.uptimeMillis()
+                cancelLaunch()
+            }
+        }
+
+        private fun cancelLaunch() {
+            pendingLaunch?.let(handler::removeCallbacks)
+            pendingLaunch = null
+        }
+
+        /**
+         * Касание рабочего стола: если на часах (с запасом под палец) — открываем приложение. Касания обоям
+         * система передаёт и тогда, когда палец попал в папку, значок или меню лаунчера над часами. Поэтому:
+         * лаунчер, который сам сообщает о нажатии на пустое место (COMMAND_TAP), — только по его сообщению;
+         * иначе приложение открывается с короткой задержкой и не открывается, если за это время раскрылась
+         * папка SyncTheme, лаунчер что-то раскрыл или открыл приложение (обои скрылись).
+         */
+        private fun onTap(x: Float, y: Float, fromLauncher: Boolean) {
+            val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+            if (fromLauncher) {
+                if (!prefs.getBoolean(KEY_LAUNCHER_TAPS, false)) prefs.edit().putBoolean(KEY_LAUNCHER_TAPS, true).apply()
+            } else if (prefs.getBoolean(KEY_LAUNCHER_TAPS, false)) return
             val l = layers ?: return
             val theme = current()
             val wall = theme.wallClock ?: return
@@ -174,13 +203,20 @@ class ClockWallpaperService : WallpaperService() {
             if (!ThemeRenderer.wallClockHit(theme, l.spot, sx, sy, TAP_SLOP_DP * resources.displayMetrics.density)) return
             // Одно нажатие может прийти дважды: касанием и командой лаунчера.
             val now = SystemClock.uptimeMillis()
-            if (now - lastLaunch < 800) return
-            lastLaunch = now
+            if (now - lastLaunch < 800 || FolderActivity.open) return
             val intent = AppCatalog.wallClockIntent(this@ClockWallpaperService, wall.openApp) ?: return
-            pressedUntil = now + PRESS_MS
-            draw()
-            handler.postDelayed({ draw() }, PRESS_MS + 10)
-            runCatching { startActivity(intent) }.onFailure { Log.w(TAG, "Tap launch failed", it) }
+            cancelLaunch()
+            val launch = Runnable {
+                pendingLaunch = null
+                if (!visible || FolderActivity.open || FolderActivity.openedAt >= now - 150 || coveredAt >= now - 150) return@Runnable
+                lastLaunch = SystemClock.uptimeMillis()
+                pressedUntil = lastLaunch + PRESS_MS
+                draw()
+                handler.postDelayed({ draw() }, PRESS_MS + 10)
+                runCatching { startActivity(intent) }.onFailure { Log.w(TAG, "Tap launch failed", it) }
+            }
+            pendingLaunch = launch
+            handler.postDelayed(launch, if (fromLauncher) 0L else LAUNCH_DELAY_MS)
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -202,6 +238,8 @@ class ClockWallpaperService : WallpaperService() {
                 scheduleTick()
             } else {
                 handler.removeCallbacks(tick)
+                // Обои закрыло приложение (например, из папки над часами) — часы ничего не открывают.
+                cancelLaunch()
             }
         }
 
@@ -328,5 +366,9 @@ class ClockWallpaperService : WallpaperService() {
         /** Насколько палец может сдвинуться, чтобы это ещё было нажатие. */
         const val TAP_MOVE_DP = 12
         const val PRESS_MS = 160L
+        /** Сколько ждать после нажатия: папка или приложение лаунчера успевают открыться. */
+        const val LAUNCH_DELAY_MS = 380L
+        /** Лаунчер сообщает о нажатиях на пустое место — касаниям обоев тогда не верим. */
+        const val KEY_LAUNCHER_TAPS = "launcher_sends_taps"
     }
 }

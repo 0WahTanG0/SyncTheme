@@ -125,7 +125,11 @@ enum class ClockSide { TOP, BOTTOM, LEFT, RIGHT }
  * Где на обоях стоят часы: строки цифр (центр «чернил» цифр и кегль, px) и дата.
  * side — сторона от объекта, если часы расставлены по нему (эффект глубины).
  */
-class WallClockSpot(val lines: List<Line>, val date: DateLabel?, val side: ClockSide? = null, val overlap: Float = 0f) {
+class WallClockSpot(
+    val lines: List<Line>, val date: DateLabel?, val side: ClockSide? = null, val overlap: Float = 0f,
+    /** Размер экрана, для которого посчитано место (подписи в своих местах — в его долях); 0 — без них. */
+    val width: Float = 0f, val height: Float = 0f,
+) {
     enum class Part { TIME, HOURS, MINUTES }
 
     class Line(val part: Part, val cx: Float, val cy: Float, val size: Float, val accent: Boolean = false)

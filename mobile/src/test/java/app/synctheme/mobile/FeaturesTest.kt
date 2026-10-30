@@ -465,6 +465,23 @@ class FeaturesTest {
         assertTrue("внизу экрана — мимо", !ThemeRenderer.wallClockHit(theme, spot, 540f, 2200f, 40f))
         val intent = app.synctheme.mobile.widget.AppCatalog.wallClockIntent(context, theme.wallClock!!.openApp)!!
         assertEquals("com.example.notes", intent.component?.packageName)
+        // Дату и погоду передвинули вниз экрана, заряд остался под часами.
+        val moved = theme.copy(
+            wallClock = theme.wallClock!!.copy(
+                weather = true, battery = true,
+                datePlace = app.synctheme.core.LabelPlace(0.5f, 0.85f), weatherPlace = app.synctheme.core.LabelPlace(0.3f, 0.6f, 1.5f),
+            ),
+        )
+        val movedSpot = ThemeRenderer.wallClockSpot(context, moved, 1080, 2340)
+        val labels = ThemeRenderer.wallLabels(moved, movedSpot)
+        val date = labels.first { ThemeRenderer.WallLabel.DATE in it.kinds }.at
+        assertEquals(540f, date.cx, 1f)
+        assertEquals(0.85f * 2340, date.cy, 1f)
+        val weather = labels.first { ThemeRenderer.WallLabel.WEATHER in it.kinds }
+        assertEquals(listOf(ThemeRenderer.WallLabel.WEATHER), weather.kinds)
+        assertEquals(listOf(ThemeRenderer.WallLabel.BATTERY), labels.first { ThemeRenderer.WallLabel.BATTERY in it.kinds }.kinds)
+        assertTrue("по перенесённой дате", ThemeRenderer.wallClockHit(moved, movedSpot, 540f, 0.85f * 2340, 40f))
+        assertTrue("между часами и датой — мимо", !ThemeRenderer.wallClockHit(moved, movedSpot, 540f, 0.75f * 2340, 40f))
     }
 
     /** Нажатие на обои: короткое и на месте — да; свайп, долгое нажатие и отменённое касание — нет. */

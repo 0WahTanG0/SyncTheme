@@ -94,7 +94,18 @@ import kotlinx.serialization.json.Json
 class FolderActivity : ComponentActivity() {
     private var closing by mutableStateOf(false)
 
+    override fun onResume() {
+        super.onResume()
+        open = true
+    }
+
+    override fun onPause() {
+        open = false
+        super.onPause()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        openedAt = android.os.SystemClock.uptimeMillis()
         enableEdgeToEdge(SystemBarStyle.dark(android.graphics.Color.TRANSPARENT), SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
         val config = intent.getStringExtra(EXTRA_CONFIG)?.let { runCatching { Json.decodeFromString(WidgetConfig.serializer(), it) }.getOrNull() }
@@ -151,6 +162,18 @@ class FolderActivity : ComponentActivity() {
     }
 
     companion object {
+        /**
+         * Папка на экране и когда её открыли в последний раз: нажатие по часам на обоях под папкой или
+         * её виджетом не открывает приложение часов ([app.synctheme.mobile.wallpaper.ClockWallpaperService]).
+         */
+        @Volatile
+        var open = false
+            private set
+
+        @Volatile
+        var openedAt = 0L
+            private set
+
         /** Настройки папки для просмотра анимации из настройки виджета (виджета ещё может не быть). */
         const val EXTRA_CONFIG = "folder_config"
 

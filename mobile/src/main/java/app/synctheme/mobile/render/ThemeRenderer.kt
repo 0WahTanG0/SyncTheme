@@ -23,6 +23,7 @@ import app.synctheme.core.ClockStyle
 import app.synctheme.core.DialStyle
 import app.synctheme.core.DigitFont
 import app.synctheme.core.FontWeight
+import app.synctheme.core.LabelPlace
 import app.synctheme.core.Theme
 import app.synctheme.core.TimeShift
 import app.synctheme.core.WallClock
@@ -538,7 +539,12 @@ object ThemeRenderer {
      * снизу — сверху …), придвинутые к нему так, что объект закрывает лишь край цифр ([WallClockPlacer]).
      * Без глубины или без объекта — выбранная раскладка.
      */
-    fun wallClockSpot(context: Context, theme: Theme, width: Int, height: Int): WallClockSpot {
+    fun wallClockSpot(context: Context, theme: Theme, width: Int, height: Int): WallClockSpot =
+        baseWallClockSpot(context, theme, width, height).let {
+            WallClockSpot(it.lines, it.date, it.side, it.overlap, width.toFloat(), height.toFloat())
+        }
+
+    private fun baseWallClockSpot(context: Context, theme: Theme, width: Int, height: Int): WallClockSpot {
         val wall = theme.wallClock ?: return WallClockSpot(emptyList(), null)
         val font = wallClockFont(theme)
         val w = width.toFloat()
@@ -650,31 +656,81 @@ object ThemeRenderer {
         )
     }
 
-    /** Прямоугольник, который занимают часы на обоях (для превью: куда не ставить виджеты). */
-    /** Попало ли касание (x, y) в часы на обоях — с запасом [slop] под палец. */
-    fun wallClockHit(theme: Theme, spot: WallClockSpot, x: Float, y: Float, slop: Float): Boolean {
-        val area = wallClockArea(theme, spot) ?: return false
-        return x in area.left - slop..area.right + slop && y in area.top - slop..area.bottom + slop
-    }
+    /**
+     * Попало ли касание (x, y) в часы на обоях — с запасом [slop] под палец: в цифры или в одну из подписей.
+     * Подписи, передвинутые далеко от цифр, проверяются каждая отдельно — пустое место между ними не в счёт.
+     */
+    fun wallClockHit(theme: Theme, spot: WallClockSpot, x: Float, y: Float, slop: Float): Boolean =
+        wallClockParts(theme, spot).any { r -> x in r.left - slop..r.right + slop && y in r.top - slop..r.bottom + slop }
 
-    /** Прямоугольник, который занимают цифры и дата часов на обоях. */
-    fun wallClockArea(theme: Theme, spot: WallClockSpot): RectF? {
+    /** Прямоугольник, который занимают цифры и подписи часов на обоях (для превью: куда не ставить виджеты). */
+    fun wallClockArea(theme: Theme, spot: WallClockSpot): RectF? =
+        wallClockParts(theme, spot).reduceOrNull { a, b -> a.apply { union(b) } }
+
+    /** Цифры и каждая подпись часов на обоях — отдельными прямоугольниками. */
+    private fun wallClockParts(theme: Theme, spot: WallClockSpot): List<RectF> {
         val font = wallClockFont(theme)
-        var area: RectF? = null
+        var digits: RectF? = null
         for (line in spot.lines) {
             val text = if (line.part == WallClockSpot.Part.TIME) "00:00" else "00"
             val hw = font.width(text) * line.size / 2
             val hh = font.digitHeight * line.size / 2
             val r = RectF(line.cx - hw, line.cy - hh, line.cx + hw, line.cy + hh)
-            area = area?.apply { union(r) } ?: r
+            digits = digits?.apply { union(r) } ?: r
         }
-        spot.date?.let { d -> area?.union(d.cx - d.size * 5, d.cy - d.size, d.cx + d.size * 5, d.cy + d.size) }
-        val wall = theme.wallClock
-        if (wall != null && (wall.weather || wall.battery)) infoLabel(theme, spot)?.let { l ->
-            area?.union(l.cx - l.size * 6, l.cy - l.size, l.cx + l.size * 6, l.cy + l.size)
+        val labels = wallLabels(theme, spot).map { l ->
+            val half = l.at.size * if (WallLabel.DATE in l.kinds) 5f else 3.5f * l.kinds.size
+            RectF(l.at.cx - half, l.at.cy - l.at.size, l.at.cx + half, l.at.cy + l.at.size)
         }
-        return area
+        return listOfNotNull(digits) + labels
     }
+
+    /** Подпись часов на обоях. */
+    enum class WallLabel { DATE, WEATHER, BATTERY }
+
+    /** Подпись (или несколько в одну строку) в своём месте. */
+    class PlacedLabel(val kinds: List<WallLabel>, val at: WallClockSpot.DateLabel)
+
+    /**
+     * Где подписи часов: дата — над цифрами, погода и заряд — строкой под ними, а передвинутые вручную —
+     * каждая в своём месте ([WallClock.datePlace] …).
+     */
+    fun wallLabels(theme: Theme, spot: WallClockSpot): List<PlacedLabel> {
+        val wall = theme.wallClock ?: return emptyList()
+        val dateSize = spot.date?.size ?: (spot.width * 0.042f)
+        fun placed(p: LabelPlace?, size: Float, pattern: String) = p?.takeIf { spot.width > 0f }?.let {
+            WallClockSpot.DateLabel(it.x * spot.width, it.y * spot.height, size * it.scale.coerceIn(0.5f, 3f), pattern, Paint.Align.CENTER)
+        }
+        val out = mutableListOf<PlacedLabel>()
+        if (wall.showDate) {
+            (placed(wall.datePlace, dateSize, spot.date?.pattern ?: "EEEE, d MMMM") ?: spot.date)?.let { out += PlacedLabel(listOf(WallLabel.DATE), it) }
+        }
+        val under = infoLabel(theme, spot)
+        val infoSize = under?.size ?: dateSize
+        val rest = mutableListOf<WallLabel>()
+        if (wall.weather) placed(wall.weatherPlace, infoSize, "")?.let { out += PlacedLabel(listOf(WallLabel.WEATHER), it) } ?: rest.add(WallLabel.WEATHER)
+        if (wall.battery) placed(wall.batteryPlace, infoSize, "")?.let { out += PlacedLabel(listOf(WallLabel.BATTERY), it) } ?: rest.add(WallLabel.BATTERY)
+        if (rest.isNotEmpty() && under != null) out += PlacedLabel(rest, under)
+        return out
+    }
+
+    /** Подпись там, где она сейчас (своё место или у цифр), как [LabelPlace] — с него начинается перетаскивание. */
+    fun labelPlaceOf(context: Context, theme: Theme, label: WallLabel, width: Int, height: Int): LabelPlace? {
+        val wall = theme.wallClock ?: return null
+        when (label) {
+            WallLabel.DATE -> wall.datePlace
+            WallLabel.WEATHER -> wall.weatherPlace
+            WallLabel.BATTERY -> wall.batteryPlace
+        }?.let { return it }
+        val spot = wallClockSpot(context, theme, width, height)
+        val at = wallLabels(theme, spot).firstOrNull { label in it.kinds }?.at ?: return null
+        // Из общей строки «погода · заряд» подпись уходит на своё место — чуть в стороне от неё.
+        val shift = if (label == WallLabel.BATTERY && WallLabel.WEATHER in wallLabels(theme, spot).first { label in it.kinds }.kinds) at.size * 1.8f else 0f
+        return LabelPlace(at.cx / width, (at.cy + shift) / height)
+    }
+
+    /** Подпись целиком на экране: центр не ближе полей к краям. */
+    fun clampLabel(p: LabelPlace): LabelPlace = p.copy(x = p.x.coerceIn(0.12f, 0.88f), y = p.y.coerceIn(0.05f, 0.95f), scale = p.scale.coerceIn(0.5f, 3f))
 
     /**
      * Часы на обоях телефона (рисуют живые обои SyncTheme) в месте [spot]: время шрифтом цифр темы,
@@ -701,36 +757,32 @@ object ThemeRenderer {
             p.setShadowLayer(line.size * 0.04f, 0f, line.size * 0.02f, shadow)
             canvas.drawText(text, line.cx, line.cy + (font.top + font.bottom) / 2 * line.size, p)
         }
-        val d = spot.date
-        if (d != null && wall.showDate) {
-            val p = textPaint(Colors.withAlpha(theme.accentColor, fade), d.size, fonts(context).label).apply {
-                textAlign = d.align
-                setShadowLayer(d.size * 0.15f, 0f, 2f, shadow)
+        // Дата, погода и заряд — тоже на обоях: объект с фото закрывает их вместе с часами.
+        for (label in wallLabels(theme, spot)) {
+            val text = label.kinds.mapNotNull { kind ->
+                when (kind) {
+                    WallLabel.DATE -> dateString(millis, label.at.pattern)
+                    WallLabel.WEATHER -> weatherText(context)
+                    WallLabel.BATTERY -> batteryText(context)
+                }
+            }.takeIf { it.isNotEmpty() }?.joinToString("  ·  ") ?: continue
+            val date = label.kinds == listOf(WallLabel.DATE)
+            val color = if (date) Colors.withAlpha(theme.accentColor, fade) else Colors.withAlpha(theme.textColor, 0.92f * fade)
+            val p = textPaint(color, label.at.size, fonts(context).label).apply {
+                textAlign = label.at.align
+                setShadowLayer(label.at.size * 0.15f, 0f, 2f, shadow)
             }
-            canvas.textCentered(dateString(millis, d.pattern), d.cx, d.cy, p)
+            canvas.textCentered(text, label.at.cx, label.at.cy, p)
         }
-        // Погода и заряд — строкой под цифрами, тоже на обоях: объект с фото закрывает их вместе с часами.
-        val info = wallInfo(context, wall) ?: return
-        val label = infoLabel(theme, spot) ?: return
-        val p = textPaint(Colors.withAlpha(theme.textColor, 0.92f * fade), label.size, fonts(context).label).apply {
-            textAlign = label.align
-            setShadowLayer(label.size * 0.15f, 0f, 2f, shadow)
-        }
-        canvas.textCentered(info, label.cx, label.cy, p)
     }
 
-    /** Строка «погода · заряд» под часами на обоях; null — ничего не включено или данных ещё нет. */
-    fun wallInfo(context: Context, wall: WallClock): String? {
-        val parts = buildList {
-            if (wall.weather) WeatherRepository(context).cached?.now?.let { now ->
-                add("${now.temp.roundToInt()}° ${WeatherCodes.description(now.code)}")
-            }
-            if (wall.battery) runCatching { WidgetRenderer.Battery.read(context) }.getOrNull()?.let { b ->
-                add(if (b.charging) "заряд ${b.level}% ⚡" else "заряд ${b.level}%")
-            }
-        }
-        return parts.takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
-    }
+    /** Погода для подписи часов на обоях; null — данных ещё нет. */
+    private fun weatherText(context: Context): String? =
+        WeatherRepository(context).cached?.now?.let { now -> "${now.temp.roundToInt()}° ${WeatherCodes.description(now.code)}" }
+
+    /** Заряд для подписи часов на обоях. */
+    private fun batteryText(context: Context): String? =
+        runCatching { WidgetRenderer.Battery.read(context) }.getOrNull()?.let { b -> if (b.charging) "заряд ${b.level}% ⚡" else "заряд ${b.level}%" }
 
     /** Где строка под часами: по центру нижней строки цифр, чуть ниже них. */
     private fun infoLabel(theme: Theme, spot: WallClockSpot): WallClockSpot.DateLabel? {
