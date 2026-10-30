@@ -243,24 +243,35 @@ class FeaturesTest {
         val manual = SubjectMask.fromLasso(context, photo, sky)
         assertTrue(manual.getPixel(70, 50) ushr 24 > 200)
         assertTrue(manual.getPixel(200, 50) ushr 24 < 40)
-        // Два предмета вплотную (как ягоды): обвели один — выбран только он, хотя передний план — оба.
-        SubjectMask.segmenter = { _, input -> Bitmap.createBitmap(input.width, input.height, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.WHITE) } }
-        SubjectMask.subjects = { _, input ->
-            // Обведённый — в середине куска фото, соседний — вплотную справа.
-            listOf(0f, 120f).map { dx ->
-                Bitmap.createBitmap(input.width, input.height, Bitmap.Config.ARGB_8888).also {
-                    Canvas(it).drawCircle(input.width / 2f + dx, input.height / 2f, 60f, Paint().apply { color = Color.WHITE })
-                }
+        // Ягоды вплотную, как на рисунке: распознаватель заливает всё (передний план — целиком, объекты —
+        // прямоугольниками). Обвели одну неровной линией — выбрана ровно она, по своему контуру.
+        val berries = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        Canvas(berries).apply {
+            drawColor(0xFF20263A.toInt())
+            val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF4A6FA5.toInt() }
+            val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF151A28.toInt(); style = Paint.Style.STROKE; strokeWidth = 4f }
+            for ((cx, cy) in listOf(220f to 200f, 330f to 200f, 220f to 90f, 275f to 300f, 110f to 200f)) {
+                drawCircle(cx, cy, 56f, fill)
+                drawCircle(cx, cy, 56f, outline)
             }
         }
-        val round = (0 until 32).map { i ->
-            val a = i * Math.PI * 2 / 32
-            android.graphics.PointF(240f + 66f * Math.cos(a).toFloat(), 200f + 66f * Math.sin(a).toFloat())
+        SubjectMask.segmenter = { _, input -> Bitmap.createBitmap(input.width, input.height, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.WHITE) } }
+        SubjectMask.subjects = { _, input ->
+            listOf(Bitmap.createBitmap(input.width, input.height, Bitmap.Config.ARGB_8888).also {
+                Canvas(it).drawRect(10f, 10f, input.width - 10f, input.height - 10f, Paint().apply { color = Color.WHITE })
+            })
         }
-        val berry = SubjectMask.fromLasso(context, photo, round)
-        assertTrue("обведённый предмет выбран", berry.getPixel(240, 200) ushr 24 > 200)
-        assertTrue("соседний предмет не выбран", berry.getPixel(312, 200) ushr 24 < 40)
-        assertTrue("фон вокруг не выбран", berry.getPixel(240, 130) ushr 24 < 40)
+        val round = (0 until 30).map { i ->
+            val a = i * Math.PI * 2 / 30
+            val r = if (i % 3 == 0) 62f else 72f
+            android.graphics.PointF(222f + r * Math.cos(a).toFloat(), 203f + r * Math.sin(a).toFloat())
+        }
+        val berry = SubjectMask.fromLasso(context, berries, round)
+        assertTrue("обведённая ягода выбрана", berry.getPixel(220, 200) ushr 24 > 200)
+        assertTrue("край ягоды выбран", berry.getPixel(268, 200) ushr 24 > 200)
+        assertTrue("соседняя ягода не выбрана", berry.getPixel(288, 200) ushr 24 < 40)
+        assertTrue("ягода сверху не выбрана", berry.getPixel(220, 132) ushr 24 < 40)
+        assertTrue("промежуток между ягодами не выбран", berry.getPixel(270, 150) ushr 24 < 40)
         SubjectMask.subjects = { _, _ -> emptyList() }
     }
 
