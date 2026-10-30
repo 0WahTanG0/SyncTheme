@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** Оформление самого приложения (не путать с темой обоев). */
 enum class AppStyle(val title: String, val note: String) {
+    BENTO("Плитки", "Цветные плитки разного размера — каждая открывает свой раздел"),
     GLASS("Стекло", "Полупрозрачные карточки и мягкое свечение"),
     EXPRESSIVE("Экспрессив", "Тональные цвета и живые формы"),
     NEON("Неон", "Сетка и светящиеся рамки"),
@@ -44,7 +45,7 @@ enum class AppStyle(val title: String, val note: String) {
 
 enum class AppMode(val title: String) { SYSTEM("Как в системе"), LIGHT("Светлая"), DARK("Тёмная") }
 
-data class Appearance(val style: AppStyle = AppStyle.GLASS, val mode: AppMode = AppMode.SYSTEM)
+data class Appearance(val style: AppStyle = AppStyle.BENTO, val mode: AppMode = AppMode.SYSTEM)
 
 object AppearanceStore {
     private var flow: MutableStateFlow<Appearance>? = null
@@ -54,8 +55,10 @@ object AppearanceStore {
     @Synchronized
     private fun state(context: Context): MutableStateFlow<Appearance> = flow ?: run {
         val p = prefs(context)
+        // С выходом «Плиток» приложение один раз переходит на них; прежние оформления остаются в «Настройках».
+        if (!p.getBoolean(KEY_BENTO, false)) p.edit().putBoolean(KEY_BENTO, true).remove("app_style").apply()
         val loaded = Appearance(
-            style = runCatching { AppStyle.valueOf(p.getString("app_style", null)!!) }.getOrDefault(AppStyle.GLASS),
+            style = runCatching { AppStyle.valueOf(p.getString("app_style", null)!!) }.getOrDefault(AppStyle.BENTO),
             mode = runCatching { AppMode.valueOf(p.getString("app_mode", null)!!) }.getOrDefault(AppMode.SYSTEM),
         )
         MutableStateFlow(loaded).also { flow = it }
@@ -64,9 +67,11 @@ object AppearanceStore {
     fun get(context: Context): StateFlow<Appearance> = state(context.applicationContext)
 
     fun set(context: Context, value: Appearance) {
-        prefs(context).edit().putString("app_style", value.style.name).putString("app_mode", value.mode.name).apply()
+        prefs(context).edit().putBoolean(KEY_BENTO, true).putString("app_style", value.style.name).putString("app_mode", value.mode.name).apply()
         state(context.applicationContext).value = value
     }
+
+    private const val KEY_BENTO = "app_style_bento"
 }
 
 /** Все цвета, шрифты и формы выбранного оформления; акцент берётся из текущих обоев. */
@@ -105,6 +110,7 @@ class Look(
 
     val sectionTitle: TextStyle
         get() = when (style) {
+            AppStyle.BENTO -> TextStyle(fontFamily = headings, fontWeight = FontWeight.Black, fontSize = 18.sp)
             AppStyle.GLASS -> TextStyle(fontFamily = body, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             AppStyle.EXPRESSIVE -> TextStyle(fontFamily = body, fontWeight = FontWeight.Black, fontSize = 18.sp)
             AppStyle.NEON -> TextStyle(fontFamily = headings, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.sp)
@@ -147,6 +153,28 @@ fun lookFor(style: AppStyle, dark: Boolean, accentColor: Int): Look {
     val onPrimary = if (primary.luminance() > 0.35f) Color(0xFF111111) else white
     val accentText = if (dark) mix(accent, white, 0.45f) else mix(accent, black, 0.35f)
     return when (style) {
+        AppStyle.BENTO -> if (dark) {
+            val ink = Color(0xFFF3EFFA)
+            Look(
+                style, dark, accent, primary, onPrimary, accentText,
+                background = Color(0xFF14111C), text = ink, muted = Color(0xFFB7AFC9),
+                card = Color(0xFF221D2E), highlight = Color(0xFF2C2540), onHighlight = ink,
+                cardBorder = Color.Transparent, control = Color(0xFF2C2540),
+                bar = Color(0xFF14111C), dialog = Color(0xFF221D2E),
+                decor = Color.Transparent, radius = 26.dp, headings = Nunito, body = Nunito,
+            )
+        } else {
+            val ink = Color(0xFF1F1A2E)
+            Look(
+                style, dark, accent, primary, onPrimary, accentText,
+                background = Color(0xFFF4EFFA), text = ink, muted = Color(0xFF625B75),
+                card = Color.White, highlight = Color(0xFFE9E1F7), onHighlight = ink,
+                cardBorder = Color.Transparent, control = Color(0xFFEAE3F5),
+                bar = Color(0xFFF4EFFA), dialog = Color.White,
+                decor = Color.Transparent, radius = 26.dp, headings = Nunito, body = Nunito,
+            )
+        }
+
         AppStyle.GLASS -> if (dark) {
             val bg = mix(accent, Color(0xFF09090B), 0.86f)
             Look(
@@ -214,14 +242,14 @@ fun lookFor(style: AppStyle, dark: Boolean, accentColor: Int): Look {
     }
 }
 
-val LocalLook = staticCompositionLocalOf { lookFor(AppStyle.GLASS, true, 0xFF8B6CF6.toInt()) }
+val LocalLook = staticCompositionLocalOf { lookFor(AppStyle.BENTO, false, 0xFF8B6CF6.toInt()) }
 
 private fun typography(look: Look): Typography {
     val base = Typography()
     fun TextStyle.h() = copy(fontFamily = look.headings)
     fun TextStyle.b() = copy(fontFamily = look.body)
     val neon = look.style == AppStyle.NEON
-    val heavy = if (look.style == AppStyle.EXPRESSIVE) FontWeight.Black else FontWeight.ExtraBold
+    val heavy = if (look.style == AppStyle.EXPRESSIVE || look.style == AppStyle.BENTO) FontWeight.Black else FontWeight.ExtraBold
     return base.copy(
         displayLarge = base.displayLarge.h(), displayMedium = base.displayMedium.h(), displaySmall = base.displaySmall.h(),
         headlineLarge = base.headlineLarge.h(), headlineMedium = base.headlineMedium.h(),
@@ -237,6 +265,7 @@ private fun typography(look: Look): Typography {
 }
 
 private fun shapes(look: Look) = when (look.style) {
+    AppStyle.BENTO -> Shapes(RoundedCornerShape(10.dp), RoundedCornerShape(16.dp), RoundedCornerShape(20.dp), RoundedCornerShape(26.dp), RoundedCornerShape(30.dp))
     AppStyle.GLASS -> Shapes(RoundedCornerShape(8.dp), RoundedCornerShape(12.dp), RoundedCornerShape(16.dp), RoundedCornerShape(24.dp), RoundedCornerShape(28.dp))
     AppStyle.EXPRESSIVE -> Shapes(RoundedCornerShape(10.dp), RoundedCornerShape(16.dp), RoundedCornerShape(22.dp), RoundedCornerShape(32.dp), RoundedCornerShape(36.dp))
     AppStyle.NEON -> Shapes(RoundedCornerShape(6.dp), RoundedCornerShape(8.dp), RoundedCornerShape(12.dp), RoundedCornerShape(18.dp), RoundedCornerShape(20.dp))

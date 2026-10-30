@@ -108,13 +108,15 @@ fun SyncThemeScreen(
     expandSections: Boolean = false,
     /** При первом запуске — проверка совместимости (из MainActivity; в тестах экран сразу главный). */
     firstLaunchCheck: Boolean = false,
+    /** Сразу открыть раздел «Обоев» (скриншоты). */
+    initialDetail: WallDetail? = null,
 ) = androidx.compose.runtime.CompositionLocalProvider(LocalExpandAll provides expandSections) {
-    SyncThemeContent(vm, initialTab, onOpenInstaller, initialLock, onOpenTvInstaller, firstLaunchCheck)
+    SyncThemeContent(vm, initialTab, onOpenInstaller, initialDetail ?: WallDetail.LOCK.takeIf { initialLock }, onOpenTvInstaller, firstLaunchCheck)
 }
 
 @Composable
 private fun SyncThemeContent(
-    vm: MainViewModel, initialTab: Tab, onOpenInstaller: () -> Unit, initialLock: Boolean, onOpenTvInstaller: () -> Unit, firstLaunchCheck: Boolean,
+    vm: MainViewModel, initialTab: Tab, onOpenInstaller: () -> Unit, initialDetail: WallDetail?, onOpenTvInstaller: () -> Unit, firstLaunchCheck: Boolean,
 ) {
     val theme by vm.theme.collectAsStateWithLifecycle()
     val applied by vm.applied.collectAsStateWithLifecycle()
@@ -136,10 +138,15 @@ private fun SyncThemeContent(
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
 
     var tab by rememberSaveable { mutableStateOf(initialTab) }
-    LaunchedEffect(Unit) { vm.tabRequests.collect { tab = it } }
-    LaunchedEffect(tabs) { if (tab !in tabs) tab = Tab.WALLPAPER }
-    /** На вкладке «Обои»: редактируется рабочий стол или экран блокировки. */
-    var lock by rememberSaveable { mutableStateOf(initialLock) }
+    /** Раздел «Обоев», открытый с плитки; null — сами плитки. */
+    var detail by rememberSaveable { mutableStateOf(initialDetail) }
+    val openTab: (Tab) -> Unit = {
+        tab = it
+        detail = null
+    }
+    LaunchedEffect(Unit) { vm.tabRequests.collect(openTab) }
+    LaunchedEffect(tabs) { if (tab !in tabs) openTab(Tab.WALLPAPER) }
+    val lock = detail == WallDetail.LOCK
     var photoTarget by remember { mutableStateOf(BgTarget.HOME) }
     /** Фото выбирают для новой темы («Из фото»), а не для фона текущей. */
     var photoTheme by remember { mutableStateOf(false) }
@@ -199,9 +206,14 @@ private fun SyncThemeContent(
         return
     }
 
+    if (tab == Tab.WALLPAPER && detail != null) androidx.activity.compose.BackHandler { detail = null }
+
     val density = LocalDensity.current
     val header = remember(density) { CollapsingHeader(with(density) { 224.dp.toPx() }, with(density) { 96.dp.toPx() }) }
-    LaunchedEffect(tab) { header.expand() }
+    LaunchedEffect(tab, detail) { header.expand() }
+    val expandAll = LocalExpandAll.current
+    /** Плитки «Обоев»: превью — в самих плитках, без закреплённой шапки. */
+    val hub = tab == Tab.WALLPAPER && detail == null
 
     // Превью устройств: что сейчас видно на экранах (на вкладке «Часы» — только часы).
     val previews: @Composable (Dp) -> Unit = { height ->
@@ -214,16 +226,41 @@ private fun SyncThemeContent(
             else -> PreviewRow(phonePreview, watchPreview.takeIf { devices.watch }, tabletPreview, tvPreview, height, vm.selfTablet)
         }
     }
-    val settings: LazyListScope.() -> Unit = {
+    val devicesTile: (@Composable (Modifier) -> Unit)? = if (devices.watch || devices.peers.any { it.enabled }) {
+        { m ->
+            val peers = devices.peers.filter { it.enabled }
+            DevicesTile(
+                watchPreview.takeIf { devices.watch }, tabletPreview, tvPreview,
+                title = if (devices.watch && peers.isEmpty()) "Часы" else "Устройства",
+                status = { DeviceStatus(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) } },
+                onClick = { openTab(if (devices.watch) Tab.WATCH else Tab.MORE) },
+                modifier = m,
+            )
+        }
+    } else null
+    val settings: LazyListScope.(wide: Boolean) -> Unit = { wide ->
         when (tab) {
-            Tab.WALLPAPER -> wallpaperTab(theme, actions, lock, { lock = it }) { colorTarget = it }
+            Tab.WALLPAPER -> {
+                val open = detail
+                if (open == null) {
+                    wallpaperHub(theme, actions, phonePreview, withPreview = !wide, onDetail = { detail = it }, devices = devicesTile.takeIf { !wide })
+                    // Для скриншотов во всю высоту — все разделы сразу под плитками.
+                    if (expandAll) WallDetail.entries.forEach { d -> wallpaperDetail(d, theme, actions) { colorTarget = it } }
+                } else {
+                    wallpaperDetail(open, theme, actions) { colorTarget = it }
+                }
+            }
             Tab.WIDGETS -> widgetsTab(theme, actions)
             Tab.WATCH -> watchTab(theme, actions) { colorTarget = it }
             Tab.MORE -> moreTab(theme, actions) { UpdateSection(vm) }
         }
     }
     val applyStrip: @Composable () -> Unit = { ApplyStrip(targets, busy, theme != applied, devices, vm::setTargets, vm::setPeerEnabled, vm::apply) }
-    val headerRow: @Composable () -> Unit = { Header(connection, devices, linkPush, onOpenInstaller) { tab = Tab.MORE } }
+    val headerRow: @Composable () -> Unit = {
+        val open = detail
+        if (tab == Tab.WALLPAPER && open != null) DetailHeader(open.title) { detail = null }
+        else Header(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) }
+    }
 
     AppTheme(theme.accentColor) {
         AppBackdrop {
@@ -232,7 +269,7 @@ private fun SyncThemeContent(
                 val wide = maxWidth > maxHeight && maxWidth >= 600.dp
                 CompositionLocalProvider(LocalShowWatch provides devices.watch) {
                     if (wide) {
-                        WideLayout(tab, tabs, { tab = it }, headerRow, previews, if (tab != Tab.MORE) applyStrip else null, settings)
+                        WideLayout(tab, tabs, openTab, headerRow, previews, if (tab != Tab.MORE) applyStrip else null) { settings(true) }
                     } else {
                         Scaffold(
                             containerColor = Color.Transparent,
@@ -240,7 +277,7 @@ private fun SyncThemeContent(
                             bottomBar = {
                                 Column {
                                     if (tab != Tab.MORE) applyStrip()
-                                    BottomNav(tab, tabs) { tab = it }
+                                    BottomNav(tab, tabs, openTab)
                                 }
                             },
                         ) { padding ->
@@ -251,15 +288,14 @@ private fun SyncThemeContent(
                                     .wrapContentWidth().widthIn(max = 720.dp),
                             ) {
                                 // Шапка и превью закреплены; превью сжимается при прокрутке, но изменения видны сразу.
-                                Column(Modifier.padding(horizontal = 16.dp)) {
+                                if (!hub) Column(Modifier.padding(horizontal = 16.dp)) {
                                     headerRow()
                                     if (tab != Tab.MORE) previews(with(density) { header.height.toDp() })
                                 }
                                 LazyColumn(
                                     modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
-                                    content = settings,
-                                )
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (hub) 0.dp else 4.dp, bottom = 16.dp),
+                                ) { settings(false) }
                             }
                         }
                     }
@@ -358,6 +394,20 @@ private fun Header(
         AppMark(look, 36.dp)
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) { AppTitle(look) }
+        DeviceStatus(connection, devices, push, onOpenInstaller, onDevices)
+    }
+}
+
+/** Плашка состояния часов и устройств по Wi‑Fi (если есть). */
+@Composable
+fun DeviceStatus(
+    connection: WatchConnection,
+    devices: DeviceSet,
+    push: Map<String, LinkPush>,
+    onOpenInstaller: () -> Unit,
+    onDevices: () -> Unit,
+) {
+    run {
         val peers = devices.peers.filter { it.enabled }
         val (watchDot, watchText) = when {
             !connection.checked -> Color.Gray to "Ищу часы…"
@@ -398,19 +448,20 @@ private fun Header(
 private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBitmap?, tv: ImageBitmap?, height: Dp, selfTablet: Boolean = false) {
     val look = LocalLook.current
     val outer = when (look.style) {
+        AppStyle.BENTO -> RoundedCornerShape(look.radius)
         AppStyle.GLASS -> RoundedCornerShape(28.dp)
         AppStyle.EXPRESSIVE -> RoundedCornerShape(36.dp)
         AppStyle.NEON -> RoundedCornerShape(22.dp)
     }
     val frameBorder = when (look.style) {
         AppStyle.GLASS -> look.cardBorder
-        AppStyle.EXPRESSIVE -> Color.Transparent
+        AppStyle.EXPRESSIVE, AppStyle.BENTO -> Color.Transparent
         AppStyle.NEON -> look.accent.copy(alpha = 0.4f)
     }
     val watchOnly = phone == null
     val screenBorder = when (look.style) {
         AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White
-        AppStyle.EXPRESSIVE -> Color.Transparent
+        AppStyle.EXPRESSIVE, AppStyle.BENTO -> Color.Transparent
         AppStyle.NEON -> look.accent
     }
     BoxWithConstraints(
@@ -470,7 +521,7 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBi
             // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
             val bezel = when (look.style) {
                 AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.16f) else Color.White
-                AppStyle.EXPRESSIVE -> look.text
+                AppStyle.EXPRESSIVE, AppStyle.BENTO -> look.text
                 AppStyle.NEON -> Color(0xFF0C0C12)
             }
             Box(

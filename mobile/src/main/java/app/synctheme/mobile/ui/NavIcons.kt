@@ -122,4 +122,36 @@ object NavIcons {
         }
         stroke { moveTo(8f, 21f); lineTo(16f, 21f); moveTo(12f, 17.5f); lineTo(12f, 21f) }
     }
+    /** Фото: камера с объективом. */
+    val Camera = icon("Camera") {
+        stroke {
+            moveTo(4f, 7.5f); lineTo(7.5f, 7.5f); lineTo(9f, 5f); lineTo(15f, 5f); lineTo(16.5f, 7.5f); lineTo(20f, 7.5f)
+            quadTo(21.5f, 7.5f, 21.5f, 9f); lineTo(21.5f, 18f); quadTo(21.5f, 19.5f, 20f, 19.5f); lineTo(4f, 19.5f)
+            quadTo(2.5f, 19.5f, 2.5f, 18f); lineTo(2.5f, 9f); quadTo(2.5f, 7.5f, 4f, 7.5f); close()
+        }
+        stroke { moveTo(12f, 9.5f); arcTo(3.5f, 3.5f, 0f, true, true, 12f, 16.5f); arcTo(3.5f, 3.5f, 0f, true, true, 12f, 9.5f); close() }
+    }
+
+    /** Светлая и тёмная: полумесяц. */
+    val Moon = icon("Moon") {
+        stroke {
+            moveTo(20f, 14.5f); arcTo(8.5f, 8.5f, 0f, false, true, 9.5f, 4f); arcTo(8.5f, 8.5f, 0f, true, false, 20f, 14.5f); close()
+        }
+    }
+
+    /** Часы на обоях: циферблат со стрелками. */
+    val Clock = icon("Clock") {
+        stroke { moveTo(12f, 3.5f); arcTo(8.5f, 8.5f, 0f, true, true, 12f, 20.5f); arcTo(8.5f, 8.5f, 0f, true, true, 12f, 3.5f); close() }
+        stroke { moveTo(12f, 7.5f); lineTo(12f, 12f); lineTo(15f, 14f) }
+    }
+
+    /** Назад: стрелка влево. */
+    val Back = icon("Back") {
+        stroke { moveTo(19f, 12f); lineTo(5f, 12f); moveTo(11f, 6f); lineTo(5f, 12f); lineTo(11f, 18f) }
+    }
+
+    /** Сохранить: закладка. */
+    val Save = icon("Save") {
+        stroke { moveTo(6.5f, 3.5f); lineTo(17.5f, 3.5f); lineTo(17.5f, 20.5f); lineTo(12f, 16.5f); lineTo(6.5f, 20.5f); close() }
+    }
 }

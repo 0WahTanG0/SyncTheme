@@ -87,24 +87,15 @@ import app.synctheme.core.FontWeight as ClockFont
 
 // ---------------------------------------------------------------- Обои
 
-fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, onLock: (Boolean) -> Unit, editColor: (ColorTarget) -> Unit) {
-    item {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            listOf(false to "Рабочий стол", true to "Экран блокировки").forEachIndexed { i, (isLock, label) ->
-                SegmentedButton(
-                    selected = lock == isLock, onClick = { onLock(isLock) },
-                    shape = SegmentedButtonDefaults.itemShape(i, 2), label = { Text(label, maxLines = 1) },
-                )
-            }
-        }
+/** Раздел «Обоев», открытый с плитки; каждый — отдельной карточкой под превью. */
+fun LazyListScope.wallpaperDetail(detail: WallDetail, theme: Theme, a: ScreenActions, editColor: (ColorTarget) -> Unit) {
+    // При раскрытых разделах (скриншоты) все разделы идут друг под другом — с заголовками.
+    val panel: @Composable (@Composable () -> Unit) -> Unit = { content ->
+        if (LocalExpandAll.current) Section(detail.title) { content() } else Panel { content() }
     }
-    if (!lock) {
-        item {
-            val saved by a.vm.saved.collectAsStateWithLifecycle()
-            ThemeStrip(saved, theme.id, onPhoto = a.themeFromPhoto, onSelect = a.vm::select, onDelete = a.vm::delete)
-        }
-        item {
-            ExpandableSection("Светлая и тёмная", summary = theme.mode.title) {
+    when (detail) {
+        WallDetail.MODE -> item(key = "d_mode") {
+            panel {
                 // Все четыре варианта видны сразу: на узком экране переносятся на вторую строку.
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ThemeMode.entries.forEach { m ->
@@ -114,8 +105,8 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
                 Text(modeHint(theme.mode), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        item {
-            ExpandableSection("Фон", summary = backgroundSummary(theme.background, theme.dim)) {
+        WallDetail.BACKGROUND -> item(key = "d_bg") {
+            panel {
                 BackgroundEditorContent(
                     bg = theme.background, dim = theme.dim,
                     onBg = { b -> a.vm.update { it.copy(background = b) } },
@@ -126,8 +117,9 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
                 )
             }
         }
-        item {
-            ExpandableSection("Цвета", summary = "Цифры и акцент — для виджетов и часов", trailing = { SwatchPair(theme.textColor, theme.accentColor) }) {
+        WallDetail.COLORS -> item(key = "d_colors") {
+            panel {
+                Text("Цифры и акцент — для виджетов, часов на обоях и циферблата.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 ColorsContent(
                     theme.textColor, theme.accentColor, theme.background.colors,
                     onEditText = { editColor(ColorTarget.Text) },
@@ -136,55 +128,55 @@ fun LazyListScope.wallpaperTab(theme: Theme, a: ScreenActions, lock: Boolean, on
                 )
             }
         }
-        item {
-            ExpandableSection("Часы на обоях", summary = wallClockSummary(theme)) { WallClockContent(theme, a.vm) { a.arrange(ArrangeTarget.HOME) } }
+        WallDetail.CLOCK -> item(key = "d_clock") {
+            panel { WallClockContent(theme, a.vm) { a.arrange(ArrangeTarget.HOME) } }
         }
-
-        item {
+        WallDetail.SAVE -> item(key = "d_save") {
             val saved by a.vm.saved.collectAsStateWithLifecycle()
-            ExpandableSection("Сохранить как свою тему", summary = theme.name) {
-                NameRow(theme, saved.any { it.id == theme.id }, onRename = { name -> a.vm.update { it.copy(name = name) } }, onSave = a.vm::saveCurrent)
-            }
+            panel { NameRow(theme, saved.any { it.id == theme.id }, onRename = { name -> a.vm.update { it.copy(name = name) } }, onSave = a.vm::saveCurrent) }
         }
-    } else {
-        item {
-            Section("Экран блокировки") {
-                SwitchRow("Свои обои для экрана блокировки", theme.lockBackground != null) { a.vm.setLockSeparate(it) }
-                Text(
-                    if (theme.lockBackground == null) "Сейчас на экране блокировки те же обои, что и на рабочем столе."
-                    else "Обои ниже ставятся только на экран блокировки.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        WallDetail.LOCK -> lockDetail(theme, a, editColor)
+    }
+}
+
+private fun LazyListScope.lockDetail(theme: Theme, a: ScreenActions, editColor: (ColorTarget) -> Unit) {
+    item(key = "l_own") {
+        Section("Обои блокировки") {
+            SwitchRow("Свои обои для экрана блокировки", theme.lockBackground != null) { a.vm.setLockSeparate(it) }
+            Text(
+                if (theme.lockBackground == null) "Сейчас на экране блокировки те же обои, что и на рабочем столе."
+                else "Обои ниже ставятся только на экран блокировки.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    if (theme.lockBackground != null) {
+        item(key = "l_bg") {
+            ExpandableSection("Фон блокировки", summary = backgroundSummary(theme.lockScreenBackground(), theme.lockScreenDim()), initiallyExpanded = true) {
+                BackgroundEditorContent(
+                    bg = theme.lockScreenBackground(), dim = theme.lockScreenDim(),
+                    onBg = { b -> a.vm.update { it.copy(lockBackground = b) } },
+                    onDim = { d -> a.vm.update { it.copy(lockDim = d) } },
+                    onPickPhoto = { a.pickPhoto(BgTarget.LOCK) },
+                    onEditColor = { editColor(ColorTarget.Gradient(BgTarget.LOCK, it)) },
                 )
             }
         }
-        if (theme.lockBackground != null) {
-            item {
-                ExpandableSection("Фон блокировки", summary = backgroundSummary(theme.lockScreenBackground(), theme.lockScreenDim()), initiallyExpanded = true) {
-                    BackgroundEditorContent(
-                        bg = theme.lockScreenBackground(), dim = theme.lockScreenDim(),
-                        onBg = { b -> a.vm.update { it.copy(lockBackground = b) } },
-                        onDim = { d -> a.vm.update { it.copy(lockDim = d) } },
-                        onPickPhoto = { a.pickPhoto(BgTarget.LOCK) },
-                        onEditColor = { editColor(ColorTarget.Gradient(BgTarget.LOCK, it)) },
-                    )
-                }
-            }
-        }
-        item {
-            val own = theme.wallClock?.onLock == true
-            ExpandableSection(
-                "Часы и эффект глубины", summary = if (own) "Часы SyncTheme" + (if (theme.wallClock?.depth == true) " за объектом фото" else "") else "Часы телефона",
-                initiallyExpanded = own,
-            ) { LockClockContent(theme, a.vm) }
-        }
-        item {
-            Text(
-                "Свои часы телефона на экране блокировки остаются всегда — их стиль и размер меняются в настройках " +
-                    "экрана блокировки самого телефона.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-            )
-        }
+    }
+    item(key = "l_clock") {
+        val own = theme.wallClock?.onLock == true
+        ExpandableSection(
+            "Часы и эффект глубины", summary = if (own) "Часы SyncTheme" + (if (theme.wallClock?.depth == true) " за объектом фото" else "") else "Часы телефона",
+            initiallyExpanded = own,
+        ) { LockClockContent(theme, a.vm) }
+    }
+    item(key = "l_note") {
+        Text(
+            "Свои часы телефона на экране блокировки остаются всегда — их стиль и размер меняются в настройках " +
+                "экрана блокировки самого телефона.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+        )
     }
 }
 
@@ -218,15 +210,22 @@ private fun SwatchPair(text: Int, accent: Int) {
 
 /** Лента тем: «Из фото» — новая тема из снимка в один шаг, и свои темы. */
 @Composable
-private fun ThemeStrip(
+fun ThemeStrip(
     saved: List<Theme>, selectedId: String,
-    onPhoto: () -> Unit, onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit,
+    onPhoto: () -> Unit, onSelect: (Theme) -> Unit, onDelete: (Theme) -> Unit, onSave: () -> Unit,
 ) {
     val look = LocalLook.current
     Column(Modifier.padding(vertical = 6.dp)) {
-        Text(look.title("Мои темы"), style = look.sectionTitle, color = look.text)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(look.title("Мои темы"), style = look.sectionTitle, color = look.text, modifier = Modifier.weight(1f))
+            TextButton(onClick = onSave) {
+                Icon(NavIcons.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Сохранить")
+            }
+        }
         Text(
-            if (saved.isEmpty()) "Нажмите «Из фото» — тема соберётся из снимка сама: фон, цвета цифр, виджетов и циферблата. Или настройте всё ниже и «Сохранить как свою тему»."
+            if (saved.isEmpty()) "Нажмите «Из фото» — тема соберётся из снимка сама: фон, цвета цифр, виджетов и циферблата. Или настройте плитки выше и «Сохранить»."
             else "Нажмите тему или «Из фото» — новая тема из снимка в один шаг.",
             style = MaterialTheme.typography.bodySmall, color = look.muted,
         )

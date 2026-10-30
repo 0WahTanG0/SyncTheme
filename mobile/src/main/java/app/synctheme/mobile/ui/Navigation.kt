@@ -61,6 +61,7 @@ import app.synctheme.mobile.data.DeviceSet
 @Composable
 fun BottomNav(tab: Tab, tabs: List<Tab> = Tab.entries, onTab: (Tab) -> Unit) {
     val look = LocalLook.current
+    if (look.style == AppStyle.BENTO) return BentoNav(tab, tabs, onTab)
     NavigationBar(containerColor = look.bar, tonalElevation = 0.dp) {
         tabs.forEach { t ->
             NavigationBarItem(

@@ -24,6 +24,7 @@ import app.synctheme.mobile.install.WatchInstallerScreen
 import app.synctheme.mobile.ui.MainViewModel
 import app.synctheme.mobile.ui.AppMode
 import app.synctheme.mobile.ui.AppStyle
+import app.synctheme.mobile.ui.WallDetail
 import app.synctheme.mobile.ui.AppTheme
 import app.synctheme.mobile.ui.CompatScreen
 import app.synctheme.mobile.ui.SubjectEditorScreen
@@ -67,9 +68,10 @@ class ScreenshotTest {
     private fun screen(
         name: String,
         tab: Tab,
-        appearance: Appearance = Appearance(AppStyle.GLASS, AppMode.DARK),
+        appearance: Appearance = Appearance(AppStyle.BENTO, AppMode.LIGHT),
         lock: Boolean = false,
         expand: Boolean = false,
+        detail: WallDetail? = null,
         withVm: (MainViewModel) -> Unit = {},
         prepare: (Application) -> Unit = {},
     ) {
@@ -89,11 +91,29 @@ class ScreenshotTest {
             Thread.sleep(500)
         }
         val out = File(System.getProperty("previewsDir")!!, "$name.png")
-        captureRoboImage(out.absolutePath) { SyncThemeScreen(vm, tab, initialLock = lock, expandSections = expand) }
+        captureRoboImage(out.absolutePath) { SyncThemeScreen(vm, tab, initialLock = lock, expandSections = expand, initialDetail = detail) }
     }
 
     @Test
     fun mainScreen() = screen("screen_main", Tab.WALLPAPER)
+
+    /** «Плитки»: главный экран в тёмном режиме, с часами, и открытые разделы. */
+    @Test
+    fun bento() {
+        screen("bento_main_dark", Tab.WALLPAPER, Appearance(AppStyle.BENTO, AppMode.DARK))
+        screen("bento_main_watch", Tab.WALLPAPER) { app ->
+            DeviceSettings.setPro(app, true)
+            DeviceSettings.setWatch(app, true)
+        }
+        screen("bento_background", Tab.WALLPAPER, detail = WallDetail.BACKGROUND)
+        screen("bento_colors", Tab.WALLPAPER, Appearance(AppStyle.BENTO, AppMode.DARK), detail = WallDetail.COLORS)
+        screen("bento_clock", Tab.WALLPAPER, detail = WallDetail.CLOCK) { app ->
+            ThemeRepository.get(app).setDraft(Presets.all[0].copy(wallClock = WallClock()))
+        }
+        screen("bento_widgets", Tab.WIDGETS)
+        screen("bento_watch", Tab.WATCH) { app -> DeviceSettings.setPro(app, true) }
+        screen("bento_more", Tab.MORE)
+    }
 
     @Test
     fun widgetsTab() = screen("screen_widgets", Tab.WIDGETS)
