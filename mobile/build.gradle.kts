@@ -15,12 +15,13 @@ android {
         // Android 9+: работает на любом телефоне и планшете; новые API — через util/Compat.kt.
         minSdk = 28
         targetSdk = 36
-        versionCode = 40
-        versionName = "1.23.0"
+        versionCode = 41
+        versionName = "1.23.1"
         // Откуда приложение берёт обновления: релизы GitHub owner/repo (-PupdateRepo=... при сборке).
         resValue("string", "update_repo", providers.gradleProperty("updateRepo").getOrElse(""))
-        // Galaxy S25+ и все современные телефоны — arm64; так APK заметно меньше.
-        ndk { abiFilters += "arm64-v8a" }
+        // arm64 — почти все телефоны; armeabi-v7a — недорогие с 32-битной системой (Redmi 9A/9C и др.),
+        // без неё Android пишет «Приложение не установлено». x86 не нужен — это эмуляторы.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     signingConfigs {
