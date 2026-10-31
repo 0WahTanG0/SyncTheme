@@ -20,6 +20,7 @@ import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
+import androidx.core.content.ContextCompat
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.DayNight
@@ -159,9 +160,15 @@ class ClockWallpaperService : WallpaperService() {
                 addAction(Intent.ACTION_TIME_CHANGED)
                 addAction(Intent.ACTION_TIMEZONE_CHANGED)
             }
-            registerReceiver(events, filter)
+            // Без флага новые Android отказывают и роняют обои; с флагом системные рассылки приходят как раньше.
+            ContextCompat.registerReceiver(this@ClockWallpaperService, events, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+            // Список последних приложений — подсказка, а не необходимость: если система её не шлёт, обои работают без неё.
             @Suppress("DEPRECATION")
-            registerReceiver(systemDialogs, IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+            runCatching {
+                ContextCompat.registerReceiver(
+                    this@ClockWallpaperService, systemDialogs, IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS), ContextCompat.RECEIVER_NOT_EXPORTED,
+                )
+            }.onFailure { Log.w(TAG, "Recents hint unavailable", it) }
             // Телефон заблокировался или разблокировался (в том числе с задержкой после выключения экрана).
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 runCatching { keyguard?.addKeyguardLockedStateListener(mainExecutor, lockListener) }
