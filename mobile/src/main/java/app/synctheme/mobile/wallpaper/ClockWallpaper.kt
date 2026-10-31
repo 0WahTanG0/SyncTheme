@@ -110,10 +110,9 @@ class ClockWallpaperService : WallpaperService() {
         private val tap by lazy { TapDetector(TAP_MOVE_DP * resources.displayMetrics.density) }
         private var lastLaunch = 0L
         private var touchesEnabled = false
-        /** Нажатие по часам ждёт [LAUNCH_DELAY_MS]: не раскроется ли что-то поверх них. */
+        /** Нажатие по часам ждёт [TapGuard.delayMs]: не раскроется ли что-то поверх них. */
         private var pendingLaunch: Runnable? = null
-        /** Когда лаунчер в последний раз что-то раскрыл поверх обоев. */
-        private var coveredAt = 0L
+        private val guard = TapGuard()
         /** До этого момента часы нарисованы «нажатыми» — отклик на нажатие. */
         private var pressedUntil = 0L
 
@@ -134,6 +133,19 @@ class ClockWallpaperService : WallpaperService() {
 
         private val lockListener by lazy { KeyguardManager.KeyguardLockedStateListener { draw() } }
 
+        /** Система открыла список последних приложений или нажали «Домой» — касания по часам в «последних» не считаются. */
+        private val systemDialogs = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.getStringExtra("reason")) {
+                    "recentapps" -> {
+                        guard.onRecents(SystemClock.uptimeMillis())
+                        cancelLaunch()
+                    }
+                    "homekey" -> guard.onHome()
+                }
+            }
+        }
+
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             // Касания включаются, только когда нажатие на часы что-то открывает (см. prepare).
@@ -148,6 +160,8 @@ class ClockWallpaperService : WallpaperService() {
                 addAction(Intent.ACTION_TIMEZONE_CHANGED)
             }
             registerReceiver(events, filter)
+            @Suppress("DEPRECATION")
+            registerReceiver(systemDialogs, IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
             // Телефон заблокировался или разблокировался (в том числе с задержкой после выключения экрана).
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 runCatching { keyguard?.addKeyguardLockedStateListener(mainExecutor, lockListener) }
@@ -167,13 +181,14 @@ class ClockWallpaperService : WallpaperService() {
             return super.onCommand(action, x, y, z, extras, resultRequested)
         }
 
-        /** Лаунчер раскрыл что-то поверх обоев (папку, меню, список приложений) — нажатие было не по часам. */
+        /**
+         * Лаунчер раскрыл что-то поверх обоев (папку, меню, список приложений) — нажатие было не по часам.
+         * Пока оно раскрыто, касания по часам не считаются вовсе.
+         */
         override fun onZoomChanged(zoom: Float) {
             super.onZoomChanged(zoom)
-            if (zoom > 0f) {
-                coveredAt = SystemClock.uptimeMillis()
-                cancelLaunch()
-            }
+            guard.onZoom(zoom, SystemClock.uptimeMillis())
+            if (zoom > 0f) cancelLaunch()
         }
 
         private fun cancelLaunch() {
@@ -185,8 +200,9 @@ class ClockWallpaperService : WallpaperService() {
          * Касание рабочего стола: если на часах (с запасом под палец) — открываем приложение. Касания обоям
          * система передаёт и тогда, когда палец попал в папку, значок или меню лаунчера над часами. Поэтому:
          * лаунчер, который сам сообщает о нажатии на пустое место (COMMAND_TAP), — только по его сообщению;
-         * иначе приложение открывается с короткой задержкой и не открывается, если за это время раскрылась
-         * папка SyncTheme, лаунчер что-то раскрыл или открыл приложение (обои скрылись).
+         * иначе решает [TapGuard]: приложение открывается с задержкой и не открывается, если поверх обоев
+         * что-то раскрыто (папка лаунчера или SyncTheme, список приложений, «последние») или за время
+         * ожидания раскрылось либо открылось приложение (обои скрылись).
          */
         private fun onTap(x: Float, y: Float, fromLauncher: Boolean) {
             val prefs = getSharedPreferences("settings", MODE_PRIVATE)
@@ -203,12 +219,13 @@ class ClockWallpaperService : WallpaperService() {
             if (!ThemeRenderer.wallClockHit(theme, l.spot, sx, sy, TAP_SLOP_DP * resources.displayMetrics.density)) return
             // Одно нажатие может прийти дважды: касанием и командой лаунчера.
             val now = SystemClock.uptimeMillis()
-            if (now - lastLaunch < 800 || FolderActivity.open) return
+            if (now - lastLaunch < 800 || FolderActivity.open || !guard.accepts(now)) return
             val intent = AppCatalog.wallClockIntent(this@ClockWallpaperService, wall.openApp) ?: return
             cancelLaunch()
             val launch = Runnable {
                 pendingLaunch = null
-                if (!visible || FolderActivity.open || FolderActivity.openedAt >= now - 150 || coveredAt >= now - 150) return@Runnable
+                val at = SystemClock.uptimeMillis()
+                if (!visible || FolderActivity.open || FolderActivity.openedAt >= now - TapGuard.BEFORE_MS || !guard.confirms(now, at)) return@Runnable
                 lastLaunch = SystemClock.uptimeMillis()
                 pressedUntil = lastLaunch + PRESS_MS
                 draw()
@@ -216,7 +233,7 @@ class ClockWallpaperService : WallpaperService() {
                 runCatching { startActivity(intent) }.onFailure { Log.w(TAG, "Tap launch failed", it) }
             }
             pendingLaunch = launch
-            handler.postDelayed(launch, if (fromLauncher) 0L else LAUNCH_DELAY_MS)
+            handler.postDelayed(launch, if (fromLauncher) 0L else guard.delayMs)
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -239,6 +256,7 @@ class ClockWallpaperService : WallpaperService() {
             } else {
                 handler.removeCallbacks(tick)
                 // Обои закрыло приложение (например, из папки над часами) — часы ничего не открывают.
+                guard.onHidden(SystemClock.uptimeMillis())
                 cancelLaunch()
             }
         }
@@ -252,6 +270,7 @@ class ClockWallpaperService : WallpaperService() {
             engines -= this
             handler.removeCallbacks(tick)
             runCatching { unregisterReceiver(events) }
+            runCatching { unregisterReceiver(systemDialogs) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 runCatching { keyguard?.removeKeyguardLockedStateListener(lockListener) }
             }
@@ -366,8 +385,6 @@ class ClockWallpaperService : WallpaperService() {
         /** Насколько палец может сдвинуться, чтобы это ещё было нажатие. */
         const val TAP_MOVE_DP = 12
         const val PRESS_MS = 160L
-        /** Сколько ждать после нажатия: папка или приложение лаунчера успевают открыться. */
-        const val LAUNCH_DELAY_MS = 380L
         /** Лаунчер сообщает о нажатиях на пустое место — касаниям обоев тогда не верим. */
         const val KEY_LAUNCHER_TAPS = "launcher_sends_taps"
     }
