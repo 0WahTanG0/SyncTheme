@@ -189,7 +189,7 @@ class FolderActivity : ComponentActivity() {
 class FolderApp(val component: String, val label: String, val icon: ImageBitmap?)
 
 fun folderApps(context: Context, config: WidgetConfig): List<FolderApp> {
-    val circle = config.style != "glass"
+    val circle = config.style !in WidgetRenderer.SQUARE_ICONS
     val px = (56 * context.resources.displayMetrics.density).roundToInt()
     return config.apps.ifEmpty { AppCatalog.defaults(context) }.take(APPS_IN_FOLDER).map {
         FolderApp(it, AppCatalog.label(context, it) ?: it.substringBefore('/'), AppCatalog.icon(context, it, px, circle)?.asImageBitmap())
@@ -271,11 +271,14 @@ private class FolderLook(config: WidgetConfig, theme: Theme) {
             "poster" -> if (Colors.isLight(themeAccent)) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
             "paper" -> 0xFF2B2622.toInt()
             "board" -> 0xFFF2F2F2.toInt()
+            "ice" -> 0xFF1C1C22.toInt()
+            "glow" -> 0xFFF4F2FA.toInt()
             else -> theme.textColor
         },
     )
     val radius = when (config.style) {
-        "glass" -> 34.dp
+        "glass", "ice" -> 34.dp
+        "glow" -> 26.dp
         "neon" -> 26.dp
         "poster" -> 14.dp
         "paper" -> 12.dp
@@ -286,6 +289,8 @@ private class FolderLook(config: WidgetConfig, theme: Theme) {
         "neon" -> Color(0xEE0B0B12)
         "poster" -> Color(Colors.withAlpha(themeAccent, 0.97f))
         "paper" -> Color(0xFAF6F1E6)
+        "ice" -> Color(0xF2F1F3F7)
+        "glow" -> Color(0xF517171C)
         else -> Color(0xF5161619)
     }
     val border: Color? = when (config.style) {
@@ -293,9 +298,11 @@ private class FolderLook(config: WidgetConfig, theme: Theme) {
         "neon" -> accent
         "paper" -> Color(0x335A4630)
         "board" -> Color(0xFF2E2E34)
+        "ice" -> Color.White
+        "glow" -> accent.copy(alpha = 0.55f)
         else -> null
     }
-    val glow = config.style == "neon"
+    val glow = config.style == "neon" || config.style == "glow"
 }
 
 /**

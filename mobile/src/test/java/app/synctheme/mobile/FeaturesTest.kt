@@ -355,7 +355,7 @@ class FeaturesTest {
         val d = context.resources.displayMetrics.density
         val shapes = listOf(41 to 400, 96 to 400, 60 to 150, 75 to 75, 140 to 60, 300 to 60, 150 to 150, 300 to 105, 300 to 300)
         val theme = Presets.all[0]
-        for (family in listOf("glass", "poster", "neon", "paper", "board")) {
+        for (family in listOf("glass", "poster", "neon", "paper", "board", "ice", "glow")) {
             val kinds = WidgetKind.entries
             val gap = (10 * d).toInt()
             val rowH = (400 * d).toInt()
@@ -399,7 +399,7 @@ class FeaturesTest {
         val d = context.resources.displayMetrics.density
         val shapes = listOf(360 to 85, 41 to 625, 60 to 150, 56 to 330, 85 to 365, 96 to 625)
         val theme = Presets.all[0]
-        for (family in listOf("glass", "poster", "neon", "paper", "board")) {
+        for (family in listOf("glass", "poster", "neon", "paper", "board", "ice", "glow")) {
             val kinds = WidgetKind.entries
             val gap = (10 * d).toInt()
             val rowH = (625 * d).toInt()

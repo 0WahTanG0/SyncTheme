@@ -48,11 +48,15 @@ object WidgetRenderer {
     private const val INK = 0xFF2B2622.toInt()
     private const val PAPER = 0xFFF6F1E6.toInt()
     private const val BOARD = 0xFF161619.toInt()
+    private const val ICE = 0xFFF1F3F7.toInt()
+    private const val ICE_INK = 0xFF1C1C22.toInt()
+    private const val GLOW = 0xFF17171C.toInt()
 
     /**
      * Цвета по ролям элементов разметки. У каждого стиля свои: «Стекло» и «Неон» — в цветах темы,
      * «Плакат» — фон цвета акцента и контрастный к нему текст, «Бумага» — чернила на кремовом листе,
-     * «Табло» — светящиеся цифры цвета акцента на графите. Свои цвета виджета ([WidgetConfig]) — важнее.
+     * «Табло» — светящиеся цифры цвета акцента на графите, «Лёд» — тёмные буквы на светлом стекле,
+     * «Сияние» — светлые буквы на тёмной панели и свечение цвета акцента. Свои цвета виджета ([WidgetConfig]) — важнее.
      */
     private class Palette(theme: Theme, config: WidgetConfig, family: String, accentBackground: Boolean) {
         val main: Int
@@ -90,6 +94,24 @@ object WidgetRenderer {
                     accent = led
                     label = led
                     onAccent = BOARD
+                }
+                "ice" -> {
+                    // Светлое стекло при любых обоях: буквы тёмные, акцент — достаточно глубокий, чтобы читаться на белом.
+                    val deep = if (ColorUtils.calculateLuminance(themeAccent) > 0.35) ColorUtils.blendARGB(themeAccent, 0xFF000000.toInt(), 0.3f) else themeAccent
+                    bg = ICE
+                    main = config.textColor ?: ICE_INK
+                    accent = deep
+                    label = deep
+                    onAccent = if (Colors.isLight(deep)) 0xFF141414.toInt() else WHITE
+                }
+                "glow" -> {
+                    // Свечение видно только на тёмном: буквы светлые, акцент — высветленный, чтобы гореть.
+                    val lit = if (ColorUtils.calculateLuminance(themeAccent) < 0.25) ColorUtils.blendARGB(themeAccent, WHITE, 0.35f) else themeAccent
+                    bg = GLOW
+                    main = config.textColor ?: 0xFFF4F2FA.toInt()
+                    accent = lit
+                    label = ColorUtils.blendARGB(lit, WHITE, 0.3f)
+                    onAccent = if (Colors.isLight(lit)) 0xFF141414.toInt() else WHITE
                 }
                 "neon" -> {
                     // Неон горит только на тёмном: цифры светлые и у светлых тем.
@@ -165,15 +187,18 @@ object WidgetRenderer {
         /** Картинки цифр часов: одна на всех размерах виджета с тем же текстом и высотой. */
         val digits = HashMap<String, Bitmap>()
         val apps: List<Pair<String, Bitmap?>> by lazy {
-            val circle = config.style != "glass"
+            val circle = config.style !in SQUARE_ICONS
             config.apps.ifEmpty { AppCatalog.defaults(context) }.take(APPS_ON_WIDGET).map { it to AppCatalog.icon(context, it, 120, circle) }
         }
     }
 
-    /** Стили со своим фоном (плакат, неон на тёмном, лист бумаги, табло): наименьшая непрозрачность подложки. */
-    private val SOLID = mapOf("poster" to 0.6f, "paper" to 0.88f, "board" to 0.8f, "neon" to 0.7f)
+    /** Стили со своим фоном (плакат, неон на тёмном, лист бумаги, табло, лёд, сияние): наименьшая непрозрачность подложки. */
+    private val SOLID = mapOf("poster" to 0.6f, "paper" to 0.88f, "board" to 0.8f, "neon" to 0.7f, "ice" to 0.6f, "glow" to 0.88f)
 
-    /** Стиль оформления виджета (для цветов): у всех видов одни и те же пять стилей. */
+    /** Стеклянные стили: значки приложений — скруглёнными квадратами, как на рабочем столе. */
+    val SQUARE_ICONS = setOf("glass", "ice", "glow")
+
+    /** Стиль оформления виджета (для цветов): у всех видов одни и те же стили. */
     fun family(kind: WidgetKind, style: String): String = kind.style(style).id
 
     fun layoutKey(kind: WidgetKind, config: WidgetConfig, size: WidgetSize): String {

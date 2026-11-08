@@ -34,7 +34,7 @@ class LegacyStylesTest {
 
     @Test
     fun oldWidgetStylesBecomeNewOnes() {
-        assertEquals(listOf("glass", "poster", "neon", "paper", "board"), WidgetKind.CLOCK.styles.map { it.id })
+        assertEquals(listOf("glass", "poster", "neon", "paper", "board", "ice", "glow"), WidgetKind.CLOCK.styles.map { it.id })
         assertEquals("poster", WidgetKind.CLOCK.style("bold").id)
         assertEquals("paper", WidgetKind.CLOCK.style("analog_minimal").id)
         assertEquals("board", WidgetKind.CLOCK.style("diag").id)

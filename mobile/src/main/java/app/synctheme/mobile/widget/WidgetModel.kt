@@ -7,13 +7,15 @@ import app.synctheme.core.DigitFonts
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** Пять стилей, общих для всех видов виджетов, — непохожих друг на друга (см. scripts/gen_widgets.py). */
+/** Семь стилей, общих для всех видов виджетов, — непохожих друг на друга (см. scripts/gen_widgets.py). */
 private val FAMILY_STYLES = listOf(
     WidgetStyle("glass", "Стекло"),
     WidgetStyle("poster", "Плакат"),
     WidgetStyle("neon", "Неон"),
     WidgetStyle("paper", "Бумага"),
     WidgetStyle("board", "Табло"),
+    WidgetStyle("ice", "Лёд"),
+    WidgetStyle("glow", "Сияние"),
 )
 
 /** Стили до 1.21 — самый похожий из новых. */
@@ -41,13 +43,15 @@ data class WidgetStyle(val id: String, val title: String)
 
 /**
  * Шрифт цифр, с которым стиль часов выглядит задуманно: тонкие системные цифры на стекле, узкий
- * гротеск на плакате, светящиеся линии в неоне, антиква на бумаге и точки на табло.
+ * гротеск на плакате, светящиеся линии в неоне, антиква на бумаге, точки на табло, круглые «пузыри»
+ * на льду и узкий жирный гротеск в сиянии.
  */
 fun defaultDigitFont(style: String): DigitFont = when (style) {
     "glass" -> DigitFont.THIN
     "neon" -> DigitFont.RETRO
     "paper" -> DigitFont.SERIF
     "board" -> DigitFont.DOTS
+    "ice" -> DigitFont.BUBBLE
     else -> DigitFont.NARROW
 }
 

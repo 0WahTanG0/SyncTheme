@@ -91,6 +91,28 @@ object FolderWidget {
                 paint.color = Colors.withAlpha(0xFFFFFFFF.toInt(), 0.18f + 0.3f * opacity)
                 c.drawRoundRect(r, s * 0.3f, s * 0.3f, paint)
             }
+            "ice" -> {
+                // Лёд: светлая стеклянная капсула с толстой белой кромкой, рисунок — тёмный.
+                val r = RectF(s * 0.05f, s * 0.05f, s * 0.95f, s * 0.95f)
+                paint.color = Colors.withAlpha(0xFFF1F3F7.toInt(), 0.6f + 0.4f * opacity)
+                c.drawRoundRect(r, s * 0.3f, s * 0.3f, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = s * 0.03f
+                paint.color = 0xF5FFFFFF.toInt()
+                c.drawRoundRect(r, s * 0.3f, s * 0.3f, paint)
+                mark = config.textColor ?: 0xFF1C1C22.toInt()
+            }
+            "glow" -> {
+                // Сияние: тёмная капсула, снизу — полоса света цвета акцента.
+                val r = RectF(s * 0.05f, s * 0.05f, s * 0.95f, s * 0.95f)
+                paint.color = Colors.withAlpha(0xFF17171C.toInt(), 0.78f + 0.22f * opacity)
+                c.drawRoundRect(r, s * 0.26f, s * 0.26f, paint)
+                paint.color = accent
+                paint.maskFilter = BlurMaskFilter(s * 0.05f, BlurMaskFilter.Blur.NORMAL)
+                c.drawRoundRect(RectF(s * 0.22f, s * 0.86f, s * 0.78f, s * 0.9f), s * 0.02f, s * 0.02f, paint)
+                paint.maskFilter = null
+                mark = config.textColor ?: 0xFFF4F2FA.toInt()
+            }
             "neon" -> {
                 paint.color = Colors.withAlpha(0xFF0B0B12.toInt(), opacity)
                 c.drawCircle(s / 2, s / 2, s * 0.44f, paint)
@@ -138,7 +160,7 @@ object FolderWidget {
             FolderGlyph.ICONS -> {
                 // Настоящие значки приложений, как в папке лаунчера: рядом с другими значками смотрится своим.
                 val side = (s * 0.22f).roundToInt()
-                val round = config.style != "glass"
+                val round = config.style !in WidgetRenderer.SQUARE_ICONS
                 val iconStep = s * 0.125f
                 listOf(-1 to -1, 1 to -1, -1 to 1, 1 to 1).forEachIndexed { i, (dx, dy) ->
                     val cx = s / 2 + dx * iconStep

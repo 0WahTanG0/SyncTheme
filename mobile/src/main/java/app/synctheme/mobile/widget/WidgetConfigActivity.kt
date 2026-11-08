@@ -191,7 +191,7 @@ fun WidgetConfigScreen(
         config = config.copy() // перерисовать превью с событиями
     }
     val style = kind.style(config.style).id
-    val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("glass", "poster", "paper")
+    val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("glass", "poster", "paper", "ice", "glow")
     // Небо (по погоде или времени суток) — под «Стеклом»: у остальных стилей свой фон.
     val skyStyle = style == "glass"
 
@@ -627,5 +627,7 @@ private fun styleNote(style: String): String = when (style) {
     "neon" -> "Светящийся контур и цифры на чёрном."
     "paper" -> "Кремовый лист с тенью, буквы с засечками — как карточка из блокнота."
     "board" -> "Графитовая панель: цифры на перекидных плашках, как на вокзальном табло."
+    "ice" -> "Жидкое стекло: светлая капсула с толстой кромкой, тёмные буквы, акцент — цветом темы."
+    "glow" -> "Тёмная дымчатая панель, снизу светится цвет акцента — как подсвеченный пульт."
     else -> "Матовое стекло: обои просвечивают, тонкие цифры."
 }

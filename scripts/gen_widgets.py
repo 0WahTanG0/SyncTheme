@@ -30,11 +30,14 @@ NS = 'xmlns:android="http://schemas.android.com/apk/res/android"'
 
 # Пять стилей, непохожих друг на друга: «Стекло» — матовое стекло, «Плакат» — сплошной цвет акцента
 # и огромные цифры, «Неон» — светящийся контур на чёрном, «Бумага» — лист бумаги с засечками,
-# «Табло» — графитовая панель, цифры на перекидных плашках.
-FAMILIES = ["glass", "poster", "neon", "paper", "board"]
+# «Табло» — графитовая панель, цифры на перекидных плашках, «Лёд» — светлое жидкое стекло с толстой
+# светлой кромкой, «Сияние» — тёмная дымчатая панель, снизу светится цвет акцента.
+FAMILIES = ["glass", "poster", "neon", "paper", "board", "ice", "glow"]
 CLOCK_FAMILIES = FAMILIES
 # Раскладка, от которой стиль отталкивается: «Плакат» и «Табло» — крупные цифры, «Бумага» — тонкие линии.
-BASE = {"glass": "glass", "poster": "bold", "neon": "neon", "paper": "minimal", "board": "bold"}
+BASE = {"glass": "glass", "poster": "bold", "neon": "neon", "paper": "minimal", "board": "bold", "ice": "glass", "glow": "glass"}
+# Стили на стеклянной раскладке: подписи без капса, значки приложений квадратные, заряд — кольцом.
+GLASSY = ("glass", "ice", "glow")
 
 
 def B(f):
@@ -71,6 +74,8 @@ FONTS = {
     "neon": dict(main="sans-serif-thin", sub="sans-serif-light", label="sans-serif-light", body="sans-serif-light"),
     "paper": dict(main="serif", sub="serif", label="serif:italic", body="serif"),
     "board": dict(main="monospace:bold", sub="monospace", label="monospace:bold", body="monospace"),
+    "ice": dict(main="sans-serif", sub="sans-serif", label="sans-serif-medium", body="sans-serif"),
+    "glow": dict(main="sans-serif-medium", sub="sans-serif-light", label="monospace", body="sans-serif-light"),
 }
 
 
@@ -262,10 +267,22 @@ for old in os.listdir(os.path.join(RES, "drawable")):
         os.remove(path)
 
 
+def glow_text(node):
+    """«Сияние»: у главных чисел (время, число, температура, заряд) — мягкий светлый ореол."""
+    if not isinstance(node, E):
+        return
+    if node.tag in ("TextView", "TextClock") and node.attrs.get("android:id", "").startswith("@+id/m_"):
+        node.attrs.update({"android:shadowColor": "#73FFFFFF", "android:shadowRadius": "18", "android:shadowDx": "0", "android:shadowDy": "0"})
+    for c in node.children:
+        glow_text(c)
+
+
 def layout(name, *layers):
     if name.startswith(("w_wx_", "w_clock_")):
         layers = with_sky(layers)
     root = frame(*layers, id="widget_root")
+    if "_glow_" in name:
+        glow_text(root)
     xml = root.render(0).replace("<FrameLayout", f"<FrameLayout\n    {NS}", 1)
     write(os.path.join(RES, "layout", f"{name}.xml"), f'<?xml version="1.0" encoding="utf-8"?>\n{HEADER}\n' + xml + "\n")
     LAYOUTS[name] = list(OrderedDict.fromkeys(re.findall(r'@\+id/(\w+)', xml)))
@@ -278,6 +295,11 @@ def bg(family, shaped=None):
     """Слои подложки. shaped — у «Неона» в маленьких размерах круг со светящимся кольцом."""
     if family == "glass":
         return [img("bg_g", "wbg_glass", scale="fitXY")]
+    if family == "ice":
+        return [img("bg_g", "wbg_ice", scale="fitXY")]
+    if family == "glow":
+        # Свечение снизу — отдельным слоем: его цвет — цвет акцента (тинт), панель под ним — своя.
+        return [img("bg_g", "wbg_glow", scale="fitXY"), img("fx_g", "wfx_glow", scale="fitXY")]
     if family == "neon":
         if shaped == "ring_only":
             return [img("bg_s", "wsh_circle")]
@@ -566,7 +588,7 @@ def apps_vertical(f, size, name, layers):
     if size == "tall":
         rows = [row(*[cell(r * 2 + c, w="0dp", h="match", weight=1) for c in range(2)], id=f"row_vap{r}", h="0dp", weight=1)
                 for r in range(APPS_MAX // 2)]
-        title = text("m_title", font=F["label"], size=12, h=f"{v['titleBox']}sp", vis="gone", caps=f != "glass")
+        title = text("m_title", font=F["label"], size=12, h=f"{v['titleBox']}sp", vis="gone", caps=f not in GLASSY)
         body = col(title, *rows, id="box_v", padH=f"{v['padH']}dp", padV=f"{v['padV']}dp")
     else:
         body = col(*[cell(i, w="match", h="0dp", weight=1) for i in range(APPS_MAX)], id="box_v",
@@ -840,7 +862,7 @@ def calendar(f, size):
         return layout(name, *bg(f),
                       col(text("a_weekday_al", clock=WEEKDAY_SHORT, font=F["label"], auto=(8, 16), caps=True, spacing=0.08),
                           T(f, "tile_day", text("m_day_al", clock=DAY, font=F["main"], auto=(16, 300), h="0dp", weight=1)),
-                          pad="10dp" if f == "glass" else "8dp"))
+                          pad="10dp" if f in GLASSY else "8dp"))
     if size == "strip":
         body = row(T(f, "tile_day", text("m_day", clock=DAY, font=F["main"], auto=(16, 120), w="64dp", h="match", shadow=neon)),
                    col(text("a_weekday", clock=("EEEE, LLLL", "EEEE, LLLL"), font=F["label"], size=12, caps=True, g="start", spacing=0.05),
@@ -877,7 +899,7 @@ def calendar(f, size):
                    h="match", pad="14dp")
         return layout(name, *bg(f), body)
     # l: месяц + события
-    body = col(row(text("a_month", clock=MONTH_YEAR, font=F["label"], size=14, caps=f != "glass", g="start", w="0dp", weight=1, spacing=0.04)),
+    body = col(row(text("a_month", clock=MONTH_YEAR, font=F["label"], size=14, caps=f not in GLASSY, g="start", w="0dp", weight=1, spacing=0.04)),
                col(*month_grid(f), h="0dp", weight=1, mt="4dp"),
                hline("if_line", mv="6dp"),
                *event_rows(f, 2, size=12, compact=True),
@@ -1053,7 +1075,7 @@ def battery(f, size):
     F = FONTS[f]
     name = f"w_bat_{f}_{size}"
     neon = f == "neon"
-    ring_style = f in ("glass", "neon", "paper")
+    ring_style = f in ("neon", "paper") + GLASSY
     if size in SHAPED:
         return battery_shaped(f, size, name)
 
@@ -1085,7 +1107,7 @@ def battery(f, size):
     details = row(text("s_temp", font=F["body"], size=12, w="0dp", weight=1, g="start"),
                   text("s_health", font=F["body"], size=12, w="0dp", weight=1, g="end"))
     if size == "wide":
-        left = (frame(ring_pct(f, 88, shadow=neon), w="0dp", weight=0.8) if f in ("glass", "neon") else
+        left = (frame(ring_pct(f, 88, shadow=neon), w="0dp", weight=0.8) if f in ("neon",) + GLASSY else
                 big_pct((20, 200), w="0dp", h="match", weight=0.9, g="center" if f == "board" else "center_vertical|start"))
         body = row(left,
                    col(state("m", 15, lg="start"),
@@ -1150,7 +1172,7 @@ def apps(f, size):
         grid = col(row(app_cell(0, f, icon, False), app_cell(1, f, icon, False), g="center"),
                    row(app_cell(2, f, icon, False), app_cell(3, f, icon, False), g="center", mt="6dp" if size == "m" else "3dp"),
                    pad="16dp" if size == "s" else "22dp")
-        title = text("m_title", font=F["label"], size=12, mb="2dp", vis="gone", caps=f != "glass") if size == "m" else None
+        title = text("m_title", font=F["label"], size=12, mb="2dp", vis="gone", caps=f not in GLASSY) if size == "m" else None
         return layout(name, *bg(f), col(title, grid) if title else grid)
     if size == "strip":
         cells = [app_cell(i, f, 34 - small, False) for i in range(5)]
@@ -1160,7 +1182,7 @@ def apps(f, size):
     rows = [row(*[app_cell(r * 4 + c, f, icon, size != "wide") for c in range(4)], id=f"row_apps{r}", g="center", h="0dp", weight=1)
             for r in range(2)]
     title = text("m_title", font=F["label"], size=13 if size == "wide" else 15, g="start", mb="4dp", vis="gone",
-                 caps=f != "glass", spacing=0.04)
+                 caps=f not in GLASSY, spacing=0.04)
     return layout(name, *bg(f), col(title, *rows, pad="14dp"))
 
 
@@ -1245,6 +1267,85 @@ shape("wbg_glass", f'''<layer-list {NS}>
             <solid android:color="#00000000" />
             <stroke android:width="1dp" android:color="#1F000000" />
             <corners android:radius="26.5dp" />
+        </shape>
+    </item>
+</layer-list>''')
+# Лёд — жидкое стекло: почти белое, плотнее «Стекла»; толстая светлая кромка, блик сверху, тонкий
+# внутренний край для объёма и мягкая тень под стеклом.
+shape("wbg_ice", f'''<layer-list {NS}>
+    <item android:left="1dp" android:right="1dp" android:top="3dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#1A1C2433" />
+            <corners android:radius="30dp" />
+        </shape>
+    </item>
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#EDFAFBFD" android:centerColor="#DEF1F3F7" android:endColor="#D1E8EBF1" />
+            <corners android:radius="30dp" />
+        </shape>
+    </item>
+    <item android:bottom="44dp" android:left="2dp" android:right="2dp" android:top="2dp">
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#A6FFFFFF" android:endColor="#00FFFFFF" />
+            <corners android:topLeftRadius="28dp" android:topRightRadius="28dp" />
+        </shape>
+    </item>
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="2dp" android:color="#F5FFFFFF" />
+            <corners android:radius="30dp" />
+        </shape>
+    </item>
+    <item android:bottom="4.5dp" android:left="2.5dp" android:right="2.5dp" android:top="2.5dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="1dp" android:color="#1F7D8BA6" />
+            <corners android:radius="27.5dp" />
+        </shape>
+    </item>
+</layer-list>''')
+# Сияние — тёмная дымчатая панель со стеклянной кромкой; свечение цвета акцента — слой wfx_glow.
+shape("wbg_glow", f'''<layer-list {NS}>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#FF22222A" android:endColor="#FF0E0E12" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+    <item android:bottom="48dp" android:left="1dp" android:right="1dp" android:top="1dp">
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#17FFFFFF" android:endColor="#00FFFFFF" />
+            <corners android:topLeftRadius="25dp" android:topRightRadius="25dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="1dp" android:color="#33FFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+</layer-list>''')
+# Свечение снизу: мягкий подъём цвета от нижнего края и яркая полоса по нему; цвет — тинтом (акцент).
+shape("wfx_glow", f'''<layer-list {NS}>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="90" android:startColor="#99FFFFFF" android:centerColor="#26FFFFFF" android:endColor="#00FFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+    <item android:gravity="bottom" android:height="16dp" android:left="12dp" android:right="12dp">
+        <shape android:shape="rectangle">
+            <gradient android:angle="90" android:startColor="#80FFFFFF" android:endColor="#00FFFFFF" />
+            <corners android:radius="5dp" />
+        </shape>
+    </item>
+    <item android:gravity="bottom" android:height="2.5dp" android:bottom="1dp" android:left="20dp" android:right="20dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#F2FFFFFF" />
+            <corners android:radius="1dp" />
         </shape>
     </item>
 </layer-list>''')
