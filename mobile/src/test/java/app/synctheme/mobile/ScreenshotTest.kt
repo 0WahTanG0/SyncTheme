@@ -70,7 +70,7 @@ class ScreenshotTest {
     private fun screen(
         name: String,
         tab: Tab,
-        appearance: Appearance = Appearance(AppStyle.STEPS, AppMode.LIGHT),
+        appearance: Appearance = Appearance(AppStyle.SOFT, AppMode.DARK),
         lock: Boolean = false,
         expand: Boolean = false,
         detail: WallDetail? = null,
@@ -119,27 +119,27 @@ class ScreenshotTest {
         repo.saved.value.forEach(repo::delete)
     }
 
-    /** «Три шага»: первый запуск, после фото (светлое и тёмное), дополнительные настройки, «Мои темы». */
+    /** «Мягкий» вид: первый запуск, после фото (тёмный и светлый), с часами, «Мои темы», виджеты, настройки. */
     @Test
-    fun steps() {
-        screen("steps_first", Tab.WALLPAPER) { app -> clearSaved(app) }
-        screen("steps_photo", Tab.WALLPAPER) { app -> clearSaved(app); photoTheme(app) }
-        screen("steps_photo_dark", Tab.WALLPAPER, Appearance(AppStyle.STEPS, AppMode.DARK)) { app -> clearSaved(app); photoTheme(app) }
-        screen("steps_watch", Tab.WALLPAPER) { app ->
+    fun soft() {
+        screen("soft_first", Tab.WALLPAPER) { app -> clearSaved(app) }
+        screen("soft_photo", Tab.WALLPAPER) { app -> clearSaved(app); photoTheme(app) }
+        screen("soft_photo_light", Tab.WALLPAPER, Appearance(AppStyle.SOFT, AppMode.LIGHT)) { app -> clearSaved(app); photoTheme(app) }
+        screen("soft_watch", Tab.WALLPAPER) { app ->
             clearSaved(app)
             photoTheme(app)
             DeviceSettings.setPro(app, true)
             DeviceSettings.setWatch(app, true)
         }
-        screen("steps_themes", Tab.THEMES) { app -> clearSaved(app); photoTheme(app); ThemeRepository.get(app).save(Presets.all[1]) }
-        screen("steps_widgets", Tab.WIDGETS) { app -> photoTheme(app) }
-        screen("steps_more", Tab.MORE)
+        screen("soft_themes", Tab.THEMES) { app -> clearSaved(app); photoTheme(app); ThemeRepository.get(app).save(Presets.all[1]) }
+        screen("soft_widgets", Tab.WIDGETS) { app -> photoTheme(app) }
+        screen("soft_more", Tab.MORE)
     }
 
-    /** «Три шага» во всю высоту: дополнительные настройки раскрыты. */
+    /** Главный экран во всю высоту: варианты и все настройки темы раскрыты. */
     @Test
     @Config(qualifiers = "w412dp-h2600dp-560dpi")
-    fun stepsLong() = screen("steps_long", Tab.WALLPAPER, expand = true) { app -> clearSaved(app); photoTheme(app) }
+    fun softLong() = screen("soft_long", Tab.WALLPAPER, expand = true) { app -> clearSaved(app); photoTheme(app) }
 
     @Test
     fun widgetsTab() = screen("screen_widgets", Tab.WIDGETS)

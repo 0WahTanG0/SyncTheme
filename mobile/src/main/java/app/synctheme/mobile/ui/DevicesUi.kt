@@ -159,10 +159,10 @@ fun DevicesSection(vm: MainViewModel, onOpenInstaller: () -> Unit, onOpenTvInsta
 @Composable
 fun ProSection(vm: MainViewModel) {
     val pro by vm.pro.collectAsStateWithLifecycle()
-    Section("Проф. версия") {
-        SwitchRow("Другие устройства", pro, onChange = vm::setPro)
+    Section("Часы и другие устройства") {
+        SwitchRow("Подключать часы, планшет или телевизор", pro, onChange = vm::setPro)
         Text(
-            if (pro) "Часы, планшеты, телевизор и другие телефоны получают ту же тему по «Применить». Подключить — ниже, в «Устройствах»."
+            if (pro) "Часы, планшеты, телевизор и другие телефоны получают ту же тему по «Поставить на телефон». Подключить — ниже, в «Устройствах»."
             else "Сейчас SyncTheme работает только с этим телефоном. Включите, чтобы добавить часы, планшет, телевизор или другой телефон.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

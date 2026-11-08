@@ -440,14 +440,14 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
 // ---------------------------------------------------------------- Настройки
 
 fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable () -> Unit) {
-    // «Проф. версия» — первой: с ней появляются устройства (часы, планшет, телевизор) и установка на них.
+    // Четыре раздела по порядку того, что ищут чаще: обновления, устройства, вид приложения, о приложении.
+    item { updates() }
     item { ProSection(a.vm) }
     item {
         val pro by a.vm.pro.collectAsStateWithLifecycle()
         if (pro) DevicesSection(a.vm, a.openInstaller, a.openTvInstaller)
     }
     item { AppearanceSection(theme.accentColor) }
-    item { updates() }
     item {
         val context = LocalContext.current
         var licenses by remember { mutableStateOf<String?>(null) }

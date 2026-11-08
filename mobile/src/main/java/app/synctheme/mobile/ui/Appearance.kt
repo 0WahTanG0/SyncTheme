@@ -37,7 +37,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** Оформление самого приложения (не путать с темой обоев). */
 enum class AppStyle(val title: String, val note: String) {
-    STEPS("Три шага", "Крупные шаги: фото, результат, установка — всё подписано словами"),
+    SOFT("Мягкий", "Выпуклые кнопки и вдавленные поля, всё в одном цвете"),
     GLASS("Стекло", "Полупрозрачные карточки и мягкое свечение"),
     EXPRESSIVE("Экспрессив", "Тональные цвета и живые формы"),
     NEON("Неон", "Сетка и светящиеся рамки"),
@@ -45,7 +45,7 @@ enum class AppStyle(val title: String, val note: String) {
 
 enum class AppMode(val title: String) { SYSTEM("Как в системе"), LIGHT("Светлая"), DARK("Тёмная") }
 
-data class Appearance(val style: AppStyle = AppStyle.STEPS, val mode: AppMode = AppMode.SYSTEM)
+data class Appearance(val style: AppStyle = AppStyle.SOFT, val mode: AppMode = AppMode.SYSTEM)
 
 object AppearanceStore {
     private var flow: MutableStateFlow<Appearance>? = null
@@ -55,10 +55,11 @@ object AppearanceStore {
     @Synchronized
     private fun state(context: Context): MutableStateFlow<Appearance> = flow ?: run {
         val p = prefs(context)
-        // С выходом «Трёх шагов» приложение один раз переходит на них; прежние оформления остаются в «Настройках».
-        if (!p.getBoolean(KEY_STEPS, false)) p.edit().putBoolean(KEY_STEPS, true).remove("app_style").apply()
+        // С выходом «Мягкого» вида приложение один раз переходит на него (тёмным, как на образце);
+        // прежние оформления и светлый режим остаются в «Настройках».
+        if (!p.getBoolean(KEY_SOFT, false)) p.edit().putBoolean(KEY_SOFT, true).remove("app_style").putString("app_mode", AppMode.DARK.name).apply()
         val loaded = Appearance(
-            style = runCatching { AppStyle.valueOf(p.getString("app_style", null)!!) }.getOrDefault(AppStyle.STEPS),
+            style = runCatching { AppStyle.valueOf(p.getString("app_style", null)!!) }.getOrDefault(AppStyle.SOFT),
             mode = runCatching { AppMode.valueOf(p.getString("app_mode", null)!!) }.getOrDefault(AppMode.SYSTEM),
         )
         MutableStateFlow(loaded).also { flow = it }
@@ -67,11 +68,11 @@ object AppearanceStore {
     fun get(context: Context): StateFlow<Appearance> = state(context.applicationContext)
 
     fun set(context: Context, value: Appearance) {
-        prefs(context).edit().putBoolean(KEY_STEPS, true).putString("app_style", value.style.name).putString("app_mode", value.mode.name).apply()
+        prefs(context).edit().putBoolean(KEY_SOFT, true).putString("app_style", value.style.name).putString("app_mode", value.mode.name).apply()
         state(context.applicationContext).value = value
     }
 
-    private const val KEY_STEPS = "app_style_steps"
+    private const val KEY_SOFT = "app_style_soft"
 }
 
 /** Все цвета, шрифты и формы выбранного оформления; акцент берётся из текущих обоев. */
@@ -110,7 +111,7 @@ class Look(
 
     val sectionTitle: TextStyle
         get() = when (style) {
-            AppStyle.STEPS -> TextStyle(fontFamily = body, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            AppStyle.SOFT -> TextStyle(fontFamily = body, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             AppStyle.GLASS -> TextStyle(fontFamily = body, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             AppStyle.EXPRESSIVE -> TextStyle(fontFamily = body, fontWeight = FontWeight.Black, fontSize = 18.sp)
             AppStyle.NEON -> TextStyle(fontFamily = headings, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.sp)
@@ -153,28 +154,28 @@ fun lookFor(style: AppStyle, dark: Boolean, accentColor: Int): Look {
     val onPrimary = if (primary.luminance() > 0.35f) Color(0xFF111111) else white
     val accentText = if (dark) mix(accent, white, 0.45f) else mix(accent, black, 0.35f)
     return when (style) {
-        AppStyle.STEPS -> {
-            // Оранжевый у кнопок и номеров шагов — свой, не из обоев: так главное действие видно всегда.
-            val orange = StepColors.Orange
+        AppStyle.SOFT -> {
+            // Одноцветный: карточки — того же цвета, что фон, их выделяют свет и тень (см. Soft.kt).
+            val c = if (dark) SoftPalette.Dark else SoftPalette.Light
             if (dark) {
-                val paper = Color(0xFFF1ECE4)
+                val ink = Color(0xFFF0F0F2)
                 Look(
-                    style, dark, accent, primary = orange, onPrimary = StepColors.Ink, accentText = Color(0xFFFF9A6E),
-                    background = Color(0xFF16141C), text = paper, muted = Color(0xFFA9A3B5),
-                    card = Color(0xFF221F2A), highlight = Color(0xFF2A2633), onHighlight = paper,
-                    cardBorder = Color.Transparent, control = Color(0xFF2C2836),
-                    bar = Color(0xFF16141C), dialog = Color(0xFF221F2A),
-                    decor = Color.Transparent, radius = 22.dp, headings = Unbounded, body = Onest,
+                    style, dark, accent, primary = Color(0xFFE6E6E8), onPrimary = Color(0xFF2A2A2C), accentText = ink,
+                    background = c.base, text = ink, muted = Color(0xFFA9A9AE),
+                    card = c.base, highlight = c.field, onHighlight = ink,
+                    cardBorder = Color.Transparent, control = c.field,
+                    bar = c.base, dialog = Color(0xFF454548),
+                    decor = Color.Transparent, radius = 28.dp, headings = Onest, body = Onest,
                 )
             } else {
-                val ink = StepColors.Ink
+                val ink = Color(0xFF2B2C30)
                 Look(
-                    style, dark, accent, primary = orange, onPrimary = ink, accentText = Color(0xFFB4532A),
-                    background = StepColors.Paper, text = ink, muted = Color(0xFF5D5868),
-                    card = Color(0xFFE4DED3), highlight = ink, onHighlight = StepColors.Paper,
-                    cardBorder = Color.Transparent, control = Color(0xFFE4DED3),
-                    bar = StepColors.Paper, dialog = Color(0xFFFAF7F2),
-                    decor = Color.Transparent, radius = 22.dp, headings = Unbounded, body = Onest,
+                    style, dark, accent, primary = Color(0xFF4A4C55), onPrimary = Color.White, accentText = ink,
+                    background = c.base, text = ink, muted = Color(0xFF6B6D75),
+                    card = c.base, highlight = c.field, onHighlight = ink,
+                    cardBorder = Color.Transparent, control = c.field,
+                    bar = c.base, dialog = Color(0xFFEEEFF2),
+                    decor = Color.Transparent, radius = 28.dp, headings = Onest, body = Onest,
                 )
             }
         }
@@ -246,7 +247,7 @@ fun lookFor(style: AppStyle, dark: Boolean, accentColor: Int): Look {
     }
 }
 
-val LocalLook = staticCompositionLocalOf { lookFor(AppStyle.STEPS, false, 0xFF8B6CF6.toInt()) }
+val LocalLook = staticCompositionLocalOf { lookFor(AppStyle.SOFT, false, 0xFF8B6CF6.toInt()) }
 
 private fun typography(look: Look): Typography {
     val base = Typography()
@@ -269,7 +270,7 @@ private fun typography(look: Look): Typography {
 }
 
 private fun shapes(look: Look) = when (look.style) {
-    AppStyle.STEPS -> Shapes(RoundedCornerShape(10.dp), RoundedCornerShape(14.dp), RoundedCornerShape(18.dp), RoundedCornerShape(22.dp), RoundedCornerShape(26.dp))
+    AppStyle.SOFT -> Shapes(RoundedCornerShape(12.dp), RoundedCornerShape(16.dp), RoundedCornerShape(20.dp), RoundedCornerShape(28.dp), RoundedCornerShape(32.dp))
     AppStyle.GLASS -> Shapes(RoundedCornerShape(8.dp), RoundedCornerShape(12.dp), RoundedCornerShape(16.dp), RoundedCornerShape(24.dp), RoundedCornerShape(28.dp))
     AppStyle.EXPRESSIVE -> Shapes(RoundedCornerShape(10.dp), RoundedCornerShape(16.dp), RoundedCornerShape(22.dp), RoundedCornerShape(32.dp), RoundedCornerShape(36.dp))
     AppStyle.NEON -> Shapes(RoundedCornerShape(6.dp), RoundedCornerShape(8.dp), RoundedCornerShape(12.dp), RoundedCornerShape(18.dp), RoundedCornerShape(20.dp))

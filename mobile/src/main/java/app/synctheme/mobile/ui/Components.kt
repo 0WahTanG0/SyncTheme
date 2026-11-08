@@ -58,10 +58,12 @@ fun Section(title: String, highlight: Boolean = false, content: @Composable () -
     val look = LocalLook.current
     val shape = RoundedCornerShape(look.radius)
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape)
-            .background(if (highlight) look.highlight else look.card)
-            .border(1.dp, look.cardBorder, shape)
-            .padding(16.dp),
+        Modifier.fillMaxWidth().padding(vertical = if (look.style == AppStyle.SOFT) 10.dp else 6.dp)
+            .then(
+                if (look.style == AppStyle.SOFT) Modifier.raised(look, look.radius)
+                else Modifier.clip(shape).background(if (highlight) look.highlight else look.card).border(1.dp, look.cardBorder, shape),
+            )
+            .padding(if (look.style == AppStyle.SOFT) 18.dp else 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         val color = if (highlight) look.onHighlight else look.text
@@ -156,7 +158,7 @@ fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: M
     }
     val shape = RoundedCornerShape(
         when (look.style) {
-            AppStyle.STEPS -> 14.dp
+            AppStyle.SOFT -> 14.dp
             AppStyle.GLASS -> 14.dp
             AppStyle.EXPRESSIVE -> 18.dp
             AppStyle.NEON -> 10.dp

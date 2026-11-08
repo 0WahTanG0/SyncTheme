@@ -113,7 +113,7 @@ fun AppBackdrop(modifier: Modifier = Modifier, content: @Composable BoxScope.() 
 fun DrawScope.drawDecor(look: Look) {
     val w = size.width
     when (look.style) {
-        AppStyle.STEPS -> Unit
+        AppStyle.SOFT -> Unit
         AppStyle.GLASS -> {
             val r1 = w * 0.62f
             drawCircle(Brush.radialGradient(listOf(look.decor, Color.Transparent), Offset(w * 0.12f, w * 0.1f), r1), r1, Offset(w * 0.12f, w * 0.1f))
@@ -149,7 +149,7 @@ fun DrawScope.drawAppMark(look: Look) {
     val s = size.minDimension
     val u = s / 48f
     when (look.style) {
-        AppStyle.STEPS -> drawStepsMark(u)
+        AppStyle.SOFT -> drawSoftMark(u, look.dark)
         AppStyle.GLASS -> {
             drawRoundRect(
                 Brush.linearGradient(listOf(mix(look.accent, Color.White, 0.45f), look.accent), Offset.Zero, Offset(s, s)),
@@ -172,15 +172,16 @@ fun DrawScope.drawAppMark(look: Look) {
     }
 }
 
-/** Значок «Трёх шагов»: фотокарточка с солнцем и холмом — тема делается из фото. */
-private fun DrawScope.drawStepsMark(u: Float) {
-    drawRoundRect(StepColors.Ink, Offset(2 * u, 2 * u), Size(44 * u, 44 * u), CornerRadius(12 * u))
-    drawCircle(StepColors.Orange, 6 * u, Offset(32 * u, 15 * u))
-    val hill = Path().apply {
-        moveTo(2 * u, 39 * u); quadraticTo(16 * u, 30 * u, 28 * u, 37 * u); quadraticTo(38 * u, 33 * u, 46 * u, 38 * u)
-        lineTo(46 * u, 36 * u); quadraticTo(46 * u, 46 * u, 36 * u, 46 * u); lineTo(12 * u, 46 * u); quadraticTo(2 * u, 46 * u, 2 * u, 36 * u); close()
-    }
-    drawPath(hill, StepColors.Paper)
+/** Значок «Мягкого» вида: выпуклый серый круг с кольцом и точкой — как кнопка-отпечаток на образце. */
+private fun DrawScope.drawSoftMark(u: Float, dark: Boolean) {
+    val c = if (dark) SoftPalette.Dark else SoftPalette.Light
+    val center = Offset(24 * u, 24 * u)
+    drawCircle(c.lo, 21 * u, center + Offset(1.5f * u, 1.5f * u))
+    drawCircle(c.hi, 21 * u, center - Offset(1.5f * u, 1.5f * u))
+    drawCircle(c.base, 21 * u, center)
+    val ink = if (dark) Color(0xFFF0F0F2) else Color(0xFF2B2C30)
+    drawCircle(ink.copy(alpha = 0.75f), 13 * u, center, style = Stroke(3 * u))
+    drawCircle(ink, 4 * u, center)
 }
 
 /** Кольцо «Неона» с разрывом — оно же иконка приложения. */
@@ -209,7 +210,7 @@ fun AppTitle(look: Look) {
             fontFamily = look.headings, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, letterSpacing = 0.5.sp, color = look.text,
         )
         AppStyle.EXPRESSIVE -> Text("SyncTheme", fontFamily = look.headings, fontWeight = FontWeight.Black, fontSize = 24.sp, letterSpacing = (-0.4).sp, color = look.text)
-        AppStyle.STEPS -> Text("SyncTheme", fontFamily = look.headings, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, color = look.text)
+        AppStyle.SOFT -> Text("SyncTheme", fontFamily = look.headings, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = look.text)
         AppStyle.GLASS -> Text("SyncTheme", fontFamily = look.headings, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, letterSpacing = (-0.3).sp, color = look.text)
     }
 }
@@ -220,20 +221,20 @@ fun StatusChip(dot: Color, text: String, onClick: () -> Unit) {
     val look = LocalLook.current
     val shape = if (look.style == AppStyle.NEON) RoundedCornerShape(8.dp) else CircleShape
     val container = when (look.style) {
-        AppStyle.STEPS -> look.card
+        AppStyle.SOFT -> look.card
         AppStyle.GLASS -> look.control
         AppStyle.EXPRESSIVE -> look.highlight
         AppStyle.NEON -> Color.Transparent
     }
     val border = when (look.style) {
         AppStyle.GLASS -> look.cardBorder
-        AppStyle.EXPRESSIVE, AppStyle.STEPS -> Color.Transparent
+        AppStyle.EXPRESSIVE, AppStyle.SOFT -> Color.Transparent
         AppStyle.NEON -> look.accent.copy(alpha = 0.6f)
     }
     val content = when (look.style) {
         AppStyle.EXPRESSIVE -> look.onHighlight
         AppStyle.NEON -> look.accentText
-        AppStyle.GLASS, AppStyle.STEPS -> look.text
+        AppStyle.GLASS, AppStyle.SOFT -> look.text
     }
     Row(
         Modifier.clip(shape).background(container).border(1.dp, border, shape).clickable(onClick = onClick)
@@ -255,7 +256,7 @@ fun StyledTabs(titles: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
     val look = LocalLook.current
     val font = look.body
     when (look.style) {
-        AppStyle.STEPS -> Row(
+        AppStyle.SOFT -> Row(
             modifier.fillMaxWidth().clip(CircleShape).background(look.card).padding(5.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -334,14 +335,15 @@ fun AccentButton(
     height: Dp? = null,
 ) {
     val look = LocalLook.current
+    if (look.style == AppStyle.SOFT) return SoftPill(text, onClick, modifier, strong = enabled && !quiet, enabled = enabled, height = height ?: 56.dp)
     val shape = when (look.style) {
-        AppStyle.GLASS, AppStyle.STEPS -> CircleShape
+        AppStyle.GLASS, AppStyle.SOFT -> CircleShape
         AppStyle.EXPRESSIVE -> RoundedCornerShape(22.dp)
         AppStyle.NEON -> RoundedCornerShape(14.dp)
     }
     val h = height ?: when (look.style) {
         AppStyle.EXPRESSIVE -> 58.dp
-        AppStyle.STEPS -> 56.dp
+        AppStyle.SOFT -> 56.dp
         else -> 52.dp
     }
     val loud = enabled && !quiet
@@ -377,7 +379,7 @@ fun AppearanceSection(accentColor: Int) {
     val context = LocalContext.current
     val appearance by AppearanceStore.get(context).collectAsState()
     val look = LocalLook.current
-    Section("Оформление приложения") {
+    Section("Вид приложения") {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AppStyle.entries.forEach { style ->
                 val preview = lookFor(style, look.dark, accentColor)
@@ -390,7 +392,7 @@ fun AppearanceSection(accentColor: Int) {
                 ) {
                     Canvas(Modifier.fillMaxWidth().height(112.dp)) { drawMiniPreview(preview) }
                     Text(
-                        style.title, color = look.text, fontFamily = if (style == AppStyle.STEPS) preview.body else preview.headings, fontWeight = FontWeight.Bold,
+                        style.title, color = look.text, fontFamily = if (style == AppStyle.SOFT) preview.body else preview.headings, fontWeight = FontWeight.Bold,
                         fontSize = if (style == AppStyle.NEON) 10.sp else 13.sp, maxLines = 1, softWrap = false,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), textAlign = TextAlign.Center,
                     )
@@ -429,21 +431,16 @@ private fun DrawScope.drawMiniPreview(look: Look) {
     val markScope = Size(markSize, markSize)
     translate(pad, pad - 2.dp.toPx()) { drawMiniMark(look, markScope) }
     drawRoundRect(look.text.copy(alpha = 0.85f), Offset(pad + markSize + 5.dp.toPx(), pad + 2.dp.toPx()), Size(w * 0.36f, 5.dp.toPx()), CornerRadius(3.dp.toPx()))
-    if (look.style == AppStyle.STEPS) {
-        // Три шага: пройденный — серой строкой, открытый — тёмной карточкой, последний — оранжевой кнопкой.
-        val gap = 4.dp.toPx()
-        val row = card.height * 0.22f
-        drawRoundRect(look.card, cardTl, Size(card.width, row), CornerRadius(r * 0.7f))
-        drawCircle(StepColors.Green, row * 0.22f, Offset(cardTl.x + row * 0.5f, cardTl.y + row / 2))
-        val heroTl = Offset(cardTl.x, cardTl.y + row + gap)
-        val hero = Size(card.width, card.height - row - gap)
-        drawRoundRect(look.highlight, heroTl, hero, CornerRadius(r))
-        val phone = Size(hero.height * 0.42f, hero.height * 0.8f)
-        val phoneTl = Offset(heroTl.x + hero.width * 0.12f, heroTl.y + (hero.height - phone.height) / 2)
+    if (look.style == AppStyle.SOFT) {
+        // Мягкий: выпуклая рамка с телефоном, под ней вдавленное поле.
+        val c = look.soft
+        val d = 3.dp.toPx()
+        drawRoundRect(c.lo, cardTl + Offset(d, d), card, CornerRadius(r))
+        drawRoundRect(c.hi, cardTl - Offset(d, d), card, CornerRadius(r))
+        drawRoundRect(c.base, cardTl, card, CornerRadius(r))
+        val phone = Size(card.height * 0.42f, card.height * 0.8f)
+        val phoneTl = Offset(cardTl.x + (card.width - phone.width) / 2, cardTl.y + (card.height - phone.height) / 2)
         drawRoundRect(Brush.linearGradient(listOf(Color(0xFF1E2A4A), Color(0xFFF29E6D)), phoneTl, phoneTl + Offset(0f, phone.height)), phoneTl, phone, CornerRadius(phone.width * 0.2f))
-        repeat(3) { i ->
-            drawRoundRect(if (i == 0) StepColors.Orange else look.onHighlight.copy(alpha = 0.2f), Offset(heroTl.x + hero.width * (0.45f + i * 0.17f), heroTl.y + hero.height * 0.55f), Size(hero.width * 0.14f, hero.height * 0.3f), CornerRadius(r * 0.4f))
-        }
     } else drawRoundRect(look.card, cardTl, card, CornerRadius(r))
     if (look.cardBorder.alpha > 0f) drawRoundRect(look.cardBorder, cardTl, card, CornerRadius(r), style = Stroke(1.dp.toPx()))
     if (look.style == AppStyle.EXPRESSIVE) {
@@ -451,7 +448,7 @@ private fun DrawScope.drawMiniPreview(look: Look) {
         drawPath(wavyPath(Size(s, s), 6, 0.17f, center = Offset(cardTl.x + card.width * 0.85f, cardTl.y + card.height * 0.2f)), look.highlight)
     }
     // Телефон и часы внутри карточки.
-    if (look.style != AppStyle.STEPS) drawMiniDevices(look, cardTl, card)
+    if (look.style != AppStyle.SOFT) drawMiniDevices(look, cardTl, card)
     // Вкладки.
     val tabY = cardTl.y + card.height + 7.dp.toPx()
     val tabH = 9.dp.toPx()
@@ -467,7 +464,7 @@ private fun DrawScope.drawMiniPreview(look: Look) {
     val btnH = 12.dp.toPx()
     val btnTl = Offset(pad, size.height - pad - btnH)
     val corner = when (look.style) {
-        AppStyle.GLASS, AppStyle.STEPS -> CornerRadius(btnH / 2)
+        AppStyle.GLASS, AppStyle.SOFT -> CornerRadius(btnH / 2)
         AppStyle.EXPRESSIVE -> CornerRadius(btnH * 0.4f)
         AppStyle.NEON -> CornerRadius(3.dp.toPx())
     }
@@ -488,7 +485,7 @@ private fun DrawScope.drawMiniDevices(look: Look, cardTl: Offset, card: Size) {
 private fun DrawScope.drawMiniMark(look: Look, s: Size) {
     val u = s.minDimension / 48f
     when (look.style) {
-        AppStyle.STEPS -> drawStepsMark(u)
+        AppStyle.SOFT -> drawSoftMark(u, look.dark)
         AppStyle.GLASS -> drawRoundRect(look.accent, Offset.Zero, s, CornerRadius(13 * u))
         AppStyle.EXPRESSIVE -> drawPath(wavyPath(s, 9, 0.09f), look.primary)
         AppStyle.NEON -> {

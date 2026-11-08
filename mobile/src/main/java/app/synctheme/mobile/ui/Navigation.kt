@@ -61,7 +61,7 @@ import app.synctheme.mobile.data.DeviceSet
 @Composable
 fun BottomNav(tab: Tab, tabs: List<Tab> = Tab.entries, onTab: (Tab) -> Unit) {
     val look = LocalLook.current
-    if (look.style == AppStyle.STEPS) return StepsNav(tab, tabs, onTab)
+    if (look.style == AppStyle.SOFT) return SoftNav(tab, tabs, onTab)
     NavigationBar(containerColor = look.bar, tonalElevation = 0.dp) {
         tabs.forEach { t ->
             NavigationBarItem(
@@ -218,8 +218,9 @@ fun ExpandableSection(
     val look = LocalLook.current
     val shape = RoundedCornerShape(look.radius)
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape)
-            .background(look.card).border(1.dp, look.cardBorder, shape),
+        Modifier.fillMaxWidth().padding(vertical = if (look.style == AppStyle.SOFT) 10.dp else 6.dp)
+            .then(if (look.style == AppStyle.SOFT) Modifier.raised(look, look.radius) else Modifier.clip(shape).background(look.card).border(1.dp, look.cardBorder, shape))
+            .clip(shape),
     ) {
         Row(
             Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 16.dp, vertical = 14.dp),

@@ -81,7 +81,7 @@ import app.synctheme.mobile.watch.WatchConnection
 import app.synctheme.mobile.widget.WidgetConfigActivity
 
 /** Разделы нижнего меню. */
-enum class Tab(val title: String) { WALLPAPER("Оформление"), THEMES("Мои темы"), WIDGETS("Виджеты"), WATCH("Часы"), MORE("Настройки") }
+enum class Tab(val title: String) { WALLPAPER("Тема"), THEMES("Мои темы"), WIDGETS("Виджеты"), WATCH("Часы"), MORE("Настройки") }
 
 /** Показывать ли часы в превью и миниатюрах (часы подключены). */
 val LocalShowWatch = androidx.compose.runtime.staticCompositionLocalOf { true }
@@ -131,7 +131,8 @@ private fun SyncThemeContent(
     val tvPreview by vm.tvPreview.collectAsStateWithLifecycle()
     val linkPush by vm.linkPush.collectAsStateWithLifecycle()
     // Без часов вкладка «Часы» не нужна.
-    val tabs = Tab.entries.filter { it != Tab.WATCH || devices.watch }
+    // Внизу — только главное: тема, виджеты, (часы) и настройки. «Мои темы» открываются кнопкой на главном экране.
+    val tabs = Tab.entries.filter { it != Tab.THEMES && (it != Tab.WATCH || devices.watch) }
     val context = LocalContext.current
 
     val snackbar = remember { SnackbarHostState() }
@@ -145,7 +146,7 @@ private fun SyncThemeContent(
         detail = null
     }
     LaunchedEffect(Unit) { vm.tabRequests.collect(openTab) }
-    LaunchedEffect(tabs) { if (tab !in tabs) openTab(Tab.WALLPAPER) }
+    LaunchedEffect(tabs) { if (tab !in tabs && tab != Tab.THEMES) openTab(Tab.WALLPAPER) }
     val lock = detail == WallDetail.LOCK
     var photoTarget by remember { mutableStateOf(BgTarget.HOME) }
     /** Фото выбирают для новой темы («Из фото»), а не для фона текущей. */
@@ -219,6 +220,7 @@ private fun SyncThemeContent(
     }
 
     if (tab == Tab.WALLPAPER && detail != null) androidx.activity.compose.BackHandler { detail = null }
+    if (tab == Tab.THEMES) androidx.activity.compose.BackHandler { openTab(Tab.WALLPAPER) }
 
     val density = LocalDensity.current
     val collapsing = remember(density) { CollapsingHeader(with(density) { 224.dp.toPx() }, with(density) { 96.dp.toPx() }) }
@@ -245,9 +247,10 @@ private fun SyncThemeContent(
         }
     }
     val header: @Composable () -> Unit = { Header(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) } }
-    val steps = StepsState(
+    val home = HomeState(
         phonePreview, watchPreview, theme != applied, busy, targets, devices,
-        onDetail = { detail = it }, editColor = { colorTarget = it }, header = header,
+        onDetail = { detail = it }, editColor = { colorTarget = it }, openThemes = { openTab(Tab.THEMES) },
+        deviceStatus = { DeviceStatus(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) } },
     )
     val settings: LazyListScope.() -> Unit = {
         item(key = "update") { UpdateBanner(vm) }
@@ -255,7 +258,7 @@ private fun SyncThemeContent(
             Tab.WALLPAPER -> {
                 val open = detail
                 if (open == null) {
-                    stepsHub(theme, actions, steps, firstRun)
+                    home(theme, actions, home, firstRun)
                     // Для скриншотов во всю высоту — все разделы сразу под шагами.
                     if (expandAll) WallDetail.entries.forEach { d -> wallpaperDetail(d, theme, actions) { colorTarget = it } }
                 } else {
@@ -271,7 +274,11 @@ private fun SyncThemeContent(
     val applyStrip: @Composable () -> Unit = { ApplyStrip(targets, busy, theme != applied, devices, vm::setTargets, vm::setPeerEnabled, vm::apply) }
     val headerRow: @Composable () -> Unit = {
         val open = detail
-        if (tab == Tab.WALLPAPER && open != null) DetailHeader(open.title) { detail = null } else header()
+        when {
+            tab == Tab.WALLPAPER && open != null -> DetailHeader(open.title) { detail = null }
+            tab == Tab.THEMES -> DetailHeader(Tab.THEMES.title) { openTab(Tab.WALLPAPER) }
+            else -> header()
+        }
     }
 
     AppTheme(theme.accentColor) {
@@ -461,20 +468,20 @@ fun DeviceStatus(
 private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBitmap?, tv: ImageBitmap?, height: Dp, selfTablet: Boolean = false) {
     val look = LocalLook.current
     val outer = when (look.style) {
-        AppStyle.STEPS -> RoundedCornerShape(look.radius)
+        AppStyle.SOFT -> RoundedCornerShape(look.radius)
         AppStyle.GLASS -> RoundedCornerShape(28.dp)
         AppStyle.EXPRESSIVE -> RoundedCornerShape(36.dp)
         AppStyle.NEON -> RoundedCornerShape(22.dp)
     }
     val frameBorder = when (look.style) {
         AppStyle.GLASS -> look.cardBorder
-        AppStyle.EXPRESSIVE, AppStyle.STEPS -> Color.Transparent
+        AppStyle.EXPRESSIVE, AppStyle.SOFT -> Color.Transparent
         AppStyle.NEON -> look.accent.copy(alpha = 0.4f)
     }
     val watchOnly = phone == null
     val screenBorder = when (look.style) {
         AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White
-        AppStyle.EXPRESSIVE, AppStyle.STEPS -> Color.Transparent
+        AppStyle.EXPRESSIVE, AppStyle.SOFT -> Color.Transparent
         AppStyle.NEON -> look.accent
     }
     BoxWithConstraints(
@@ -534,7 +541,7 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBi
             // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
             val bezel = when (look.style) {
                 AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.16f) else Color.White
-                AppStyle.EXPRESSIVE, AppStyle.STEPS -> look.text
+                AppStyle.EXPRESSIVE, AppStyle.SOFT -> look.text
                 AppStyle.NEON -> Color(0xFF0C0C12)
             }
             Box(
@@ -609,7 +616,7 @@ fun UpdateSection(vm: MainViewModel) {
     Section("Обновления") {
         Text("Установлена версия ${state.currentName} (${state.currentCode})", style = MaterialTheme.typography.bodyMedium)
         Text(
-            "Новая версия ставится поверх текущей: темы, сопряжение с часами и настройки сохраняются.",
+            "Проверять не нужно: о новой версии скажет уведомление и плашка «Обновить». Темы и настройки при обновлении сохраняются.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         state.available?.let { info ->
