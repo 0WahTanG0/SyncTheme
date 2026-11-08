@@ -61,7 +61,7 @@
             android:indeterminate="false"
             android:max="100"
             android:progress="75"
-            android:progressDrawable="@drawable/wbar_progress"
+            android:progressDrawable="@drawable/wbar_progress_ice"
             android:layout_width="match_parent"
             android:layout_height="5dp" />
     </LinearLayout>

@@ -78,7 +78,8 @@
                 android:letterSpacing="0.06"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
+                android:textColor="#FFFFFFFF"
+                android:background="@drawable/wpill_ice" />
 
             <TextClock
                 android:id="@+id/m_date"

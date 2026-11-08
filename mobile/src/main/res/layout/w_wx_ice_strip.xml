@@ -74,7 +74,8 @@
                 android:textSize="12sp"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
+                android:textColor="#FFFFFFFF"
+                android:background="@drawable/wpill_ice" />
         </LinearLayout>
 
         <TextView

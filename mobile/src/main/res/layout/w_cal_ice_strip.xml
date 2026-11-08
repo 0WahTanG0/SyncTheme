@@ -60,7 +60,8 @@
                 android:letterSpacing="0.05"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
+                android:textColor="#FFFFFFFF"
+                android:background="@drawable/wpill_ice" />
 
             <TextView
                 android:id="@+id/m_ev0_title"

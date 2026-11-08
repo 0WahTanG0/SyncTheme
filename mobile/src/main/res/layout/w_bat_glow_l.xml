@@ -14,15 +14,6 @@
         android:src="@drawable/wbg_glow"
         android:importantForAccessibility="no" />
 
-    <ImageView
-        android:id="@+id/fx_g"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="fitXY"
-        android:src="@drawable/wfx_glow"
-        android:importantForAccessibility="no"
-        android:tint="#FF8B6CF6" />
-
     <LinearLayout
         android:padding="16dp"
         android:layout_width="match_parent"
@@ -42,7 +33,8 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#FFFFFFFF"
-            android:text="Телефон" />
+            android:text="Телефон"
+            android:background="@drawable/wpill_glow" />
 
         <FrameLayout
             android:layout_height="0dp"
@@ -80,8 +72,8 @@
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF"
-                    android:shadowColor="#73FFFFFF"
-                    android:shadowRadius="18"
+                    android:shadowColor="#B3B060FF"
+                    android:shadowRadius="20"
                     android:shadowDx="0"
                     android:shadowDy="0" />
             </FrameLayout>
@@ -113,8 +105,8 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF"
-                android:shadowColor="#73FFFFFF"
-                android:shadowRadius="18"
+                android:shadowColor="#B3B060FF"
+                android:shadowRadius="20"
                 android:shadowDx="0"
                 android:shadowDy="0" />
         </LinearLayout>

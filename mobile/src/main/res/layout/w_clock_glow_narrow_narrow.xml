@@ -14,15 +14,6 @@
         android:src="@drawable/wbg_glow"
         android:importantForAccessibility="no" />
 
-    <ImageView
-        android:id="@+id/fx_g"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="fitXY"
-        android:src="@drawable/wfx_glow"
-        android:importantForAccessibility="no"
-        android:tint="#FF8B6CF6" />
-
     <LinearLayout
         android:id="@+id/box_v"
         android:paddingHorizontal="5dp"
@@ -69,8 +60,8 @@
             android:fontFamily="@font/oswald_700"
             android:maxLines="1"
             android:textColor="#FFFFFFFF"
-            android:shadowColor="#73FFFFFF"
-            android:shadowRadius="18"
+            android:shadowColor="#B3B060FF"
+            android:shadowRadius="20"
             android:shadowDx="0"
             android:shadowDy="0" />
 
@@ -95,8 +86,8 @@
             android:fontFamily="@font/oswald_700"
             android:maxLines="1"
             android:textColor="#FFFFFFFF"
-            android:shadowColor="#73FFFFFF"
-            android:shadowRadius="18"
+            android:shadowColor="#B3B060FF"
+            android:shadowRadius="20"
             android:shadowDx="0"
             android:shadowDy="0" />
 

@@ -107,7 +107,7 @@ object FolderWidget {
                 val r = RectF(s * 0.05f, s * 0.05f, s * 0.95f, s * 0.95f)
                 paint.color = Colors.withAlpha(0xFF17171C.toInt(), 0.78f + 0.22f * opacity)
                 c.drawRoundRect(r, s * 0.26f, s * 0.26f, paint)
-                paint.color = accent
+                paint.color = config.accentColor ?: WidgetRenderer.GLOW_PURPLE
                 paint.maskFilter = BlurMaskFilter(s * 0.05f, BlurMaskFilter.Blur.NORMAL)
                 c.drawRoundRect(RectF(s * 0.22f, s * 0.86f, s * 0.78f, s * 0.9f), s * 0.02f, s * 0.02f, paint)
                 paint.maskFilter = null

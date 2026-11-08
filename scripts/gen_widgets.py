@@ -267,22 +267,40 @@ for old in os.listdir(os.path.join(RES, "drawable")):
         os.remove(path)
 
 
-def glow_text(node):
-    """«Сияние»: у главных чисел (время, число, температура, заряд) — мягкий светлый ореол."""
+TEXT_TAGS = ("TextView", "TextClock")
+# Подписи-заголовки, которые у этих стилей тоже в капсуле: день недели над временем, состояние заряда.
+PILL_LABELS = ("@+id/s_weekday", "@+id/s_state")
+
+
+def art_pass(node, family, vertical):
+    """«Лёд» и «Сияние» поверх стеклянной раскладки: подписи — в капсулах (голубое стекло, светящийся
+    фиолетовый), полосы заряда — свои, у главных чисел «Сияния» — фиолетовый ореол."""
     if not isinstance(node, E):
         return
-    if node.tag in ("TextView", "TextClock") and node.attrs.get("android:id", "").startswith("@+id/m_"):
-        node.attrs.update({"android:shadowColor": "#73FFFFFF", "android:shadowRadius": "18", "android:shadowDx": "0", "android:shadowDy": "0"})
+    a = node.attrs
+    ident = a.get("android:id", "")
+    if node.tag == "ProgressBar" and a.get("android:progressDrawable") in ("@drawable/wbar_progress", "@drawable/wbar_vprogress"):
+        a["android:progressDrawable"] += f"_{family}"
+    if ident == "@+id/ia_dot":
+        a["android:visibility"] = "gone"  # день недели и так выделен капсулой
+    if node.tag in TEXT_TAGS:
+        if family == "glow" and ident.startswith("@+id/m_"):
+            a.update({"android:shadowColor": "#B3B060FF", "android:shadowRadius": "20", "android:shadowDx": "0", "android:shadowDy": "0"})
+        # Капсула — только у подписей по своему размеру: в рамке фиксированной высоты поля съели бы текст.
+        if ((ident.startswith("@+id/a_") or ident in PILL_LABELS) and not vertical and a.get("android:layout_height") == "wrap_content"
+                and "android:autoSizeTextType" not in a and "android:background" not in a):
+            a["android:background"] = f"@drawable/wpill_{family}"
     for c in node.children:
-        glow_text(c)
+        art_pass(c, family, vertical)
 
 
 def layout(name, *layers):
     if name.startswith(("w_wx_", "w_clock_")):
         layers = with_sky(layers)
     root = frame(*layers, id="widget_root")
-    if "_glow_" in name:
-        glow_text(root)
+    family, size = name.split("_")[2:4]
+    if family in ("ice", "glow"):
+        art_pass(root, family, size in VERTICAL)
     xml = root.render(0).replace("<FrameLayout", f"<FrameLayout\n    {NS}", 1)
     write(os.path.join(RES, "layout", f"{name}.xml"), f'<?xml version="1.0" encoding="utf-8"?>\n{HEADER}\n' + xml + "\n")
     LAYOUTS[name] = list(OrderedDict.fromkeys(re.findall(r'@\+id/(\w+)', xml)))
@@ -295,11 +313,9 @@ def bg(family, shaped=None):
     """Слои подложки. shaped — у «Неона» в маленьких размерах круг со светящимся кольцом."""
     if family == "glass":
         return [img("bg_g", "wbg_glass", scale="fitXY")]
-    if family == "ice":
-        return [img("bg_g", "wbg_ice", scale="fitXY")]
-    if family == "glow":
-        # Свечение снизу — отдельным слоем: его цвет — цвет акцента (тинт), панель под ним — своя.
-        return [img("bg_g", "wbg_glow", scale="fitXY"), img("fx_g", "wfx_glow", scale="fitXY")]
+    if family in ("ice", "glow"):
+        # Растягиваемые картинки (scripts/gen_widget_art.py): объёмная кромка, тени и свечение.
+        return [img("bg_g", f"wbg_{family}", scale="fitXY")]
     if family == "neon":
         if shaped == "ring_only":
             return [img("bg_s", "wsh_circle")]
@@ -1270,85 +1286,6 @@ shape("wbg_glass", f'''<layer-list {NS}>
         </shape>
     </item>
 </layer-list>''')
-# Лёд — жидкое стекло: почти белое, плотнее «Стекла»; толстая светлая кромка, блик сверху, тонкий
-# внутренний край для объёма и мягкая тень под стеклом.
-shape("wbg_ice", f'''<layer-list {NS}>
-    <item android:left="1dp" android:right="1dp" android:top="3dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#1A1C2433" />
-            <corners android:radius="30dp" />
-        </shape>
-    </item>
-    <item android:bottom="2dp">
-        <shape android:shape="rectangle">
-            <gradient android:angle="270" android:startColor="#EDFAFBFD" android:centerColor="#DEF1F3F7" android:endColor="#D1E8EBF1" />
-            <corners android:radius="30dp" />
-        </shape>
-    </item>
-    <item android:bottom="44dp" android:left="2dp" android:right="2dp" android:top="2dp">
-        <shape android:shape="rectangle">
-            <gradient android:angle="270" android:startColor="#A6FFFFFF" android:endColor="#00FFFFFF" />
-            <corners android:topLeftRadius="28dp" android:topRightRadius="28dp" />
-        </shape>
-    </item>
-    <item android:bottom="2dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#00000000" />
-            <stroke android:width="2dp" android:color="#F5FFFFFF" />
-            <corners android:radius="30dp" />
-        </shape>
-    </item>
-    <item android:bottom="4.5dp" android:left="2.5dp" android:right="2.5dp" android:top="2.5dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#00000000" />
-            <stroke android:width="1dp" android:color="#1F7D8BA6" />
-            <corners android:radius="27.5dp" />
-        </shape>
-    </item>
-</layer-list>''')
-# Сияние — тёмная дымчатая панель со стеклянной кромкой; свечение цвета акцента — слой wfx_glow.
-shape("wbg_glow", f'''<layer-list {NS}>
-    <item>
-        <shape android:shape="rectangle">
-            <gradient android:angle="270" android:startColor="#FF22222A" android:endColor="#FF0E0E12" />
-            <corners android:radius="26dp" />
-        </shape>
-    </item>
-    <item android:bottom="48dp" android:left="1dp" android:right="1dp" android:top="1dp">
-        <shape android:shape="rectangle">
-            <gradient android:angle="270" android:startColor="#17FFFFFF" android:endColor="#00FFFFFF" />
-            <corners android:topLeftRadius="25dp" android:topRightRadius="25dp" />
-        </shape>
-    </item>
-    <item>
-        <shape android:shape="rectangle">
-            <solid android:color="#00000000" />
-            <stroke android:width="1dp" android:color="#33FFFFFF" />
-            <corners android:radius="26dp" />
-        </shape>
-    </item>
-</layer-list>''')
-# Свечение снизу: мягкий подъём цвета от нижнего края и яркая полоса по нему; цвет — тинтом (акцент).
-shape("wfx_glow", f'''<layer-list {NS}>
-    <item>
-        <shape android:shape="rectangle">
-            <gradient android:angle="90" android:startColor="#99FFFFFF" android:centerColor="#26FFFFFF" android:endColor="#00FFFFFF" />
-            <corners android:radius="26dp" />
-        </shape>
-    </item>
-    <item android:gravity="bottom" android:height="16dp" android:left="12dp" android:right="12dp">
-        <shape android:shape="rectangle">
-            <gradient android:angle="90" android:startColor="#80FFFFFF" android:endColor="#00FFFFFF" />
-            <corners android:radius="5dp" />
-        </shape>
-    </item>
-    <item android:gravity="bottom" android:height="2.5dp" android:bottom="1dp" android:left="20dp" android:right="20dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#F2FFFFFF" />
-            <corners android:radius="1dp" />
-        </shape>
-    </item>
-</layer-list>''')
 # Бумага: кремовый лист с тенью снизу и тонкой полосой поля сверху — как карточка из блокнота.
 shape("wbg_paper", f'''<layer-list {NS}>
     <item android:top="3dp">
@@ -1448,6 +1385,37 @@ shape("wbar_progress", f'''<layer-list {NS}>
         </clip>
     </item>
 </layer-list>''')
+
+
+def own_bar(name, track, fill, vertical):
+    """Полоса заряда со своими цветами (их не перекрашивают): у «Льда» — стеклянный жёлоб и голубое
+    стекло, у «Сияния» — тёмный жёлоб и светящийся фиолетовый в розовый."""
+    clip = 'android:clipOrientation="vertical" android:gravity="bottom"' if vertical else 'android:clipOrientation="horizontal"'
+    angle = "90" if vertical else "0"
+    shape(name, f'''<layer-list {NS}>
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="{track[0]}" />
+            <stroke android:width="1dp" android:color="{track[1]}" />
+            <corners android:radius="99dp" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip {clip}>
+            <shape android:shape="rectangle">
+                <gradient android:angle="{angle}" android:startColor="{fill[0]}" android:centerColor="{fill[1]}" android:endColor="{fill[2]}" />
+                <stroke android:width="1dp" android:color="{fill[3]}" />
+                <corners android:radius="99dp" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>''')
+
+
+for v in (False, True):
+    kind = "wbar_vprogress" if v else "wbar_progress"
+    own_bar(f"{kind}_ice", ("#40FFFFFF", "#D9FFFFFF"), ("#E65B8DEF", "#E67AA6F5", "#F2A9C6FF", "#B3FFFFFF"), v)
+    own_bar(f"{kind}_glow", ("#FF1C1C24", "#33FFFFFF"), ("#FF7038E8", "#FFBA58FF", "#FFF678E8", "#80FFD6FF"), v)
 # Та же полоса, но растёт снизу вверх — для столбиков.
 shape("wbar_vprogress", f'''<layer-list {NS}>
     <item android:id="@android:id/background">

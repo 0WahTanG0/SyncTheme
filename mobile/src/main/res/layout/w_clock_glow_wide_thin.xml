@@ -14,15 +14,6 @@
         android:src="@drawable/wbg_glow"
         android:importantForAccessibility="no" />
 
-    <ImageView
-        android:id="@+id/fx_g"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="fitXY"
-        android:src="@drawable/wfx_glow"
-        android:importantForAccessibility="no"
-        android:tint="#FF8B6CF6" />
-
     <LinearLayout
         android:layout_height="match_parent"
         android:padding="16dp"
@@ -50,7 +41,8 @@
                     android:layout_height="7dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/wdot"
-                    android:importantForAccessibility="no" />
+                    android:importantForAccessibility="no"
+                    android:visibility="gone" />
 
                 <TextClock
                     android:id="@+id/s_weekday"
@@ -66,7 +58,8 @@
                     android:letterSpacing="0.06"
                     android:maxLines="1"
                     android:ellipsize="end"
-                    android:textColor="#FFFFFFFF" />
+                    android:textColor="#FFFFFFFF"
+                    android:background="@drawable/wpill_glow" />
             </LinearLayout>
 
             <TextClock
@@ -86,8 +79,8 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF"
-                android:shadowColor="#73FFFFFF"
-                android:shadowRadius="18"
+                android:shadowColor="#B3B060FF"
+                android:shadowRadius="20"
                 android:shadowDx="0"
                 android:shadowDy="0" />
         </LinearLayout>
@@ -125,8 +118,8 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF"
-                android:shadowColor="#73FFFFFF"
-                android:shadowRadius="18"
+                android:shadowColor="#B3B060FF"
+                android:shadowRadius="20"
                 android:shadowDx="0"
                 android:shadowDy="0" />
 

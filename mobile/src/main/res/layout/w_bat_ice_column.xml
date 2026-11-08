@@ -56,7 +56,7 @@
                 android:indeterminate="false"
                 android:max="100"
                 android:progress="75"
-                android:progressDrawable="@drawable/wbar_vprogress"
+                android:progressDrawable="@drawable/wbar_vprogress_ice"
                 android:layout_width="8dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="center_horizontal"

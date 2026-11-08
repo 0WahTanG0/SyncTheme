@@ -51,6 +51,8 @@ object WidgetRenderer {
     private const val ICE = 0xFFF1F3F7.toInt()
     private const val ICE_INK = 0xFF1C1C22.toInt()
     private const val GLOW = 0xFF17171C.toInt()
+    const val ICE_BLUE = 0xFF5B8DEF.toInt()
+    const val GLOW_PURPLE = 0xFFB060FF.toInt()
 
     /**
      * Цвета по ролям элементов разметки. У каждого стиля свои: «Стекло» и «Неон» — в цветах темы,
@@ -96,22 +98,22 @@ object WidgetRenderer {
                     onAccent = BOARD
                 }
                 "ice" -> {
-                    // Светлое стекло при любых обоях: буквы тёмные, акцент — достаточно глубокий, чтобы читаться на белом.
-                    val deep = if (ColorUtils.calculateLuminance(themeAccent) > 0.35) ColorUtils.blendARGB(themeAccent, 0xFF000000.toInt(), 0.3f) else themeAccent
+                    // Как на образце: прозрачное стекло, тёмные буквы, голубое стекло акцента (свой цвет виджета — важнее).
+                    val blue = config.accentColor ?: ICE_BLUE
                     bg = ICE
                     main = config.textColor ?: ICE_INK
-                    accent = deep
-                    label = deep
-                    onAccent = if (Colors.isLight(deep)) 0xFF141414.toInt() else WHITE
+                    accent = blue
+                    label = main
+                    onAccent = ICE_INK
                 }
                 "glow" -> {
-                    // Свечение видно только на тёмном: буквы светлые, акцент — высветленный, чтобы гореть.
-                    val lit = if (ColorUtils.calculateLuminance(themeAccent) < 0.25) ColorUtils.blendARGB(themeAccent, WHITE, 0.35f) else themeAccent
+                    // Тёмная панель и фиолетовое свечение; подписи — белые на светящихся капсулах.
+                    val purple = config.accentColor ?: GLOW_PURPLE
                     bg = GLOW
                     main = config.textColor ?: 0xFFF4F2FA.toInt()
-                    accent = lit
-                    label = ColorUtils.blendARGB(lit, WHITE, 0.3f)
-                    onAccent = if (Colors.isLight(lit)) 0xFF141414.toInt() else WHITE
+                    accent = purple
+                    label = WHITE
+                    onAccent = WHITE
                 }
                 "neon" -> {
                     // Неон горит только на тёмном: цифры светлые и у светлых тем.
@@ -138,6 +140,8 @@ object WidgetRenderer {
         val on = if (accentBackground && config.opacity < 0.5f) main else onAccent
         val onSub = Colors.withAlpha(on, 0.75f)
         /** Плакат, неон, лист бумаги и табло совсем прозрачными не становятся — без фона стиль теряется. */
+        /** Полоса заряда со своими цветами (стекло, свечение) — её не перекрашиваем. */
+        val ownBars = family == "ice" || family == "glow"
         val alpha = config.opacity.coerceIn(0f, 1f).let { o -> SOLID[family]?.let { min -> min + (1 - min) * o } ?: o }.times(255).roundToInt()
     }
 
@@ -364,7 +368,7 @@ object WidgetRenderer {
                         p.text(rv, id) { it.onAccent }
                         if (Compat.modernWidgets) p.list(rv, id, "setBackgroundTintList") { it.accent }
                     }
-                    'p' -> if (Compat.modernWidgets) {
+                    'p' -> if (Compat.modernWidgets && !(p.now.ownBars && id != R.id.pb_ring)) {
                         p.list(rv, id, "setProgressTintList") { it.accent }
                         p.list(rv, id, "setProgressBackgroundTintList") { it.faint }
                     }

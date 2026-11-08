@@ -14,15 +14,6 @@
         android:src="@drawable/wbg_glow"
         android:importantForAccessibility="no" />
 
-    <ImageView
-        android:id="@+id/fx_g"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="fitXY"
-        android:src="@drawable/wfx_glow"
-        android:importantForAccessibility="no"
-        android:tint="#FF8B6CF6" />
-
     <LinearLayout
         android:layout_height="match_parent"
         android:paddingHorizontal="12dp"

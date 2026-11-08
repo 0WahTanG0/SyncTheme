@@ -41,7 +41,8 @@
                     android:layout_height="7dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/wdot"
-                    android:importantForAccessibility="no" />
+                    android:importantForAccessibility="no"
+                    android:visibility="gone" />
 
                 <TextClock
                     android:id="@+id/s_weekday"
@@ -57,7 +58,8 @@
                     android:letterSpacing="0.06"
                     android:maxLines="1"
                     android:ellipsize="end"
-                    android:textColor="#FFFFFFFF" />
+                    android:textColor="#FFFFFFFF"
+                    android:background="@drawable/wpill_ice" />
             </LinearLayout>
 
             <TextClock

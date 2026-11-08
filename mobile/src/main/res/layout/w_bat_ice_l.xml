@@ -33,7 +33,8 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#FFFFFFFF"
-            android:text="Телефон" />
+            android:text="Телефон"
+            android:background="@drawable/wpill_ice" />
 
         <FrameLayout
             android:layout_height="0dp"
