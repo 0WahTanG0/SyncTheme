@@ -98,13 +98,14 @@ object WidgetRenderer {
                     onAccent = BOARD
                 }
                 "ice" -> {
-                    // Как на образце: прозрачное стекло, тёмные буквы, голубое стекло акцента (свой цвет виджета — важнее).
+                    // Как на образце: прозрачное стекло и голубое стекло акцента (свой цвет виджета — важнее).
+                    // Стекло прозрачное, поэтому буквы — цвета текста темы: светлые на тёмных обоях, тёмные на светлых.
                     val blue = config.accentColor ?: ICE_BLUE
                     bg = ICE
-                    main = config.textColor ?: ICE_INK
+                    main = text
                     accent = blue
                     label = main
-                    onAccent = ICE_INK
+                    onAccent = if (Colors.isLight(text)) WHITE else ICE_INK
                 }
                 "glow" -> {
                     // Тёмная панель и фиолетовое свечение; подписи — белые на светящихся капсулах.
@@ -197,7 +198,7 @@ object WidgetRenderer {
     }
 
     /** Стили со своим фоном (плакат, неон на тёмном, лист бумаги, табло, лёд, сияние): наименьшая непрозрачность подложки. */
-    private val SOLID = mapOf("poster" to 0.6f, "paper" to 0.88f, "board" to 0.8f, "neon" to 0.7f, "ice" to 0.6f, "glow" to 0.88f)
+    private val SOLID = mapOf("poster" to 0.6f, "paper" to 0.88f, "board" to 0.8f, "neon" to 0.7f, "ice" to 0.85f, "glow" to 0.88f)
 
     /** Стеклянные стили: значки приложений — скруглёнными квадратами, как на рабочем столе. */
     val SQUARE_ICONS = setOf("glass", "ice", "glow")

@@ -275,7 +275,6 @@ private class FolderLook(config: WidgetConfig, theme: Theme) {
             "poster" -> if (Colors.isLight(themeAccent)) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
             "paper" -> 0xFF2B2622.toInt()
             "board" -> 0xFFF2F2F2.toInt()
-            "ice" -> 0xFF1C1C22.toInt()
             "glow" -> 0xFFF4F2FA.toInt()
             else -> theme.textColor
         },

@@ -100,7 +100,6 @@ object FolderWidget {
                 paint.strokeWidth = s * 0.03f
                 paint.color = 0xF5FFFFFF.toInt()
                 c.drawRoundRect(r, s * 0.3f, s * 0.3f, paint)
-                mark = config.textColor ?: 0xFF1C1C22.toInt()
             }
             "glow" -> {
                 // Сияние: тёмная капсула, снизу — полоса света цвета акцента.

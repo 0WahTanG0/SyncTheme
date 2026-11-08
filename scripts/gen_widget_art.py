@@ -97,49 +97,90 @@ def radial(w, h, cx, cy, radius):
 
 
 # ---------------------------------------------------------------- «Лёд»
+#
+# Стекло считается как толстая линза со скруглённой кромкой: для каждой точки известно, насколько она
+# далеко от края и куда «смотрит» кромка (расстояние до скруглённого прямоугольника и его градиент).
+# Свет падает сверху: верх кромки даёт яркий блик и под ним мягкую тень, низ — светлый отсвет света,
+# прошедшего сквозь толщину, и тёмную грань. Середина почти прозрачная — как на образце.
+
+
+def sdf(w, h, box, r):
+    """Расстояние до края скруглённого прямоугольника (внутри отрицательное) и единичная нормаль наружу."""
+    y, x = np.mgrid[0:h, 0:w].astype(np.float32)
+    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+    hx, hy = (box[2] - box[0]) / 2 - r, (box[3] - box[1]) / 2 - r
+    px, py = x - cx, y - cy
+    qx, qy = np.abs(px) - hx, np.abs(py) - hy
+    ox, oy = np.maximum(qx, 0), np.maximum(qy, 0)
+    outside = np.sqrt(ox ** 2 + oy ** 2)
+    d = outside + np.minimum(np.maximum(qx, qy), 0) - r
+    # Нормаль: в скруглении — от центра дуги, на прямых участках — перпендикулярно стороне.
+    corner = (qx > 0) & (qy > 0)
+    nx = np.where(corner, ox / np.maximum(outside, 1e-6), np.where(qx > qy, 1.0, 0.0)) * np.sign(px)
+    ny = np.where(corner, oy / np.maximum(outside, 1e-6), np.where(qx > qy, 0.0, 1.0)) * np.sign(py)
+    return d, nx, ny
+
+
+def smooth(x0, x1, v):
+    t = np.clip((v - x0) / (x1 - x0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def glass(c, box, r, bevel, tint, body_alpha, rim_scale=1.0, shadow=(0.24, 5, 8), depth_tint=0.0):
+    """Толстое стекло: tint — цвет стекла, body_alpha — плотность середины, bevel — ширина кромки, px."""
+    w, h = c.w, c.h
+    d, nx, ny = sdf(w, h, box, r)
+    inside = smooth(0.8, -0.8, d)  # мягкий край маски
+    t = np.maximum(-d, 0)  # глубина от края
+    lx, ly = -0.32, -0.95  # к источнику света: сверху, чуть слева
+    facing = nx * lx + ny * ly  # +1 — кромка смотрит на свет (верх), −1 — от света (низ)
+    up, down = np.clip(facing, 0, 1), np.clip(-facing, 0, 1)
+    raw = t / bevel
+    u = np.clip(raw, 0, 1)
+    slope = (1 - u) ** 2  # кромка круче у края, к середине — плоская
+    # Тень снаружи: мягкая и плотная у касания.
+    body = rr(w, h, box, r)
+    soft = blur(rr(w, h, shift(inset(box, 2 * S), 0, shadow[1] * S), r), shadow[2] * S) * shadow[0]
+    contact = blur(rr(w, h, shift(box, 0, 1.2 * S), r), 1.4 * S) * shadow[0] * 0.6
+    # Тень гаснет к краю картинки — иначе её обрез виден прямоугольником.
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    edge = np.minimum.reduce([xx, w - 1 - xx, yy, h - 1 - yy])
+    c.over((40, 48, 68), np.clip(soft + contact, 0, 1) * (1 - body) * smooth(0, 2.5 * S, edge))
+    # Тело: почти прозрачное, у кромки стекло толще — гуще цвет.
+    thick = slope * depth_tint
+    c.over(tint, inside * np.clip(body_alpha + thick, 0, 1))
+    # Внутренняя тень под верхней кромкой — объём линзы.
+    band = np.exp(-((raw - 0.85) / 0.32) ** 2)
+    c.over((70, 80, 102), inside * band * up * 0.22 * rim_scale)
+    # Свет снизу, прошедший сквозь толщину: светлая полоса чуть внутри нижней кромки.
+    caustic = np.exp(-((raw - 0.38) / 0.22) ** 2)
+    c.over((255, 255, 255), inside * caustic * down * 0.55 * rim_scale)
+    # Блик на кромке, обращённой к свету.
+    c.over((255, 255, 255), inside * slope * (0.15 + 0.85 * up) * 0.8 * rim_scale)
+    # Тёмная грань толщины у нижнего края.
+    grade = smooth(1.2 * S, 2.0 * S, t) * smooth(3.4 * S, 2.4 * S, t)
+    c.over((60, 70, 96), inside * grade * down * 0.35 * rim_scale)
+    # Тонкая яркая линия по самому краю: сверху ярче.
+    line = smooth(1.4 * S, 0.3 * S, t) * inside
+    c.over((255, 255, 255), line * (0.62 + 0.38 * up))
+    return d
 
 
 def ice_slab():
-    r, ml, mt, mb, st = 30 * S, 5 * S, 3 * S, 9 * S, 20 * S
+    r, ml, mt, mb, st = 30 * S, 6 * S, 3 * S, 11 * S, 20 * S
     w, h = 2 * ml + 2 * r + st, mt + mb + 2 * r + st
     box = (ml, mt, w - ml - 1, h - mb - 1)
     c = Canvas(w, h)
-    body = rr(w, h, box, r)
-    # Мягкая тень под стеклом и тень касания — только снаружи стекла.
-    soft = blur(rr(w, h, shift(inset(box, 3), 0, 4 * S), r), 7 * S) * 0.34
-    contact = blur(rr(w, h, shift(box, 0, 1 * S), r), 1.5 * S) * 0.16
-    c.over((34, 44, 66), soft * (1 - body))
-    c.over((34, 44, 66), contact * (1 - body))
-    # Тело: чуть матовое, к низу прозрачнее.
-    c.over((250, 252, 255), body * vgrad(w, h, box[1], box[3], 0.50, 0.28))
-    # Толстая кромка: сверху яркая, к низу тусклее.
-    rim = 3.5 * S
-    inner = rr(w, h, inset(box, rim), r - rim)
-    c.over((255, 255, 255), np.clip(body - inner, 0, 1) * vgrad(w, h, box[1], box[3], 1.0, 0.55))
-    # Грань толщины: тонкая тёмная полоса внутри кромки, заметная снизу.
-    edge = np.clip(inner - rr(w, h, inset(box, rim + 1.3 * S), r - rim - 1.3 * S), 0, 1)
-    c.over((120, 132, 156), edge * vgrad(w, h, box[1] + r, box[3], 0.04, 0.42))
-    # Блик в верхней части и светлый «отсвет» у нижнего края — как у толстого акрила.
-    c.over((255, 255, 255), inner * vgrad(w, h, box[1] + rim, box[1] + rim + 32 * S, 0.55, 0.0))
-    caustic = np.clip(rr(w, h, inset(box, 5 * S), r - 5 * S) - rr(w, h, inset(box, 5.7 * S), r - 5.7 * S), 0, 1)
-    c.over((255, 255, 255), caustic * vgrad(w, h, box[3] - r, box[3], 0.0, 0.75))
+    glass(c, box, r, bevel=11 * S, tint=(246, 249, 255), body_alpha=0.12, depth_tint=0.14)
     c.save9("wbg_ice", (ml + r, ml + r + st), (mt + r, mt + r + st))
 
 
 def ice_pill():
-    r, ml, mt, mb, st = 13 * S, 2 * S, 1 * S, 3 * S, 6 * S
+    r, ml, mt, mb, st = 13 * S, 3 * S, 1 * S, 4 * S, 6 * S
     w, h = 2 * ml + 2 * r + st, mt + mb + 2 * r + st
     box = (ml, mt, w - ml - 1, h - mb - 1)
     c = Canvas(w, h)
-    body = rr(w, h, box, r)
-    c.over((50, 80, 150), blur(rr(w, h, shift(box, 0, 2 * S), r), 2.5 * S) * 0.28 * (1 - body))
-    c.over((112, 158, 242), body * vgrad(w, h, box[1], box[3], 0.55, 0.78))
-    rim = 2 * S
-    inner = rr(w, h, inset(box, rim), r - rim)
-    c.over((255, 255, 255), np.clip(body - inner, 0, 1) * vgrad(w, h, box[1], box[3], 0.95, 0.5))
-    c.over((255, 255, 255), inner * vgrad(w, h, box[1] + rim, box[1] + rim + 9 * S, 0.5, 0.0))
-    edge = np.clip(inner - rr(w, h, inset(box, rim + S), r - rim - S), 0, 1)
-    c.over((48, 92, 200), edge * vgrad(w, h, box[1] + r, box[3], 0.0, 0.5))
+    glass(c, box, r, bevel=6 * S, tint=(104, 150, 240), body_alpha=0.62, depth_tint=0.3, shadow=(0.30, 2, 3))
     # Поля текста: 8 dp по бокам, 6–7 dp сверху и снизу (вместе с местом под тень).
     c.save9("wpill_ice", (ml + r, ml + r + st), (mt + r, mt + r + st),
             pad_x=(ml + 8 * S, w - ml - 8 * S), pad_y=(mt + 5 * S, h - mb - 4 * S))
