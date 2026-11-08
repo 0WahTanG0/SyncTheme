@@ -25,7 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
+import app.synctheme.mobile.ui.StyledButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -298,10 +298,10 @@ private fun ActionStep(ui: InstallerUi, vm: InstallerViewModel, onClose: () -> U
                 )
                 val port = ui.linkPort
                 if (port != null) {
-                    Button(onClick = { onLinkTv(ui.host, port, name) }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Подключить телевизор") }
+                    StyledButton(onClick = { onLinkTv(ui.host, port, name) }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Подключить телевизор") }
                     TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Позже") }
                 } else {
-                    Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Готово") }
+                    StyledButton(onClick = onClose, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Готово") }
                 }
             }
             ui.done -> {
@@ -311,7 +311,7 @@ private fun ActionStep(ui: InstallerUi, vm: InstallerViewModel, onClose: () -> U
                         "Включите на часах Bluetooth, если выключали, а «Отладку по Wi‑Fi» теперь можно выключить.",
                     style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary,
                 )
-                Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Готово") }
+                StyledButton(onClick = onClose, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Готово") }
             }
             ui.busy != null -> {
                 Text(ui.busy, style = MaterialTheme.typography.bodyMedium)
@@ -322,7 +322,7 @@ private fun ActionStep(ui: InstallerUi, vm: InstallerViewModel, onClose: () -> U
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
             }
-            else -> Button(
+            else -> StyledButton(
                 onClick = { vm.install() },
                 enabled = ui.canInstall,
                 modifier = Modifier.fillMaxWidth().height(52.dp),

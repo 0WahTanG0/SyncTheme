@@ -154,4 +154,42 @@ object NavIcons {
     val Save = icon("Save") {
         stroke { moveTo(6.5f, 3.5f); lineTo(17.5f, 3.5f); lineTo(17.5f, 20.5f); lineTo(12f, 16.5f); lineTo(6.5f, 20.5f); close() }
     }
+
+    /** Галочка. */
+    val Check = icon("Check") {
+        stroke { moveTo(5f, 12.5f); lineTo(10f, 17.5f); lineTo(19f, 7f) }
+    }
+
+    /** Готово: галочка в круге. */
+    val CheckCircle = icon("CheckCircle") {
+        stroke { moveTo(12f, 3.5f); arcTo(8.5f, 8.5f, 0f, true, true, 12f, 20.5f); arcTo(8.5f, 8.5f, 0f, true, true, 12f, 3.5f); close() }
+        stroke { moveTo(8f, 12.3f); lineTo(10.8f, 15f); lineTo(16f, 9.2f) }
+    }
+
+    /** Внимание: треугольник с восклицательным знаком. */
+    val Warning = icon("Warning") {
+        stroke { moveTo(12f, 4f); lineTo(21f, 19.5f); lineTo(3f, 19.5f); close() }
+        stroke { moveTo(12f, 10f); lineTo(12f, 14f) }
+        fill { moveTo(12f, 15.9f); arcTo(1.1f, 1.1f, 0f, true, true, 12f, 18.1f); arcTo(1.1f, 1.1f, 0f, true, true, 12f, 15.9f); close() }
+    }
+
+    /** Ошибка: восклицательный знак в круге. */
+    val ErrorCircle = icon("ErrorCircle") {
+        stroke { moveTo(12f, 3.5f); arcTo(8.5f, 8.5f, 0f, true, true, 12f, 20.5f); arcTo(8.5f, 8.5f, 0f, true, true, 12f, 3.5f); close() }
+        stroke { moveTo(12f, 7.5f); lineTo(12f, 12.5f) }
+        fill { moveTo(12f, 14.9f); arcTo(1.1f, 1.1f, 0f, true, true, 12f, 17.1f); arcTo(1.1f, 1.1f, 0f, true, true, 12f, 14.9f); close() }
+    }
+
+    /** Иконки приложений: четыре скруглённые плитки, одна со звёздочкой. */
+    val Icons = icon("AppIcons") {
+        stroke {
+            moveTo(6f, 3.5f); lineTo(8.5f, 3.5f); quadTo(10.5f, 3.5f, 10.5f, 5.5f); lineTo(10.5f, 8.5f); quadTo(10.5f, 10.5f, 8.5f, 10.5f)
+            lineTo(5.5f, 10.5f); quadTo(3.5f, 10.5f, 3.5f, 8.5f); lineTo(3.5f, 5.5f); quadTo(3.5f, 3.5f, 5.5f, 3.5f); close()
+            moveTo(15.5f, 3.5f); lineTo(18.5f, 3.5f); quadTo(20.5f, 3.5f, 20.5f, 5.5f); lineTo(20.5f, 8.5f); quadTo(20.5f, 10.5f, 18.5f, 10.5f)
+            lineTo(15.5f, 10.5f); quadTo(13.5f, 10.5f, 13.5f, 8.5f); lineTo(13.5f, 5.5f); quadTo(13.5f, 3.5f, 15.5f, 3.5f); close()
+            moveTo(5.5f, 13.5f); lineTo(8.5f, 13.5f); quadTo(10.5f, 13.5f, 10.5f, 15.5f); lineTo(10.5f, 18.5f); quadTo(10.5f, 20.5f, 8.5f, 20.5f)
+            lineTo(5.5f, 20.5f); quadTo(3.5f, 20.5f, 3.5f, 18.5f); lineTo(3.5f, 15.5f); quadTo(3.5f, 13.5f, 5.5f, 13.5f); close()
+        }
+        stroke { moveTo(17f, 13f); lineTo(17f, 21f); moveTo(13f, 17f); lineTo(21f, 17f); moveTo(14.2f, 14.2f); lineTo(19.8f, 19.8f); moveTo(19.8f, 14.2f); lineTo(14.2f, 19.8f) }
+    }
 }

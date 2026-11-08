@@ -30,14 +30,14 @@ NS = 'xmlns:android="http://schemas.android.com/apk/res/android"'
 
 # Пять стилей, непохожих друг на друга: «Стекло» — матовое стекло, «Плакат» — сплошной цвет акцента
 # и огромные цифры, «Неон» — светящийся контур на чёрном, «Бумага» — лист бумаги с засечками,
-# «Табло» — графитовая панель, цифры на перекидных плашках, «Лёд» — светлое жидкое стекло с толстой
-# светлой кромкой, «Сияние» — тёмная дымчатая панель, снизу светится цвет акцента.
-FAMILIES = ["glass", "poster", "neon", "paper", "board", "ice", "glow"]
+# «Табло» — графитовая панель, цифры на перекидных плашках, «Мята» — матовая светлая плитка с толщиной
+# снизу и мятными капсулами подписей (как оформление приложения «Мята»).
+FAMILIES = ["mint", "glass", "poster", "neon", "paper", "board"]
 CLOCK_FAMILIES = FAMILIES
 # Раскладка, от которой стиль отталкивается: «Плакат» и «Табло» — крупные цифры, «Бумага» — тонкие линии.
-BASE = {"glass": "glass", "poster": "bold", "neon": "neon", "paper": "minimal", "board": "bold", "ice": "glass", "glow": "glass"}
+BASE = {"glass": "glass", "poster": "bold", "neon": "neon", "paper": "minimal", "board": "bold", "mint": "glass"}
 # Стили на стеклянной раскладке: подписи без капса, значки приложений квадратные, заряд — кольцом.
-GLASSY = ("glass", "ice", "glow")
+GLASSY = ("glass", "mint")
 
 
 def B(f):
@@ -74,8 +74,7 @@ FONTS = {
     "neon": dict(main="sans-serif-thin", sub="sans-serif-light", label="sans-serif-light", body="sans-serif-light"),
     "paper": dict(main="serif", sub="serif", label="serif:italic", body="serif"),
     "board": dict(main="monospace:bold", sub="monospace", label="monospace:bold", body="monospace"),
-    "ice": dict(main="sans-serif", sub="sans-serif", label="sans-serif-medium", body="sans-serif"),
-    "glow": dict(main="sans-serif-medium", sub="sans-serif-light", label="monospace", body="sans-serif-light"),
+    "mint": dict(main="sans-serif-medium", sub="sans-serif", label="sans-serif-medium", body="sans-serif"),
 }
 
 
@@ -272,9 +271,9 @@ TEXT_TAGS = ("TextView", "TextClock")
 PILL_LABELS = ("@+id/s_weekday", "@+id/s_state")
 
 
-def art_pass(node, family, vertical):
-    """«Лёд» и «Сияние» поверх стеклянной раскладки: подписи — в капсулах (голубое стекло, светящийся
-    фиолетовый), полосы заряда — свои, у главных чисел «Сияния» — фиолетовый ореол."""
+def art_pass(node, family, vertical, pills=True):
+    """«Мята» поверх стеклянной раскладки: подписи — в мятных объёмных капсулах, полосы заряда — свои
+    (вдавленный жёлоб и мятная полоса)."""
     if not isinstance(node, E):
         return
     a = node.attrs
@@ -284,14 +283,12 @@ def art_pass(node, family, vertical):
     if ident == "@+id/ia_dot":
         a["android:visibility"] = "gone"  # день недели и так выделен капсулой
     if node.tag in TEXT_TAGS:
-        if family == "glow" and ident.startswith("@+id/m_"):
-            a.update({"android:shadowColor": "#B3B060FF", "android:shadowRadius": "20", "android:shadowDx": "0", "android:shadowDy": "0"})
         # Капсула — только у подписей по своему размеру: в рамке фиксированной высоты поля съели бы текст.
-        if ((ident.startswith("@+id/a_") or ident in PILL_LABELS) and not vertical and a.get("android:layout_height") == "wrap_content"
+        if (pills and (ident.startswith("@+id/a_") or ident in PILL_LABELS) and not vertical and a.get("android:layout_height") == "wrap_content"
                 and "android:autoSizeTextType" not in a and "android:background" not in a):
             a["android:background"] = f"@drawable/wpill_{family}"
     for c in node.children:
-        art_pass(c, family, vertical)
+        art_pass(c, family, vertical, pills)
 
 
 def layout(name, *layers):
@@ -299,8 +296,9 @@ def layout(name, *layers):
         layers = with_sky(layers)
     root = frame(*layers, id="widget_root")
     family, size = name.split("_")[2:4]
-    if family in ("ice", "glow"):
-        art_pass(root, family, size in VERTICAL)
+    if family == "mint":
+        # В низких виджетах (1×1, 2×1, 4×1) капсула съела бы строку под подписью — там подписи без неё.
+        art_pass(root, family, size in VERTICAL, pills=size not in ("s", "bar", "strip"))
     xml = root.render(0).replace("<FrameLayout", f"<FrameLayout\n    {NS}", 1)
     write(os.path.join(RES, "layout", f"{name}.xml"), f'<?xml version="1.0" encoding="utf-8"?>\n{HEADER}\n' + xml + "\n")
     LAYOUTS[name] = list(OrderedDict.fromkeys(re.findall(r'@\+id/(\w+)', xml)))
@@ -313,9 +311,9 @@ def bg(family, shaped=None):
     """Слои подложки. shaped — у «Неона» в маленьких размерах круг со светящимся кольцом."""
     if family == "glass":
         return [img("bg_g", "wbg_glass", scale="fitXY")]
-    if family in ("ice", "glow"):
-        # Растягиваемые картинки (scripts/gen_widget_art.py): объёмная кромка, тени и свечение.
-        return [img("bg_g", f"wbg_{family}", scale="fitXY")]
+    if family == "mint":
+        # Растягиваемая картинка (scripts/gen_widget_art.py): плитка с толщиной снизу и мягкой тенью.
+        return [img("bg_g", "wbg_mint", scale="fitXY")]
     if family == "neon":
         if shaped == "ring_only":
             return [img("bg_s", "wsh_circle")]
@@ -1388,8 +1386,8 @@ shape("wbar_progress", f'''<layer-list {NS}>
 
 
 def own_bar(name, track, fill, vertical):
-    """Полоса заряда со своими цветами (их не перекрашивают): у «Льда» — стеклянный жёлоб и голубое
-    стекло, у «Сияния» — тёмный жёлоб и светящийся фиолетовый в розовый."""
+    """Полоса заряда со своими цветами (их не перекрашивают): у «Мяты» — тёплый вдавленный жёлоб
+    и мятная полоса с более тёмной кромкой."""
     clip = 'android:clipOrientation="vertical" android:gravity="bottom"' if vertical else 'android:clipOrientation="horizontal"'
     angle = "90" if vertical else "0"
     shape(name, f'''<layer-list {NS}>
@@ -1414,8 +1412,7 @@ def own_bar(name, track, fill, vertical):
 
 for v in (False, True):
     kind = "wbar_vprogress" if v else "wbar_progress"
-    own_bar(f"{kind}_ice", ("#40FFFFFF", "#D9FFFFFF"), ("#E65B8DEF", "#E67AA6F5", "#F2A9C6FF", "#B3FFFFFF"), v)
-    own_bar(f"{kind}_glow", ("#FF1C1C24", "#33FFFFFF"), ("#FF7038E8", "#FFBA58FF", "#FFF678E8", "#80FFD6FF"), v)
+    own_bar(f"{kind}_mint", ("#FFE3DFD8", "#FFD2CCC3"), ("#FFA8DCC3", "#FFB4E2CC", "#FFA8DCC3", "#FF7FBB9F"), v)
 # Та же полоса, но растёт снизу вверх — для столбиков.
 shape("wbar_vprogress", f'''<layer-list {NS}>
     <item android:id="@android:id/background">

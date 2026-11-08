@@ -70,7 +70,7 @@ class ScreenshotTest {
     private fun screen(
         name: String,
         tab: Tab,
-        appearance: Appearance = Appearance(AppStyle.SOFT, AppMode.DARK),
+        appearance: Appearance = Appearance(AppStyle.CLAY, AppMode.LIGHT),
         lock: Boolean = false,
         expand: Boolean = false,
         detail: WallDetail? = null,
@@ -119,27 +119,38 @@ class ScreenshotTest {
         repo.saved.value.forEach(repo::delete)
     }
 
-    /** «Мягкий» вид: первый запуск, после фото (тёмный и светлый), с часами, «Мои темы», виджеты, настройки. */
+    /** «Мята»: первый запуск, после фото (светлая и тёмная), с часами, «Мои темы», виджеты, настройки. */
     @Test
-    fun soft() {
-        screen("soft_first", Tab.WALLPAPER) { app -> clearSaved(app) }
-        screen("soft_photo", Tab.WALLPAPER) { app -> clearSaved(app); photoTheme(app) }
-        screen("soft_photo_light", Tab.WALLPAPER, Appearance(AppStyle.SOFT, AppMode.LIGHT)) { app -> clearSaved(app); photoTheme(app) }
-        screen("soft_watch", Tab.WALLPAPER) { app ->
+    fun clay() = looks("clay", AppStyle.CLAY, AppMode.LIGHT, AppMode.DARK)
+
+    /** «Мягкий» вид — те же экраны. */
+    @Test
+    fun soft() = looks("soft", AppStyle.SOFT, AppMode.DARK, AppMode.LIGHT)
+
+    private fun looks(prefix: String, style: AppStyle, mode: AppMode, other: AppMode) {
+        val look = Appearance(style, mode)
+        screen("${prefix}_first", Tab.WALLPAPER, look) { app -> clearSaved(app) }
+        screen("${prefix}_photo", Tab.WALLPAPER, look) { app -> clearSaved(app); photoTheme(app) }
+        screen("${prefix}_photo_${other.name.lowercase()}", Tab.WALLPAPER, Appearance(style, other)) { app -> clearSaved(app); photoTheme(app) }
+        screen("${prefix}_watch", Tab.WALLPAPER, look) { app ->
             clearSaved(app)
             photoTheme(app)
             DeviceSettings.setPro(app, true)
             DeviceSettings.setWatch(app, true)
         }
-        screen("soft_themes", Tab.THEMES) { app -> clearSaved(app); photoTheme(app); ThemeRepository.get(app).save(Presets.all[1]) }
-        screen("soft_widgets", Tab.WIDGETS) { app -> photoTheme(app) }
-        screen("soft_more", Tab.MORE)
+        screen("${prefix}_themes", Tab.THEMES, look) { app -> clearSaved(app); photoTheme(app); ThemeRepository.get(app).save(Presets.all[1]) }
+        screen("${prefix}_widgets", Tab.WIDGETS, look) { app -> photoTheme(app) }
+        screen("${prefix}_more", Tab.MORE, look)
     }
 
     /** Главный экран во всю высоту: варианты и все настройки темы раскрыты. */
     @Test
     @Config(qualifiers = "w412dp-h2600dp-560dpi")
-    fun softLong() = screen("soft_long", Tab.WALLPAPER, expand = true) { app -> clearSaved(app); photoTheme(app) }
+    fun clayLong() = screen("clay_long", Tab.WALLPAPER, expand = true) { app -> clearSaved(app); photoTheme(app) }
+
+    @Test
+    @Config(qualifiers = "w412dp-h2600dp-560dpi")
+    fun softLong() = screen("soft_long", Tab.WALLPAPER, Appearance(AppStyle.SOFT, AppMode.DARK), expand = true) { app -> clearSaved(app); photoTheme(app) }
 
     @Test
     fun widgetsTab() = screen("screen_widgets", Tab.WIDGETS)
@@ -186,13 +197,13 @@ class ScreenshotTest {
     }
 
     @Test
-    fun lockTab() = screen("screen_lock", Tab.WALLPAPER, Appearance(AppStyle.NEON, AppMode.DARK), lock = true) { app ->
+    fun lockTab() = screen("screen_lock", Tab.WALLPAPER, Appearance(AppStyle.CLAY, AppMode.DARK), lock = true) { app ->
         val t = Presets.all[0]
         ThemeRepository.get(app).setDraft(t.copy(lockBackground = Presets.all[1].background, lockDim = 0.2f))
     }
 
     @Test
-    fun watchTab() = screen("screen_watch", Tab.WATCH, Appearance(AppStyle.EXPRESSIVE, AppMode.LIGHT)) { app ->
+    fun watchTab() = screen("screen_watch", Tab.WATCH, Appearance(AppStyle.CLAY, AppMode.LIGHT)) { app ->
         val t = Presets.all[0]
         ThemeRepository.get(app).setDraft(t.copy(watch = t.followPhone().copy(clockStyle = ClockStyle.ANALOG, dialStyle = DialStyle.NUMBERS)))
     }
@@ -208,14 +219,14 @@ class ScreenshotTest {
     /** «Обои» целиком: часы на обоях с эффектом глубины. */
     @Test
     @Config(qualifiers = "w412dp-h3000dp-560dpi")
-    fun wallpaperFeatures() = screen("screen_wallpaper_features", Tab.WALLPAPER, Appearance(AppStyle.NEON, AppMode.DARK), expand = true) { app ->
+    fun wallpaperFeatures() = screen("screen_wallpaper_features", Tab.WALLPAPER, Appearance(AppStyle.CLAY, AppMode.DARK), expand = true) { app ->
         ThemeRepository.get(app).setDraft(Presets.all[1].copy(wallClock = WallClock(WallClockLayout.STACKED, depth = false)))
     }
 
     /** «Часы» целиком: глубина и Always-On. */
     @Test
     @Config(qualifiers = "w412dp-h3000dp-560dpi")
-    fun watchFeatures() = screen("screen_watch_features", Tab.WATCH, Appearance(AppStyle.EXPRESSIVE, AppMode.DARK), expand = true) { app ->
+    fun watchFeatures() = screen("screen_watch_features", Tab.WATCH, Appearance(AppStyle.CLAY, AppMode.DARK), expand = true) { app ->
         ThemeRepository.get(app).setDraft(Presets.all[2].copy(clockStyle = ClockStyle.LIQUID))
     }
 
@@ -239,7 +250,7 @@ class ScreenshotTest {
     /** «Ещё» с включёнными часами. */
     @Test
     @Config(qualifiers = "w412dp-h2400dp-560dpi")
-    fun moreWithWatch() = screen("screen_more_watch", Tab.MORE, Appearance(AppStyle.EXPRESSIVE, AppMode.DARK)) { app ->
+    fun moreWithWatch() = screen("screen_more_watch", Tab.MORE, Appearance(AppStyle.CLAY, AppMode.DARK)) { app ->
         DeviceSettings.setWatch(app, true)
     }
 
@@ -274,7 +285,7 @@ class ScreenshotTest {
     fun linkingDialog() {
         val server = fakeDevice("Tuvio 4K TV", DeviceKind.TV)
         try {
-            screen("screen_linking", Tab.MORE, Appearance(AppStyle.EXPRESSIVE, AppMode.DARK), withVm = { vm ->
+            screen("screen_linking", Tab.MORE, Appearance(AppStyle.CLAY, AppMode.DARK), withVm = { vm ->
                 vm.linkDevice("127.0.0.1", server.localPort, "Tuvio 4K TV", null)
             })
         } finally {
@@ -296,7 +307,7 @@ class ScreenshotTest {
     /** «Ещё» → «Устройства»: часы, планшет и телевизор, один пока не ответил. */
     @Test
     @Config(qualifiers = "w412dp-h2000dp-560dpi")
-    fun devicesList() = screen("screen_devices_list", Tab.MORE, Appearance(AppStyle.EXPRESSIVE, AppMode.LIGHT)) { app ->
+    fun devicesList() = screen("screen_devices_list", Tab.MORE, Appearance(AppStyle.CLAY, AppMode.LIGHT)) { app ->
         DeviceSettings.setWatch(app, true)
         LinkStore.savePeer(app, Peer("tab1", "Galaxy Tab S9 FE", DeviceKind.TABLET, ByteArray(32), host = "192.168.1.20", port = 47231))
         LinkStore.savePeer(app, Peer("tv1", "Tuvio 4K TV", DeviceKind.TV, ByteArray(32), host = "192.168.1.40", port = 47231))
@@ -365,12 +376,12 @@ class ScreenshotTest {
     /** Планшет в альбомной ориентации. */
     @Test
     @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
-    fun landscapeTablet() = screen("screen_land_tablet", Tab.WIDGETS, Appearance(AppStyle.NEON, AppMode.DARK))
+    fun landscapeTablet() = screen("screen_land_tablet", Tab.WIDGETS, Appearance(AppStyle.CLAY, AppMode.DARK))
 
     /** Планшет в портрете: колонка по центру. */
     @Test
     @Config(qualifiers = "w800dp-h1280dp-xhdpi")
-    fun portraitTablet() = screen("screen_tablet_portrait", Tab.WALLPAPER, Appearance(AppStyle.EXPRESSIVE, AppMode.LIGHT))
+    fun portraitTablet() = screen("screen_tablet_portrait", Tab.WALLPAPER, Appearance(AppStyle.CLAY, AppMode.LIGHT))
 
     @Test
     fun widgetConfigScreen() {

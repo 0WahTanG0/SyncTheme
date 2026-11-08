@@ -24,7 +24,7 @@ img.paste(glow, (0, 0), glow)
 img.paste(ring, (0, 0), ring)
 
 draw = ImageDraw.Draw(img)
-font = ImageFont.truetype("mobile/src/main/res/font/unbounded_800.ttf", 46)
+font = ImageFont.truetype("faces/src/main/res/font/unbounded_700.ttf", 46)
 draw.text((214, H // 2 - 4), "Sync", font=font, fill=(255, 255, 255), anchor="lm")
 sync_w = draw.textlength("Sync", font=font)
 draw.text((214 + sync_w, H // 2 - 4), "Theme", font=font, fill=ACCENT, anchor="lm")

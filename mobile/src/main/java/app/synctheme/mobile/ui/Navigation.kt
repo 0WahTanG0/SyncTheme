@@ -61,14 +61,14 @@ import app.synctheme.mobile.data.DeviceSet
 @Composable
 fun BottomNav(tab: Tab, tabs: List<Tab> = Tab.entries, onTab: (Tab) -> Unit) {
     val look = LocalLook.current
-    if (look.style == AppStyle.SOFT) return SoftNav(tab, tabs, onTab)
+    if (look.style != AppStyle.GLASS) return SoftNav(tab, tabs, onTab)
     NavigationBar(containerColor = look.bar, tonalElevation = 0.dp) {
         tabs.forEach { t ->
             NavigationBarItem(
                 selected = tab == t,
                 onClick = { onTab(t) },
                 icon = { Icon(t.icon, contentDescription = null) },
-                label = { Text(if (look.style == AppStyle.NEON) t.title.uppercase() else t.title, maxLines = 1, fontSize = 12.sp) },
+                label = { Text(t.title, maxLines = 1, fontSize = 12.sp) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = look.onPrimary,
                     selectedTextColor = look.text,
@@ -92,8 +92,8 @@ fun SideNav(tab: Tab, tabs: List<Tab>, onTab: (Tab) -> Unit) {
                 selected = tab == t,
                 onClick = { onTab(t) },
                 icon = { Icon(t.icon, contentDescription = null) },
-                // Рейка узкая: «Настройки» капсом в «Неоне» не помещаются — подпись чуть мельче.
-                label = { Text(if (look.style == AppStyle.NEON) t.title.uppercase() else t.title, maxLines = 1, softWrap = false, fontSize = if (t.title.length > 7) 10.sp else 12.sp) },
+                // Рейка узкая: длинные подписи чуть мельче.
+                label = { Text(t.title, maxLines = 1, softWrap = false, fontSize = if (t.title.length > 7) 10.sp else 12.sp) },
                 colors = NavigationRailItemDefaults.colors(
                     selectedIconColor = look.onPrimary,
                     selectedTextColor = look.text,
@@ -218,23 +218,24 @@ fun ExpandableSection(
     val look = LocalLook.current
     val shape = RoundedCornerShape(look.radius)
     Column(
-        Modifier.fillMaxWidth().padding(vertical = if (look.style == AppStyle.SOFT) 10.dp else 6.dp)
-            .then(if (look.style == AppStyle.SOFT) Modifier.raised(look, look.radius) else Modifier.clip(shape).background(look.card).border(1.dp, look.cardBorder, shape))
-            .clip(shape),
+        Modifier.fillMaxWidth().cardSpacing(look).card(look, look.radius).clip(shape),
     ) {
         Row(
             Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(look.title(title), style = look.sectionTitle, color = look.text)
+                Text(title, style = look.sectionTitle, color = look.text)
                 summary?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = look.muted, maxLines = 1) }
             }
             trailing?.let {
                 it()
                 Spacer(Modifier.width(8.dp))
             }
-            Box(Modifier.size(28.dp).clip(CircleShape).background(look.control), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(28.dp).then(if (look.isClay) Modifier.claySlab(look, 14.dp, look.clay.mint, ClayLevel.L1) else Modifier.clip(CircleShape).background(look.control)),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(if (open) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = look.text)
             }
         }

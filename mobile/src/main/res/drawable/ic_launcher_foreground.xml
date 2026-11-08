@@ -1,80 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Неон: светящееся кольцо с разрывом и точка в центре. Свечение — стопка полупрозрачных обводок. -->
+<!-- «Мята»: графитовый циферблат со стрелками, тиснёный — светлая кромка снизу. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <group android:translateY="1.3">
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M54,38a16,16 0,1 1,0 32a16,16 0,1 1,0 -32z"
+            android:strokeWidth="5"
+            android:strokeColor="#8CFFFFFF" />
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M54,54L54,45.5M54,54L60.5,58"
+            android:strokeLineCap="round"
+            android:strokeWidth="4.6"
+            android:strokeColor="#8CFFFFFF" />
+    </group>
     <path
         android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
-        android:strokeWidth="19"
-        android:strokeColor="#12FF3D5A" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
-        android:strokeWidth="16.5"
-        android:strokeColor="#12FF3D5A" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
-        android:strokeWidth="14"
-        android:strokeColor="#12FF3D5A" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
-        android:strokeWidth="12"
-        android:strokeColor="#12FF3D5A" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
-        android:strokeWidth="10"
-        android:strokeColor="#12FF3D5A" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
-        android:strokeWidth="8.5"
-        android:strokeColor="#12FF3D5A" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
-        android:strokeWidth="7"
-        android:strokeColor="#12FF3D5A" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
+        android:pathData="M54,38a16,16 0,1 1,0 32a16,16 0,1 1,0 -32z"
         android:strokeWidth="5"
-        android:strokeColor="#FFFF3D5A" />
+        android:strokeColor="#FF203229" />
     <path
         android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
+        android:pathData="M54,54L54,45.5M54,54L60.5,58"
         android:strokeLineCap="round"
-        android:strokeWidth="1.6"
-        android:strokeColor="#B3FFC2CC" />
-    <path
-        android:fillColor="#14FF3D5A"
-        android:pathData="M54,54m-13,0a13,13 0,1 1,26,0a13,13 0,1 1,-26,0" />
-    <path
-        android:fillColor="#14FF3D5A"
-        android:pathData="M54,54m-11.5,0a11.5,11.5 0,1 1,23.0,0a11.5,11.5 0,1 1,-23.0,0" />
-    <path
-        android:fillColor="#14FF3D5A"
-        android:pathData="M54,54m-10,0a10,10 0,1 1,20,0a10,10 0,1 1,-20,0" />
-    <path
-        android:fillColor="#14FF3D5A"
-        android:pathData="M54,54m-8.5,0a8.5,8.5 0,1 1,17.0,0a8.5,8.5 0,1 1,-17.0,0" />
-    <path
-        android:fillColor="#14FF3D5A"
-        android:pathData="M54,54m-7.5,0a7.5,7.5 0,1 1,15.0,0a7.5,7.5 0,1 1,-15.0,0" />
-    <path
-        android:fillColor="#FFFFB0BD"
-        android:pathData="M54,54m-6,0a6,6 0,1 1,12,0a6,6 0,1 1,-12,0" />
+        android:strokeWidth="4.6"
+        android:strokeColor="#FF203229" />
 </vector>

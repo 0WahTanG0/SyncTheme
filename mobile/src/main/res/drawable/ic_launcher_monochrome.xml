@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Одноцветный слой для тематических значков One UI / Android. -->
+<!-- Одноцветный слой для тематических значков One UI / Android (и значок уведомлений): циферблат со стрелками. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -7,11 +7,13 @@
     android:viewportHeight="108">
     <path
         android:fillColor="#00000000"
-        android:pathData="M64.00,36.68A20,20 0,1 1,37.23,43.11"
-        android:strokeLineCap="round"
-        android:strokeWidth="6"
-        android:strokeColor="#FFFFFFFF" />
+        android:pathData="M54,38a16,16 0,1 1,0 32a16,16 0,1 1,0 -32z"
+        android:strokeWidth="5"
+        android:strokeColor="#FF000000" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M54,54m-6,0a6,6 0,1 1,12,0a6,6 0,1 1,-12,0" />
+        android:fillColor="#00000000"
+        android:pathData="M54,54L54,45.5M54,54L60.5,58"
+        android:strokeLineCap="round"
+        android:strokeWidth="4.6"
+        android:strokeColor="#FF000000" />
 </vector>

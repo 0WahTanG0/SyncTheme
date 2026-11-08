@@ -56,18 +56,13 @@ import kotlinx.coroutines.withContext
 @Composable
 fun Section(title: String, highlight: Boolean = false, content: @Composable () -> Unit) {
     val look = LocalLook.current
-    val shape = RoundedCornerShape(look.radius)
     Column(
-        Modifier.fillMaxWidth().padding(vertical = if (look.style == AppStyle.SOFT) 10.dp else 6.dp)
-            .then(
-                if (look.style == AppStyle.SOFT) Modifier.raised(look, look.radius)
-                else Modifier.clip(shape).background(if (highlight) look.highlight else look.card).border(1.dp, look.cardBorder, shape),
-            )
-            .padding(if (look.style == AppStyle.SOFT) 18.dp else 16.dp),
+        Modifier.fillMaxWidth().cardSpacing(look).card(look, look.radius, highlight)
+            .padding(if (look.style == AppStyle.GLASS) 16.dp else 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         val color = if (highlight) look.onHighlight else look.text
-        Text(look.title(title), style = look.sectionTitle, color = color)
+        Text(title, style = look.sectionTitle, color = color)
         CompositionLocalProvider(LocalContentColor provides color, content = content)
     }
 }
@@ -156,14 +151,7 @@ fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: M
         theme.background.type == BackgroundType.RADIAL -> Brush.radialGradient(colors)
         else -> Brush.linearGradient(colors)
     }
-    val shape = RoundedCornerShape(
-        when (look.style) {
-            AppStyle.SOFT -> 14.dp
-            AppStyle.GLASS -> 14.dp
-            AppStyle.EXPRESSIVE -> 18.dp
-            AppStyle.NEON -> 10.dp
-        },
-    )
+    val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = modifier.width(84.dp).clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -173,7 +161,6 @@ fun ThemeThumb(theme: Theme, selected: Boolean, onClick: () -> Unit, modifier: M
                 modifier = Modifier
                     .padding(start = 6.dp)
                     .size(54.dp, 117.dp)
-                    .then(if (selected) Modifier.glow(look, shape, 10.dp) else Modifier)
                     .clip(shape)
                     .background(brush)
                     .border(

@@ -104,7 +104,7 @@ class ClickThroughTest {
     /** Настройка каждого виджета: стили, размеры, цвета, приложения, линия папки. */
     @Test
     fun widgetSettings() {
-        AppearanceStore.set(app, Appearance(AppStyle.EXPRESSIVE, AppMode.LIGHT))
+        AppearanceStore.set(app, Appearance(AppStyle.CLAY, AppMode.LIGHT))
         val theme = Presets.all[0]
         for (k in WidgetKind.entries) clickEachKind(k, theme)
     }
@@ -117,7 +117,7 @@ class ClickThroughTest {
     /** Установка на часы и «Добавить устройство». */
     @Test
     fun installerAndDevices() {
-        AppearanceStore.set(app, Appearance(AppStyle.NEON, AppMode.DARK))
+        AppearanceStore.set(app, Appearance(AppStyle.CLAY, AppMode.DARK))
         val installer = InstallerViewModel(app)
         clickEach("установка на часы") { WatchInstallerScreen(installer, Presets.all[0].accentColor, onClose = {}) }
         val tv = InstallerViewModel(app).apply { setTarget(InstallTarget.TV) }

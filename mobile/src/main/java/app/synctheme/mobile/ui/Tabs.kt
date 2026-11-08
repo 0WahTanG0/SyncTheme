@@ -46,13 +46,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -99,7 +95,7 @@ fun LazyListScope.wallpaperDetail(detail: WallDetail, theme: Theme, a: ScreenAct
                 // Все четыре варианта видны сразу: на узком экране переносятся на вторую строку.
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ThemeMode.entries.forEach { m ->
-                        FilterChip(selected = theme.mode == m, onClick = { a.vm.update { it.copy(mode = m) } }, label = { Text(m.title) })
+                        StyledChip(selected = theme.mode == m, onClick = { a.vm.update { it.copy(mode = m) } }, label = { Text(m.title) })
                     }
                 }
                 Text(modeHint(theme.mode), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -213,12 +209,12 @@ private fun NameRow(theme: Theme, isSaved: Boolean, onRename: (String) -> Unit, 
     OutlinedTextField(value = theme.name, onValueChange = onRename, singleLine = true, label = { Text("Название") }, modifier = Modifier.fillMaxWidth())
     // Сохранение не стирает прежние темы: новая тема — рядом; заменить можно только явно.
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilledTonalButton(onClick = { onSave(false) }) {
+        StyledTonalButton(onClick = { onSave(false) }) {
             Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
             Text(if (isSaved) "Сохранить как новую" else "Сохранить")
         }
-        if (isSaved) OutlinedButton(onClick = { onSave(true) }) { Text("Обновить эту тему") }
+        if (isSaved) StyledOutlinedButton(onClick = { onSave(true) }) { Text("Обновить эту тему") }
     }
 }
 
@@ -231,7 +227,7 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
         val weather = remember { WeatherRepository(context).cached }
         val wallpaper = remember(theme) { ThemeRenderer.background(context, DayNight.of(context, theme), 360, 360).asImageBitmap() }
         Column(Modifier.padding(vertical = 6.dp)) {
-            Text(look.title("Добавить виджет"), style = look.sectionTitle, color = look.text)
+            Text("Добавить виджет", style = look.sectionTitle, color = look.text)
             Text(
                 "Виджеты — окошки на рабочем столе: часы, календарь, погода. Они сами берут цвета из вашего фото. " +
                     "Растяните виджет — он покажет больше.",
@@ -253,7 +249,7 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
                         Text(kind.title, style = MaterialTheme.typography.titleSmall)
                         Text("стилей: ${kind.styles.size}", style = MaterialTheme.typography.bodySmall, color = look.muted)
                         Spacer(Modifier.height(6.dp))
-                        FilledTonalButton(onClick = { a.vm.pinWidget(kind) }, modifier = Modifier.fillMaxWidth()) { Text("Добавить") }
+                        StyledTonalButton(onClick = { a.vm.pinWidget(kind) }, modifier = Modifier.fillMaxWidth()) { Text("Добавить") }
                     }
                 }
             }
@@ -271,7 +267,7 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    OutlinedButton(onClick = { a.configureWidget(w.id) }) { Text("Настроить") }
+                    StyledOutlinedButton(onClick = { a.configureWidget(w.id) }) { Text("Настроить") }
                 }
             }
             TextButton(onClick = a.vm::refreshPlaced) { Text("Обновить список") }
@@ -281,7 +277,7 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
         var opacity by remember(theme.widgetOpacity) { mutableFloatStateOf(theme.widgetOpacity) }
         ExpandableSection("Прозрачность всех виджетов", summary = "Подложка ${(theme.widgetOpacity * 100).toInt()}%") {
             LabeledSlider("Подложка", opacity, 0f..1f, "${(opacity * 100).toInt()}%") { opacity = it }
-            Button(onClick = { a.vm.setOpacityForAll(opacity) }) { Text("Применить ко всем виджетам") }
+            StyledButton(onClick = { a.vm.setOpacityForAll(opacity) }) { Text("Применить ко всем виджетам") }
         }
     }
     item {
@@ -312,7 +308,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
         LaunchedEffect(Unit) { a.vm.wantStylePreviews() }
         val look = LocalLook.current
         Column(Modifier.padding(vertical = 6.dp)) {
-            Text(look.title("Циферблат"), style = look.sectionTitle, color = look.text)
+            Text("Циферблат", style = look.sectionTitle, color = look.text)
             Text(CLOCK_STYLE_NOTES.getValue(w.clockStyle), style = MaterialTheme.typography.bodySmall, color = look.muted)
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -324,7 +320,6 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
                     ) {
                         Box(
                             Modifier.size(96.dp)
-                                .then(if (on) Modifier.glow(look, CircleShape, 10.dp) else Modifier)
                                 .clip(CircleShape)
                                 .background(Color.Black)
                                 .border(if (on) 3.dp else 1.dp, if (on) look.primary else look.cardBorder, CircleShape),
@@ -354,7 +349,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
             if (w.clockStyle == ClockStyle.ANALOG) {
                 ChipRow {
                     listOf(DialStyle.TICKS to "Деления", DialStyle.NUMBERS to "Цифры", DialStyle.MINIMAL to "Минимал").forEach { (d, label) ->
-                        FilterChip(w.dialStyle == d, { a.editWatchFace { it.copy(dialStyle = d) } }, label = { Text(label) })
+                        StyledChip(w.dialStyle == d, { a.editWatchFace { it.copy(dialStyle = d) } }, label = { Text(label) })
                     }
                 }
             }
@@ -362,7 +357,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
                 ChipRow {
                     listOf(ClockFont.THIN to "Тонкий", ClockFont.LIGHT to "Лёгкий", ClockFont.REGULAR to "Обычный", ClockFont.BOLD to "Жирный")
                         .forEach { (f, label) ->
-                            FilterChip(w.fontWeight == f, { a.editWatchFace { it.copy(fontWeight = f) } }, label = { Text(label) })
+                            StyledChip(w.fontWeight == f, { a.editWatchFace { it.copy(fontWeight = f) } }, label = { Text(label) })
                         }
                 }
             }
@@ -381,7 +376,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             arrangeLabel(theme, ArrangeTarget.WATCH)?.let { label ->
-                OutlinedButton(onClick = { a.arrange(ArrangeTarget.WATCH) }) { Text(label) }
+                StyledOutlinedButton(onClick = { a.arrange(ArrangeTarget.WATCH) }) { Text(label) }
             }
             val ambient by a.vm.ambientPreview.collectAsStateWithLifecycle()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -448,12 +443,13 @@ fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable (
         if (pro) DevicesSection(a.vm, a.openInstaller, a.openTvInstaller)
     }
     item { AppearanceSection(theme.accentColor) }
+    item { IconsSection(theme.accentColor, a.openIcons) }
     item {
         val context = LocalContext.current
         var licenses by remember { mutableStateOf<String?>(null) }
         Section("О приложении") {
             Text("SyncTheme — обои, виджеты и циферблат часов в одном стиле.", style = MaterialTheme.typography.bodyMedium)
-            OutlinedButton(onClick = a.openCompat) { Text("Что работает на этом телефоне") }
+            StyledOutlinedButton(onClick = a.openCompat) { Text("Что работает на этом телефоне") }
             TextButton(onClick = {
                 licenses = listOf("licenses/fonts.txt", "licenses/fonts-digits.txt").joinToString("\n\n") { path ->
                     runCatching { context.assets.open(path).bufferedReader().readText() }.getOrDefault("")
@@ -468,7 +464,7 @@ fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable (
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
+                    StyledOutlinedButton(onClick = {
                         context.getSystemService(android.content.ClipboardManager::class.java)
                             ?.setPrimaryClip(android.content.ClipData.newPlainText("SyncTheme crash", report))
                     }) { Text("Скопировать отчёт") }
@@ -514,7 +510,7 @@ private fun BackgroundEditorContent(
                 BackgroundType.AURORA to "Аврора", BackgroundType.LINEAR to "Градиент",
                 BackgroundType.RADIAL to "Сияние", BackgroundType.SOLID to "Цвет", BackgroundType.PHOTO to "Фото",
             ).forEach { (type, label) ->
-                FilterChip(
+                StyledChip(
                     selected = bg.type == type,
                     onClick = { if (type == BackgroundType.PHOTO && bg.photoFile == null) onPickPhoto() else onBg(bg.copy(type = type)) },
                     label = { Text(label) },
@@ -523,8 +519,8 @@ private fun BackgroundEditorContent(
         }
         if (bg.type == BackgroundType.PHOTO) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onPickPhoto) { Text(if (bg.photoFile == null) "Выбрать фото" else "Другое фото") }
-                if (bg.photoFile != null && onArrange != null) OutlinedButton(onClick = onArrange) { Text("Подвинуть фото") }
+                StyledOutlinedButton(onClick = onPickPhoto) { Text(if (bg.photoFile == null) "Выбрать фото" else "Другое фото") }
+                if (bg.photoFile != null && onArrange != null) StyledOutlinedButton(onClick = onArrange) { Text("Подвинуть фото") }
             }
         } else {
             val count = if (bg.type == BackgroundType.SOLID) 1 else bg.colors.size
@@ -626,7 +622,7 @@ private fun WatchCard(
         if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         val updateAvailable = connection.hasApp && report.appVersion in 1 until bundledVersion
         if (!connection.hasApp || updateAvailable) {
-            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+            StyledButton(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
                 Text(if (updateAvailable) "Обновить SyncTheme на часах" else "Установить SyncTheme на часы")
             }
         }
@@ -642,8 +638,8 @@ private fun WatchCard(
         // SyncTheme, кнопок для приложения на часах нет вовсе — только «Проверить связь».
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
             if (connection.hasApp) {
-                FilledTonalButton(onClick = onOpen) { Text("Открыть на часах", maxLines = 1) }
-                OutlinedButton(onClick = onCheckTime, enabled = !checking) { Text("Проверить время", maxLines = 1) }
+                StyledTonalButton(onClick = onOpen) { Text("Открыть на часах", maxLines = 1) }
+                StyledOutlinedButton(onClick = onCheckTime, enabled = !checking) { Text("Проверить время", maxLines = 1) }
                 IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, contentDescription = "Проверить связь") }
             } else {
                 TextButton(onClick = onRefresh) { Text("Проверить связь", maxLines = 1) }

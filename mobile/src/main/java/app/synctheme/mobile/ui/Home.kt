@@ -27,7 +27,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Slider
@@ -275,7 +274,7 @@ private fun ApplyButton(a: ScreenActions, s: HomeState) {
             s.busy != null -> {
                 SoftPill("Ставлю на телефон…", {}, strong = false, enabled = false)
                 Text(s.busy, color = look.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
-                LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 8.dp), color = look.text, trackColor = look.soft.field)
+                LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 8.dp), color = look.text, trackColor = look.control)
             }
             !s.dirty -> SoftPill("Стоит на телефоне ✓", {}, strong = false)
             else -> SoftPill(if (where.isEmpty()) "Выберите, куда ставить" else "Поставить на телефон", { a.vm.applyAndKeep() }, enabled = where.isNotEmpty())
@@ -325,9 +324,9 @@ private fun MoreSettings(theme: Theme, a: ScreenActions, s: HomeState) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val white = 0xFFFFFFFF.toInt()
                 val dark = 0xFF1A1A1A.toInt()
-                FilterChip(theme.textColor == white, { a.vm.update { it.copy(textColor = white) } }, label = { Text("Белые") })
-                FilterChip(theme.textColor == dark, { a.vm.update { it.copy(textColor = dark) } }, label = { Text("Тёмные") })
-                FilterChip(theme.textColor != white && theme.textColor != dark, { s.editColor(ColorTarget.Text) }, label = { Text("Другой…") })
+                StyledChip(theme.textColor == white, { a.vm.update { it.copy(textColor = white) } }, label = { Text("Белые") })
+                StyledChip(theme.textColor == dark, { a.vm.update { it.copy(textColor = dark) } }, label = { Text("Тёмные") })
+                StyledChip(theme.textColor != white && theme.textColor != dark, { s.editColor(ColorTarget.Text) }, label = { Text("Другой…") })
             }
         }
         Setting("Затемнить фото", "Цифры и виджеты читаются лучше.") {
@@ -342,7 +341,7 @@ private fun MoreSettings(theme: Theme, a: ScreenActions, s: HomeState) {
             Setting("Где часы", null) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(WallClockLayout.TOP to "Вверху", WallClockLayout.STACKED to "Столбиком", WallClockLayout.CENTER to "По центру").forEach { (l, label) ->
-                        FilterChip(wall.layout == l && wall.place == null, { a.vm.setWallClock(wall.copy(layout = l, place = null)) }, label = { Text(label) })
+                        StyledChip(wall.layout == l && wall.place == null, { a.vm.setWallClock(wall.copy(layout = l, place = null)) }, label = { Text(label) })
                     }
                 }
             }
@@ -355,8 +354,8 @@ private fun MoreSettings(theme: Theme, a: ScreenActions, s: HomeState) {
         }
         Setting("Экран блокировки", null) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(theme.lockBackground == null, { a.vm.setLockSeparate(false) }, label = { Text("То же фото") })
-                FilterChip(theme.lockBackground != null, { a.pickPhoto(BgTarget.LOCK) }, label = { Text(if (theme.lockBackground != null) "Другое фото ✓" else "Другое фото") })
+                StyledChip(theme.lockBackground == null, { a.vm.setLockSeparate(false) }, label = { Text("То же фото") })
+                StyledChip(theme.lockBackground != null, { a.pickPhoto(BgTarget.LOCK) }, label = { Text(if (theme.lockBackground != null) "Другое фото ✓" else "Другое фото") })
             }
             LinkText("Часы на экране блокировки") { s.onDetail(WallDetail.LOCK) }
         }
@@ -488,7 +487,7 @@ fun DetailHeader(title: String, onBack: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(NavIcons.Back, null, tint = look.text, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.width(14.dp))
-        Text(look.title(title), color = look.text, fontFamily = look.headings, fontWeight = FontWeight.Bold, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, color = look.text, fontFamily = look.headings, fontWeight = FontWeight.Bold, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -496,11 +495,12 @@ fun DetailHeader(title: String, onBack: () -> Unit) {
 @Composable
 fun Panel(content: @Composable ColumnScope.() -> Unit) = SoftCard(content = content)
 
-/** Нижнее меню: выпуклая капсула, выбранный раздел — вдавлен. */
+/** Нижнее меню: выпуклая капсула, выбранный раздел — вдавлен; в «Мяте» — серая дорожка и мятная вкладка. */
 @Composable
 fun SoftNav(tab: Tab, tabs: List<Tab>, onTab: (Tab) -> Unit) {
     val look = LocalLook.current
     Box(Modifier.fillMaxWidth().background(look.bar).navigationBarsPadding().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)) {
+        if (look.isClay) return@Box ClaySegmented(tabs.map { it.title }, tabs.indexOf(tab), { onTab(tabs[it]) }, height = 58.dp)
         Row(Modifier.fillMaxWidth().height(60.dp).raised(look, 30.dp, 6.dp).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             tabs.forEach { t ->
                 val on = t == tab
@@ -529,7 +529,7 @@ fun UpdateBanner(vm: MainViewModel, modifier: Modifier = Modifier) {
         Text("Вышла новая версия ${info.versionName}", color = look.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         val note = state.status ?: info.notes.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.removePrefix("-")?.trim()
         note?.let { Text(it, color = look.muted, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis) }
-        state.progress?.let { p -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth(), color = look.text, trackColor = look.soft.field) }
+        state.progress?.let { p -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth(), color = look.text, trackColor = look.control) }
         if (state.progress == null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (state.needsPermission) {

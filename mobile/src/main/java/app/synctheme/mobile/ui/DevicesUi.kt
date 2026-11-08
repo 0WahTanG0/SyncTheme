@@ -29,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -132,7 +131,7 @@ fun DevicesSection(vm: MainViewModel, onOpenInstaller: () -> Unit, onOpenTvInsta
             val (dot, status) = watchStatus(connection)
             DeviceRow(NavIcons.Watch, connection.appNodeName ?: connection.connectedNames.firstOrNull() ?: "Часы", status, dot) {
                 if (connection.hasWatch && !connection.hasApp) {
-                    FilledTonalButton(onClick = onOpenInstaller) { Text("Установить", maxLines = 1) }
+                    StyledTonalButton(onClick = onOpenInstaller) { Text("Установить", maxLines = 1) }
                 }
                 TextButton(onClick = { vm.setWatchEnabled(false) }) { Text("Отключить", maxLines = 1) }
             }
@@ -176,7 +175,7 @@ private fun PeerRow(vm: MainViewModel, peer: Peer, push: LinkPush?) {
         peer.kind.icon(), peer.name, if (peer.enabled) pushText(push) else "Тему не получает", if (peer.enabled) pushDot(push) else Color.Gray,
         trailing = { Switch(checked = peer.enabled, onCheckedChange = { vm.setPeerEnabled(peer.id, it) }) },
     ) {
-        if (peer.enabled) FilledTonalButton(onClick = { vm.sendTo(peer.id) }) { Text("Отправить тему", maxLines = 1) }
+        if (peer.enabled) StyledTonalButton(onClick = { vm.sendTo(peer.id) }) { Text("Отправить тему", maxLines = 1) }
         TextButton(onClick = { vm.unlink(peer.id) }) { Text("Отключить", maxLines = 1) }
     }
 }
@@ -279,7 +278,7 @@ private fun AddDeviceDialog(vm: MainViewModel, onOpenInstaller: () -> Unit, onOp
                             if (ready) "SyncTheme на часах есть — подключаются сразу" else "На связи по Bluetooth. SyncTheme на часы ставится один раз",
                             if (ready) StatusOk else StatusWait,
                         ) {
-                            FilledTonalButton(onClick = {
+                            StyledTonalButton(onClick = {
                                 vm.connectWatch(name)
                                 onDismiss()
                                 if (!ready) onOpenInstaller()
@@ -291,7 +290,7 @@ private fun AddDeviceDialog(vm: MainViewModel, onOpenInstaller: () -> Unit, onOp
                 found.forEach { device ->
                     val linked = devices.peers.any { p -> device.id?.let { it == p.id } ?: (p.name == device.name) }
                     DeviceRow(device.kind.icon(), device.name, if (linked) "Уже подключён" else "${device.kind.title} в вашей сети Wi‑Fi", if (linked) StatusOk else null) {
-                        FilledTonalButton(onClick = { link(device) }) { Text(if (linked) "Подключить заново" else "Подключить", maxLines = 1) }
+                        StyledTonalButton(onClick = { link(device) }) { Text(if (linked) "Подключить заново" else "Подключить", maxLines = 1) }
                     }
                 }
                 val nothing = (devices.watch || connection.connectedNames.isEmpty()) && found.isEmpty()
@@ -467,7 +466,7 @@ private fun ReceiverBlock(vm: MainViewModel) {
             "Чтобы тема приходила и с выключенным экраном, разрешите SyncTheme работать в фоне без ограничений.",
             style = MaterialTheme.typography.bodySmall, color = muted,
         )
-        FilledTonalButton(onClick = {
+        StyledTonalButton(onClick = {
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
             runCatching { battery.launch(intent) }.onFailure { battery.launch(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
         }) { Text("Работать в фоне без ограничений") }

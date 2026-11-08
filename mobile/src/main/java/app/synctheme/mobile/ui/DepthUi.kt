@@ -2,10 +2,7 @@ package app.synctheme.mobile.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,10 +65,10 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
         },
         style = MaterialTheme.typography.bodySmall, color = muted,
     )
-    if (depth) OutlinedButton(onClick = { vm.editSubject(theme.background) }) { Text("Выбрать объект") }
+    if (depth) StyledOutlinedButton(onClick = { vm.editSubject(theme.background) }) { Text("Выбрать объект") }
     val place = wall.place
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedButton(onClick = onArrange) { Text(arrangeLabel(theme, ArrangeTarget.HOME) ?: "Подвинуть часы") }
+        StyledOutlinedButton(onClick = onArrange) { Text(arrangeLabel(theme, ArrangeTarget.HOME) ?: "Подвинуть часы") }
         if (place != null) TextButton(onClick = { vm.setWallClock(wall.copy(place = null)) }) { Text("Вернуть само") }
     }
     if (place != null) {
@@ -80,7 +77,7 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
         // С глубиной место часов выбирается по объекту; без неё — одна из раскладок.
         ChipRow {
             listOf(WallClockLayout.TOP to "Вверху", WallClockLayout.STACKED to "Столбиком", WallClockLayout.CENTER to "По центру").forEach { (l, label) ->
-                FilterChip(wall.layout == l, { vm.setWallClock(wall.copy(layout = l)) }, label = { Text(label) })
+                StyledChip(wall.layout == l, { vm.setWallClock(wall.copy(layout = l)) }, label = { Text(label) })
             }
         }
     }
@@ -104,7 +101,7 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
             style = MaterialTheme.typography.bodyMedium,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { picking = true }) { Text("Выбрать приложение") }
+            StyledOutlinedButton(onClick = { picking = true }) { Text("Выбрать приложение") }
             if (wall.openApp != null) TextButton(onClick = { vm.setWallClock(wall.copy(openApp = null)) }) { Text("Будильники") }
         }
         if (picking) {
@@ -126,7 +123,7 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
                 "дальше время и тема меняются на них сами.",
             style = MaterialTheme.typography.bodySmall, color = muted,
         )
-        FilledTonalButton(onClick = {
+        StyledTonalButton(onClick = {
             runCatching { context.startActivity(ClockWallpaper.setIntent(context)) }
                 .onFailure { android.widget.Toast.makeText(context, "Живые обои не поддерживаются этим телефоном", android.widget.Toast.LENGTH_LONG).show() }
         }) { Text("Включить живые обои") }
@@ -152,7 +149,7 @@ private fun LockClockHint(onLock: Boolean) {
         style = MaterialTheme.typography.bodySmall, color = muted,
     )
     if (onLock && !live) {
-        FilledTonalButton(onClick = {
+        StyledTonalButton(onClick = {
             runCatching { context.startActivity(ClockWallpaper.setIntent(context)) }
         }) { Text("Поставить живые обои на оба экрана") }
     }
@@ -181,7 +178,7 @@ fun LockClockContent(theme: Theme, vm: MainViewModel) {
     if (!photo) {
         Text("Эффект глубины работает с фото на экране блокировки.", style = MaterialTheme.typography.bodySmall, color = muted)
     } else if (wall.depth) {
-        OutlinedButton(onClick = { vm.editSubject(theme.lockScreenBackground()) }) { Text("Выбрать объект") }
+        StyledOutlinedButton(onClick = { vm.editSubject(theme.lockScreenBackground()) }) { Text("Выбрать объект") }
     }
     Text("Шрифт, место, погода и заряд — в «Обои» → «Часы на обоях».", style = MaterialTheme.typography.bodySmall, color = muted)
     LockClockHint(true)

@@ -61,8 +61,7 @@ internal object VerticalFit {
                 "neon" -> Typeface.create("sans-serif-thin", Typeface.NORMAL)
                 "paper" -> Typeface.create(Typeface.SERIF, Typeface.NORMAL)
                 "board" -> Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-                "ice" -> Typeface.create("sans-serif", Typeface.NORMAL)
-                "glow" -> Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                "mint" -> Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 else -> Typeface.create("sans-serif-light", Typeface.NORMAL)
             }
         }

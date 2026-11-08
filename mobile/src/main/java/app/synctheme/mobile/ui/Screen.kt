@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,12 +39,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -153,6 +148,8 @@ private fun SyncThemeContent(
     var photoTheme by remember { mutableStateOf(false) }
     /** Открыт редактор расположения (часы и фото). */
     var arrange by rememberSaveable { mutableStateOf<ArrangeTarget?>(null) }
+    /** Открыт экран «Иконки приложений». */
+    var icons by rememberSaveable { mutableStateOf(false) }
     /** Открыта проверка совместимости: при первом запуске сама, потом — из «Настроек». */
     var compat by rememberSaveable { mutableStateOf(firstLaunchCheck && !CompatCheck.shown(context)) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -187,6 +184,7 @@ private fun SyncThemeContent(
             openTvInstaller = onOpenTvInstaller,
             arrange = { arrange = it },
             openCompat = { compat = true },
+            openIcons = { icons = true },
             configureWidget = { id ->
                 context.startActivity(
                     Intent(context, WidgetConfigActivity::class.java)
@@ -205,6 +203,11 @@ private fun SyncThemeContent(
         }
         androidx.activity.compose.BackHandler(onBack = close)
         CompatScreen(close)
+        return
+    }
+    if (icons) {
+        androidx.activity.compose.BackHandler { icons = false }
+        IconsScreen(theme.accentColor) { icons = false }
         return
     }
     val subject by vm.subjectEditor.collectAsStateWithLifecycle()
@@ -376,6 +379,8 @@ class ScreenActions(
     val openCompat: () -> Unit = {},
     /** Новая тема из фото в один шаг. */
     val themeFromPhoto: () -> Unit = {},
+    /** Значки приложений в стиле оформления. */
+    val openIcons: () -> Unit = {},
 ) {
     /** Меняет циферблат: в отдельных настройках часов или, если их нет, в общей теме. */
     fun editWatchFace(transform: (app.synctheme.core.WatchSettings) -> app.synctheme.core.WatchSettings) {
@@ -467,31 +472,17 @@ fun DeviceStatus(
 @Composable
 private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBitmap?, tv: ImageBitmap?, height: Dp, selfTablet: Boolean = false) {
     val look = LocalLook.current
-    val outer = when (look.style) {
-        AppStyle.SOFT -> RoundedCornerShape(look.radius)
-        AppStyle.GLASS -> RoundedCornerShape(28.dp)
-        AppStyle.EXPRESSIVE -> RoundedCornerShape(36.dp)
-        AppStyle.NEON -> RoundedCornerShape(22.dp)
-    }
-    val frameBorder = when (look.style) {
-        AppStyle.GLASS -> look.cardBorder
-        AppStyle.EXPRESSIVE, AppStyle.SOFT -> Color.Transparent
-        AppStyle.NEON -> look.accent.copy(alpha = 0.4f)
-    }
+    val glass = look.style == AppStyle.GLASS
+    val outer = RoundedCornerShape(if (glass) 28.dp else look.radius)
     val watchOnly = phone == null
-    val screenBorder = when (look.style) {
-        AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White
-        AppStyle.EXPRESSIVE, AppStyle.SOFT -> Color.Transparent
-        AppStyle.NEON -> look.accent
-    }
+    val screenBorder = if (glass) (if (look.dark) Color.White.copy(alpha = 0.22f) else Color.White) else Color.Transparent
     BoxWithConstraints(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp).height(height)
-            .glow(look, outer, 10.dp, 0.5f)
-            .clip(outer).background(look.card).border(1.dp, frameBorder, outer),
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).padding(bottom = if (look.isClay) 4.dp else 0.dp).height(height)
+            .then(
+                if (look.isClay) Modifier.raised(look, look.radius, 7.dp)
+                else Modifier.clip(outer).background(look.card).border(1.dp, if (glass) look.cardBorder else Color.Transparent, outer),
+            ),
     ) {
-        if (look.style == AppStyle.EXPRESSIVE) {
-            Box(Modifier.align(Alignment.TopEnd).offset(x = 40.dp, y = (-50).dp).size(190.dp).clip(FlowerShape).background(look.highlight))
-        }
         val inner = height - 20.dp
         // Своё устройство: телефон в портрете или (приложение на планшете) планшет в альбомной ориентации.
         val selfAspect = if (selfTablet) 1.6f else 540f / 1170f
@@ -519,10 +510,9 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBi
             val shape = RoundedCornerShape(radius)
             Box(
                 Modifier.height(h).aspectRatio(aspect)
-                    .glow(look, shape, 12.dp, 0.7f)
                     .clip(shape)
                     .background(Color.Black)
-                    .border(if (look.style == AppStyle.NEON) 1.5.dp else 3.dp, screenBorder, shape),
+                    .border(3.dp, screenBorder, shape),
             ) {
                 image?.let { Image(it, contentDescription = description, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
             }
@@ -533,25 +523,19 @@ private fun PreviewRow(phone: ImageBitmap?, watch: ImageBitmap?, tablet: ImageBi
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (!watchOnly) {
-                Screen(phone, selfH, selfAspect, if (look.style == AppStyle.EXPRESSIVE) 24.dp else 20.dp, if (selfTablet) "Превью планшета" else "Превью телефона")
+                Screen(phone, selfH, selfAspect, 20.dp, if (selfTablet) "Превью планшета" else "Превью телефона")
             }
-            if (tablet != null) Screen(tablet, tabletH, 1.6f, if (look.style == AppStyle.EXPRESSIVE) 18.dp else 14.dp, "Превью планшета")
+            if (tablet != null) Screen(tablet, tabletH, 1.6f, 14.dp, "Превью планшета")
             if (tv != null) Screen(tv, tvH, 16f / 9f, 6.dp, "Превью телевизора")
             if (watch == null && !watchOnly) return@Row
             // Корпус часов: рамка + круглый экран, картинка всегда растягивается на весь экран.
-            val bezel = when (look.style) {
-                AppStyle.GLASS -> if (look.dark) Color.White.copy(alpha = 0.16f) else Color.White
-                AppStyle.EXPRESSIVE, AppStyle.SOFT -> look.text
-                AppStyle.NEON -> Color(0xFF0C0C12)
-            }
+            val bezel = if (glass) (if (look.dark) Color.White.copy(alpha = 0.16f) else Color.White) else look.text
             Box(
                 Modifier
                     .size(watchD)
-                    .glow(look, CircleShape, 12.dp, 0.8f)
                     .clip(CircleShape)
                     .background(bezel)
-                    .border(if (look.glows) 1.5.dp else 0.dp, if (look.glows) look.accent else Color.Transparent, CircleShape)
-                    .padding(if (look.style == AppStyle.EXPRESSIVE) 7.dp else 6.dp)
+                    .padding(6.dp)
                     .clip(CircleShape)
                     .background(Color.Black),
             ) {
@@ -622,22 +606,22 @@ fun UpdateSection(vm: MainViewModel) {
         state.available?.let { info ->
             Text("Доступна версия ${info.versionName}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
             if (info.notes.isNotBlank()) Text(info.notes, style = MaterialTheme.typography.bodySmall)
-            Button(onClick = vm::downloadAndInstall, enabled = state.progress == null, modifier = Modifier.fillMaxWidth()) {
+            StyledButton(onClick = vm::downloadAndInstall, enabled = state.progress == null, modifier = Modifier.fillMaxWidth()) {
                 Text("Скачать и обновить")
             }
         }
         state.progress?.let { p -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth()) }
         state.status?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         if (state.needsPermission) {
-            FilledTonalButton(onClick = { context.startActivity(vm.installPermissionIntent()) }) {
+            StyledTonalButton(onClick = { context.startActivity(vm.installPermissionIntent()) }) {
                 Text("Разрешить установку обновлений")
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { vm.checkUpdates() }, enabled = state.repo.isNotBlank() && !state.checking) {
+            StyledOutlinedButton(onClick = { vm.checkUpdates() }, enabled = state.repo.isNotBlank() && !state.checking) {
                 Text(if (state.checking) "Проверяю…" else "Проверить")
             }
-            OutlinedButton(onClick = {
+            StyledOutlinedButton(onClick = {
                 filePicker.launch(arrayOf("application/vnd.android.package-archive", "application/zip", "application/octet-stream"))
             }) { Text("Из файла APK") }
         }

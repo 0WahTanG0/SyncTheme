@@ -34,11 +34,14 @@ class LegacyStylesTest {
 
     @Test
     fun oldWidgetStylesBecomeNewOnes() {
-        assertEquals(listOf("glass", "poster", "neon", "paper", "board", "ice", "glow"), WidgetKind.CLOCK.styles.map { it.id })
+        assertEquals(listOf("mint", "glass", "poster", "neon", "paper", "board"), WidgetKind.CLOCK.styles.map { it.id })
         assertEquals("poster", WidgetKind.CLOCK.style("bold").id)
         assertEquals("paper", WidgetKind.CLOCK.style("analog_minimal").id)
         assertEquals("board", WidgetKind.CLOCK.style("diag").id)
         assertEquals("glass", WidgetKind.APPS.style("capsule").id)
+        // «Лёд» и «Сияние» (1.25) стали «Мятой» и «Неоном».
+        assertEquals("mint", WidgetKind.WEATHER.style("ice").id)
+        assertEquals("neon", WidgetKind.BATTERY.style("glow").id)
         WidgetConfigStore.set(app, 41, WidgetConfig(style = "minimal", font = "MONO"))
         val config = WidgetConfigStore.get(app, 41, WidgetKind.CLOCK, 0.4f)
         assertEquals("paper", config.style)

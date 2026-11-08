@@ -48,17 +48,17 @@ object WidgetRenderer {
     private const val INK = 0xFF2B2622.toInt()
     private const val PAPER = 0xFFF6F1E6.toInt()
     private const val BOARD = 0xFF161619.toInt()
-    private const val ICE = 0xFFF1F3F7.toInt()
-    private const val ICE_INK = 0xFF1C1C22.toInt()
-    private const val GLOW = 0xFF17171C.toInt()
-    const val ICE_BLUE = 0xFF5B8DEF.toInt()
-    const val GLOW_PURPLE = 0xFFB060FF.toInt()
+    /** «Мята»: светлая плитка, графитовый текст, мятные капсулы (те же цвета, что в Clay.kt). */
+    const val MINT_SURFACE = 0xFFF3F1ED.toInt()
+    const val MINT_INK = 0xFF2E2E2E.toInt()
+    const val MINT_ON = 0xFF203229.toInt()
+    const val MINT_DEEP = 0xFF2E8A66.toInt()
 
     /**
      * Цвета по ролям элементов разметки. У каждого стиля свои: «Стекло» и «Неон» — в цветах темы,
      * «Плакат» — фон цвета акцента и контрастный к нему текст, «Бумага» — чернила на кремовом листе,
-     * «Табло» — светящиеся цифры цвета акцента на графите, «Лёд» — тёмные буквы на светлом стекле,
-     * «Сияние» — светлые буквы на тёмной панели и свечение цвета акцента. Свои цвета виджета ([WidgetConfig]) — важнее.
+     * «Табло» — светящиеся цифры цвета акцента на графите, «Мята» — графитовые буквы на светлой плитке
+     * и тёмно-мятные значки. Свои цвета виджета ([WidgetConfig]) — важнее.
      */
     private class Palette(theme: Theme, config: WidgetConfig, family: String, accentBackground: Boolean) {
         val main: Int
@@ -97,23 +97,12 @@ object WidgetRenderer {
                     label = led
                     onAccent = BOARD
                 }
-                "ice" -> {
-                    // Как на образце: прозрачное стекло и голубое стекло акцента (свой цвет виджета — важнее).
-                    // Стекло прозрачное, поэтому буквы — цвета текста темы: светлые на тёмных обоях, тёмные на светлых.
-                    val blue = config.accentColor ?: ICE_BLUE
-                    bg = ICE
-                    main = text
-                    accent = blue
-                    label = main
-                    onAccent = if (Colors.isLight(text)) WHITE else ICE_INK
-                }
-                "glow" -> {
-                    // Тёмная панель и фиолетовое свечение; подписи — белые на светящихся капсулах.
-                    val purple = config.accentColor ?: GLOW_PURPLE
-                    bg = GLOW
-                    main = config.textColor ?: 0xFFF4F2FA.toInt()
-                    accent = purple
-                    label = WHITE
+                "mint" -> {
+                    // Плитка непрозрачная и светлая — буквы всегда графитовые, на мятных капсулах — тёмно-зелёные.
+                    bg = MINT_SURFACE
+                    main = config.textColor ?: MINT_INK
+                    accent = config.accentColor ?: MINT_DEEP
+                    label = MINT_ON
                     onAccent = WHITE
                 }
                 "neon" -> {
@@ -141,8 +130,8 @@ object WidgetRenderer {
         val on = if (accentBackground && config.opacity < 0.5f) main else onAccent
         val onSub = Colors.withAlpha(on, 0.75f)
         /** Плакат, неон, лист бумаги и табло совсем прозрачными не становятся — без фона стиль теряется. */
-        /** Полоса заряда со своими цветами (стекло, свечение) — её не перекрашиваем. */
-        val ownBars = family == "ice" || family == "glow"
+        /** Полоса заряда со своими цветами («Мята») — её не перекрашиваем. */
+        val ownBars = family == "mint"
         val alpha = config.opacity.coerceIn(0f, 1f).let { o -> SOLID[family]?.let { min -> min + (1 - min) * o } ?: o }.times(255).roundToInt()
     }
 
@@ -197,11 +186,11 @@ object WidgetRenderer {
         }
     }
 
-    /** Стили со своим фоном (плакат, неон на тёмном, лист бумаги, табло, лёд, сияние): наименьшая непрозрачность подложки. */
-    private val SOLID = mapOf("poster" to 0.6f, "paper" to 0.88f, "board" to 0.8f, "neon" to 0.7f, "ice" to 0.85f, "glow" to 0.88f)
+    /** Стили со своим фоном (плакат, неон на тёмном, лист бумаги, табло, мята): наименьшая непрозрачность подложки. */
+    private val SOLID = mapOf("poster" to 0.6f, "paper" to 0.88f, "board" to 0.8f, "neon" to 0.7f, "mint" to 0.92f)
 
     /** Стеклянные стили: значки приложений — скруглёнными квадратами, как на рабочем столе. */
-    val SQUARE_ICONS = setOf("glass", "ice", "glow")
+    val SQUARE_ICONS = setOf("glass", "mint")
 
     /** Стиль оформления виджета (для цветов): у всех видов одни и те же стили. */
     fun family(kind: WidgetKind, style: String): String = kind.style(style).id

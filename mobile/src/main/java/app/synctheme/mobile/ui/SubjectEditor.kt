@@ -23,9 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -129,8 +127,8 @@ fun SubjectEditorScreen(photo: String, onClose: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onClose) { Text("Отмена") }
                 Text("Объект для глубины", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Button(enabled = mask != null && busy == null, onClick = {
-                    val m = mask ?: return@Button
+                StyledButton(enabled = mask != null && busy == null, onClick = {
+                    val m = mask ?: return@StyledButton
                     busy = "Сохраняю…"
                     scope.launch {
                         SubjectMask.save(context, photo, m)
@@ -217,7 +215,7 @@ fun SubjectEditorScreen(photo: String, onClose: () -> Unit) {
                 if (busy != null) CircularProgressIndicator()
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                SubjectTool.entries.forEach { t -> FilterChip(tool == t, { tool = t }, label = { Text(t.title) }) }
+                SubjectTool.entries.forEach { t -> StyledChip(tool == t, { tool = t }, label = { Text(t.title) }) }
             }
             if (tool == SubjectTool.BRUSH || tool == SubjectTool.ERASE) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

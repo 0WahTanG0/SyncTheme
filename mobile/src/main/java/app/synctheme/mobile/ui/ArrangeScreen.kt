@@ -21,10 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -159,16 +156,16 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
             val controls: @Composable () -> Unit = {
                 FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (canMoveClock) {
-                        FilterChip(mode == ArrangeMode.CLOCK, { mode = ArrangeMode.CLOCK }, label = { Text(if (target == ArrangeTarget.HOME) "Часы" else "Время") })
+                        StyledChip(mode == ArrangeMode.CLOCK, { mode = ArrangeMode.CLOCK }, label = { Text(if (target == ArrangeTarget.HOME) "Часы" else "Время") })
                     }
                     // Подписи часов на обоях — каждую можно поставить куда угодно.
                     val wall = edited.wallClock
                     if (target == ArrangeTarget.HOME && wall != null) {
-                        if (wall.showDate) FilterChip(mode == ArrangeMode.DATE, { mode = ArrangeMode.DATE }, label = { Text("Дата") })
-                        if (wall.weather) FilterChip(mode == ArrangeMode.WEATHER, { mode = ArrangeMode.WEATHER }, label = { Text("Погода") })
-                        if (wall.battery) FilterChip(mode == ArrangeMode.BATTERY, { mode = ArrangeMode.BATTERY }, label = { Text("Заряд") })
+                        if (wall.showDate) StyledChip(mode == ArrangeMode.DATE, { mode = ArrangeMode.DATE }, label = { Text("Дата") })
+                        if (wall.weather) StyledChip(mode == ArrangeMode.WEATHER, { mode = ArrangeMode.WEATHER }, label = { Text("Погода") })
+                        if (wall.battery) StyledChip(mode == ArrangeMode.BATTERY, { mode = ArrangeMode.BATTERY }, label = { Text("Заряд") })
                     }
-                    if (photoBg != null) FilterChip(mode == ArrangeMode.PHOTO, { mode = ArrangeMode.PHOTO }, label = { Text("Фото") })
+                    if (photoBg != null) StyledChip(mode == ArrangeMode.PHOTO, { mode = ArrangeMode.PHOTO }, label = { Text("Фото") })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     when (mode) {
@@ -191,8 +188,8 @@ fun ArrangeScreen(vm: MainViewModel, target: ArrangeTarget, onClose: () -> Unit)
             }
             val buttons: @Composable () -> Unit = {
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onClose, modifier = Modifier.weight(1f)) { Text("Отмена") }
-                    Button(onClick = {
+                    StyledOutlinedButton(onClick = onClose, modifier = Modifier.weight(1f)) { Text("Отмена") }
+                    StyledButton(onClick = {
                         val result = edited
                         vm.update { result }
                         onClose()

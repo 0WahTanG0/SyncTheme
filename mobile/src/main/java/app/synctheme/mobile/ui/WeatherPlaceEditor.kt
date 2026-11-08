@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -83,7 +81,7 @@ fun WeatherPlaceEditor(onUpdated: (WeatherData?) -> Unit = {}) {
             "Город: " + (place?.let { if (it.auto) "${it.name} (по местоположению)" else it.name } ?: "не выбран"),
             style = MaterialTheme.typography.bodyMedium,
         )
-        OutlinedButton(onClick = {
+        StyledOutlinedButton(onClick = {
             val granted = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
             if (granted) useLocation() else permission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
         }) { Text("Моё местоположение") }
@@ -105,7 +103,7 @@ fun WeatherPlaceEditor(onUpdated: (WeatherData?) -> Unit = {}) {
                 keyboardActions = KeyboardActions(onSearch = { search() }),
             )
             Spacer(Modifier.width(8.dp))
-            Button(onClick = ::search) { Text("Найти") }
+            StyledButton(onClick = ::search) { Text("Найти") }
         }
         results.forEach { r ->
             Text(

@@ -42,11 +42,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
+import app.synctheme.mobile.ui.StyledChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import app.synctheme.mobile.ui.StyledOutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -191,7 +191,7 @@ fun WidgetConfigScreen(
         config = config.copy() // перерисовать превью с событиями
     }
     val style = kind.style(config.style).id
-    val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("glass", "poster", "paper", "ice", "glow")
+    val alignable = kind in listOf(WidgetKind.CLOCK, WidgetKind.CALENDAR) && style in listOf("mint", "glass", "poster", "paper")
     // Небо (по погоде или времени суток) — под «Стеклом»: у остальных стилей свой фон.
     val skyStyle = style == "glass"
 
@@ -232,7 +232,7 @@ fun WidgetConfigScreen(
     val sizes: @Composable () -> Unit = {
     ChipRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
         WidgetSize.entries.forEach { s ->
-            FilterChip(size == s, { size = s }, label = { Text(s.title) })
+            StyledChip(size == s, { size = s }, label = { Text(s.title) })
         }
     }
     Text(
@@ -246,13 +246,13 @@ fun WidgetConfigScreen(
         Section("Стиль") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 kind.styles.forEach { s ->
-                    FilterChip(style == s.id, { config = config.copy(style = s.id) }, label = { Text(s.title) })
+                    StyledChip(style == s.id, { config = config.copy(style = s.id) }, label = { Text(s.title) })
                 }
             }
             if (alignable) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     WidgetAlign.entries.forEach { a ->
-                        FilterChip(config.align == a, { config = config.copy(align = a) }, label = { Text(a.title) })
+                        StyledChip(config.align == a, { config = config.copy(align = a) }, label = { Text(a.title) })
                     }
                 }
             }
@@ -328,7 +328,7 @@ fun WidgetConfigScreen(
                 val target = config.openApp?.let { AppCatalog.label(context, it) ?: it } ?: defaultTargetTitle(context, kind)
                 Text("Открывается: $target", style = MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { picker = "open" }) { Text("Другое приложение") }
+                    StyledOutlinedButton(onClick = { picker = "open" }) { Text("Другое приложение") }
                     if (config.openApp != null) {
                         TextButton(onClick = { config = config.copy(openApp = null) }) { Text("Стандартное") }
                     }
@@ -343,7 +343,7 @@ fun WidgetConfigScreen(
         item {
             Section("События") {
                 Text("Чтобы показывать события, SyncTheme нужен доступ к календарю.", style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onClick = { calendarPermission.launch(Manifest.permission.READ_CALENDAR) }) {
+                StyledOutlinedButton(onClick = { calendarPermission.launch(Manifest.permission.READ_CALENDAR) }) {
                     Text("Разрешить доступ к календарю")
                 }
             }
@@ -428,7 +428,7 @@ private fun FolderSection(config: WidgetConfig, theme: Theme, onChange: (WidgetC
     Section("Вид на рабочем столе") {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FolderMode.entries.forEach { m ->
-                FilterChip(config.folder == m, {
+                StyledChip(config.folder == m, {
                     // Из папки на виджет со значками помещается меньше приложений.
                     onChange(config.copy(folder = m, apps = if (m == FolderMode.ICONS) config.apps.take(APPS_ON_WIDGET) else config.apps))
                 }, label = { Text(m.title) })
@@ -452,7 +452,7 @@ private fun FolderSection(config: WidgetConfig, theme: Theme, onChange: (WidgetC
                     val icon = remember(g, config.style, config.opacity, config.textColor, config.accentColor, config.apps, config.title, theme) {
                         FolderWidget.glyph(context, config.copy(glyph = g), theme, px).asImageBitmap()
                     }
-                    FilterChip(
+                    StyledChip(
                         config.glyph == g, { onChange(config.copy(glyph = g)) },
                         label = { Text(g.title) },
                         leadingIcon = { Image(icon, null, Modifier.size(28.dp)) },
@@ -466,10 +466,10 @@ private fun FolderSection(config: WidgetConfig, theme: Theme, onChange: (WidgetC
         var saved by remember { mutableStateOf(FolderLineStore.all(context)) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FolderShape.entries.filter { it != FolderShape.CUSTOM }.forEach { sh ->
-                FilterChip(config.shape == sh, { onChange(config.copy(shape = sh)) }, label = { Text(sh.title) })
+                StyledChip(config.shape == sh, { onChange(config.copy(shape = sh)) }, label = { Text(sh.title) })
             }
             saved.forEachIndexed { i, line ->
-                FilterChip(
+                StyledChip(
                     config.shape == FolderShape.CUSTOM && config.line == line,
                     { onChange(config.copy(shape = FolderShape.CUSTOM, line = line)) },
                     label = { Text("Моя линия ${i + 1}") },
@@ -495,7 +495,7 @@ private fun FolderSection(config: WidgetConfig, theme: Theme, onChange: (WidgetC
             },
             style = MaterialTheme.typography.bodySmall, color = muted,
         )
-        OutlinedButton(onClick = onDraw) {
+        StyledOutlinedButton(onClick = onDraw) {
             Text(if (config.shape == FolderShape.CUSTOM) "Перерисовать на рабочем столе" else "Нарисовать на рабочем столе")
         }
         Text(
@@ -505,12 +505,12 @@ private fun FolderSection(config: WidgetConfig, theme: Theme, onChange: (WidgetC
         )
         Text("Анимация", style = MaterialTheme.typography.labelMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FolderAnim.entries.forEach { a -> FilterChip(config.animation == a, { onChange(config.copy(animation = a)) }, label = { Text(a.title) }) }
+            FolderAnim.entries.forEach { a -> StyledChip(config.animation == a, { onChange(config.copy(animation = a)) }, label = { Text(a.title) }) }
         }
         CheckRow("Подписи под значками", config.labels) { onChange(config.copy(labels = it)) }
         if (config.shape == FolderShape.GRID) CheckRow("Фон и контур папки", config.panel) { onChange(config.copy(panel = it)) }
         CheckRow("Затемнять рабочий стол", config.dim) { onChange(config.copy(dim = it)) }
-        OutlinedButton(onClick = onPreview) { Text("Посмотреть, как раскрывается") }
+        StyledOutlinedButton(onClick = onPreview) { Text("Посмотреть, как раскрывается") }
     }
 }
 
@@ -545,7 +545,7 @@ private fun AppsSection(config: WidgetConfig, onChange: (WidgetConfig) -> Unit, 
                 }
             }
         }
-        OutlinedButton(onClick = onAdd, enabled = true) {
+        StyledOutlinedButton(onClick = onAdd, enabled = true) {
             Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
             Text("Выбрать приложения")
@@ -627,7 +627,6 @@ private fun styleNote(style: String): String = when (style) {
     "neon" -> "Светящийся контур и цифры на чёрном."
     "paper" -> "Кремовый лист с тенью, буквы с засечками — как карточка из блокнота."
     "board" -> "Графитовая панель: цифры на перекидных плашках, как на вокзальном табло."
-    "ice" -> "Жидкое стекло: прозрачная капсула с толстой кромкой, подписи — на голубом стекле."
-    "glow" -> "Тёмная панель с толщиной, сквозь которую светит фиолетовый; подписи — на светящихся капсулах."
+    "mint" -> "Матовая светлая плитка с толщиной снизу, подписи — на мятных капсулах. Как оформление приложения «Мята»."
     else -> "Матовое стекло: обои просвечивают, тонкие цифры."
 }

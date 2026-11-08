@@ -1,5 +1,7 @@
 package app.synctheme.mobile.ui
 
+import app.synctheme.mobile.icons.IconPinner
+import app.synctheme.mobile.icons.IconStyle
 import android.Manifest
 import android.graphics.Bitmap
 import android.app.Application
@@ -557,6 +559,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             ThemeApplier.Report(emptyList(), listOf(e.message ?: e.javaClass.simpleName), false)
         } finally {
             _busy.value = null
+        }
+        // Значки «Цвет темы» на рабочем столе перекрашиваются под новую тему.
+        if (IconPinner.style(app, IconStyle.CLAY) == IconStyle.THEME) {
+            val accent = theme.value.accentColor
+            launch(Dispatchers.Default) { runCatching { IconPinner.restyle(app, IconStyle.THEME, accent) } }
         }
         val notes = mutableListOf<String>()
         if (targets.watch) {

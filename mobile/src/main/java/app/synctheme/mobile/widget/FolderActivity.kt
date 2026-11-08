@@ -264,8 +264,7 @@ private fun stagger(i: Int, n: Int, p: Float, span: Float): Float {
 /** Внешний вид папки в стиле виджета. */
 private class FolderLook(config: WidgetConfig, theme: Theme) {
     private val themeAccent = config.accentColor ?: when (config.style) {
-        "ice" -> WidgetRenderer.ICE_BLUE
-        "glow" -> WidgetRenderer.GLOW_PURPLE
+        "mint" -> WidgetRenderer.MINT_DEEP
         else -> theme.accentColor
     }
     private val surface = Colors.widgetSurface(theme)
@@ -275,13 +274,13 @@ private class FolderLook(config: WidgetConfig, theme: Theme) {
             "poster" -> if (Colors.isLight(themeAccent)) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
             "paper" -> 0xFF2B2622.toInt()
             "board" -> 0xFFF2F2F2.toInt()
-            "glow" -> 0xFFF4F2FA.toInt()
+            "mint" -> WidgetRenderer.MINT_INK
             else -> theme.textColor
         },
     )
     val radius = when (config.style) {
-        "glass", "ice" -> 34.dp
-        "glow" -> 26.dp
+        "glass" -> 34.dp
+        "mint" -> 26.dp
         "neon" -> 26.dp
         "poster" -> 14.dp
         "paper" -> 12.dp
@@ -292,8 +291,7 @@ private class FolderLook(config: WidgetConfig, theme: Theme) {
         "neon" -> Color(0xEE0B0B12)
         "poster" -> Color(Colors.withAlpha(themeAccent, 0.97f))
         "paper" -> Color(0xFAF6F1E6)
-        "ice" -> Color(0xD9F4F6FA)
-        "glow" -> Color(0xF51A1A20)
+        "mint" -> Color(0xFAF3F1ED)
         else -> Color(0xF5161619)
     }
     val border: Color? = when (config.style) {
@@ -301,11 +299,10 @@ private class FolderLook(config: WidgetConfig, theme: Theme) {
         "neon" -> accent
         "paper" -> Color(0x335A4630)
         "board" -> Color(0xFF2E2E34)
-        "ice" -> Color.White
-        "glow" -> accent
+        "mint" -> Color(0xFFCFC9C1)
         else -> null
     }
-    val glow = config.style == "neon" || config.style == "glow"
+    val glow = config.style == "neon"
 }
 
 /**

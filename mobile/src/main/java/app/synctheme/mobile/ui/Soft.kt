@@ -56,15 +56,33 @@ val Look.soft: SoftColors get() = if (dark) SoftPalette.Dark else SoftPalette.Li
 
 private val Look.isSoft get() = style == AppStyle.SOFT
 
-/** Выпуклая поверхность. depth — насколько «приподнята». */
-fun Modifier.raised(look: Look, radius: Dp, depth: Dp = 6.dp): Modifier =
-    if (!look.isSoft) this.clip(RoundedCornerShape(radius)).background(look.card).border(1.dp, look.cardBorder, RoundedCornerShape(radius))
-    else this.drawBehind { drawRaised(look.soft, radius.toPx(), depth.toPx()) }
+/** Выпуклая поверхность. depth — насколько «приподнята». В «Мяте» — объёмная плитка. */
+fun Modifier.raised(look: Look, radius: Dp, depth: Dp = 6.dp): Modifier = when {
+    look.isClay -> this.claySlab(look, radius, level = if (depth >= 7.dp) ClayLevel.L3 else if (depth >= 5.dp) ClayLevel.L2 else ClayLevel.L1)
+    look.isSoft -> this.drawBehind { drawRaised(look.soft, radius.toPx(), depth.toPx()) }
+    else -> this.clip(RoundedCornerShape(radius)).background(look.card).border(1.dp, look.cardBorder, RoundedCornerShape(radius))
+}
 
-/** Вдавленная поверхность — поля ввода и выбранные варианты. */
-fun Modifier.inset(look: Look, radius: Dp, depth: Dp = 5.dp): Modifier =
-    if (!look.isSoft) this.clip(RoundedCornerShape(radius)).background(look.control)
-    else this.drawBehind { drawInset(look.soft, radius.toPx(), depth.toPx()) }
+/** Вдавленная поверхность — поля ввода и выбранные варианты. В «Мяте» выбранное — с мятной кромкой. */
+fun Modifier.inset(look: Look, radius: Dp, depth: Dp = 5.dp): Modifier = when {
+    look.isClay -> this.clayHollow(look, radius, focused = true)
+    look.isSoft -> this.drawBehind { drawInset(look.soft, radius.toPx(), depth.toPx()) }
+    else -> this.clip(RoundedCornerShape(radius)).background(look.control)
+}
+
+/** Подложка группы настроек: «Мягкий» — выпуклая, «Мята» — плитка со стопкой слоёв, «Стекло» — карточка. */
+fun Modifier.card(look: Look, radius: Dp = look.radius, highlight: Boolean = false): Modifier = when {
+    look.isClay -> this.clayStack(look, radius)
+    look.isSoft -> this.raised(look, radius)
+    else -> this.clip(RoundedCornerShape(radius)).background(if (highlight) look.highlight else look.card).border(1.dp, look.cardBorder, RoundedCornerShape(radius))
+}
+
+/** Отступы снаружи подложки: у «Мягкого» место под тень, у «Мяты» — под стопку слоёв. */
+fun Modifier.cardSpacing(look: Look): Modifier = when {
+    look.isClay -> this.padding(top = 8.dp, bottom = 8.dp + clayStackExtra)
+    look.isSoft -> this.padding(vertical = 10.dp)
+    else -> this.padding(vertical = 6.dp)
+}
 
 private fun DrawScope.drawRaised(c: SoftColors, r: Float, d: Float) {
     drawIntoCanvas { canvas ->
@@ -103,6 +121,7 @@ private fun DrawScope.drawInset(c: SoftColors, r: Float, d: Float) {
 @Composable
 fun SoftPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, strong: Boolean = true, enabled: Boolean = true, height: Dp = 62.dp) {
     val look = LocalLook.current
+    if (look.isClay) return ClayButton(text, onClick, modifier, if (strong) ClayKind.PRIMARY else ClayKind.SECONDARY, enabled, height = height - 4.dp)
     Box(
         modifier.fillMaxWidth().height(height).raised(look, height / 2, 7.dp).clip(CircleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
@@ -119,6 +138,7 @@ fun SoftPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, s
 @Composable
 fun SoftChip(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val look = LocalLook.current
+    if (look.isClay) return ClayChip(text, onClick, modifier, icon = NavIcons.Save)
     Box(
         modifier.height(40.dp).raised(look, 20.dp, 4.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
@@ -129,6 +149,7 @@ fun SoftChip(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun SoftToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val look = LocalLook.current
+    if (look.isClay) return ClayToggle(label, checked, onChange, modifier)
     Row(
         modifier.height(40.dp).raised(look, 20.dp, 4.dp).clip(CircleShape)
             .clickable(role = Role.Switch) { onChange(!checked) }.padding(start = 14.dp, end = 5.dp),
@@ -159,14 +180,23 @@ fun SoftField(
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val look = LocalLook.current
+    val clay = look.isClay
     Column(modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text(label, color = look.text, fontSize = 13.sp, modifier = Modifier.padding(start = 18.dp, bottom = 8.dp))
+        Text(
+            label, color = look.text, fontSize = 13.sp, fontWeight = if (clay) FontWeight.SemiBold else null,
+            modifier = Modifier.padding(start = 18.dp, bottom = 8.dp),
+        )
         Row(
-            Modifier.fillMaxWidth().height(60.dp).inset(look, 30.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
-                .padding(start = 24.dp, end = 20.dp),
+            Modifier.fillMaxWidth().then(if (clay) Modifier.padding(bottom = 3.dp) else Modifier).height(if (clay) 64.dp else 60.dp)
+                .then(if (clay) Modifier.clayInput(look, 32.dp, focused = content != null) else Modifier.inset(look, 30.dp))
+                .clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
+                .padding(start = if (clay) 28.dp else 24.dp, end = if (clay) 24.dp else 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(value, color = look.text, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(
+                value, color = look.text, fontWeight = if (clay) FontWeight.SemiBold else FontWeight.Bold, fontSize = if (clay) 16.sp else 17.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
             Icon(icon, contentDescription = null, tint = look.text, modifier = Modifier.size(24.dp))
         }
         content?.let {
@@ -181,11 +211,13 @@ fun SoftField(
 @Composable
 fun SoftRound(icon: ImageVector, description: String, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 104.dp) {
     val look = LocalLook.current
+    // В «Мяте» кольцо — мятное «Focus ring» из образца.
+    val ring = if (look.isClay) look.clay.focus else look.muted.copy(alpha = 0.8f)
     Box(
         modifier.size(size).raised(look, size / 2, 8.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
             .drawBehind {
-                val w = 5.dp.toPx()
-                drawCircle(look.muted.copy(alpha = 0.8f), radius = this.size.minDimension / 2 - 10.dp.toPx(), center = Offset(this.size.width / 2, this.size.height / 2), style = Stroke(w))
+                val w = (if (look.isClay) 4.dp else 5.dp).toPx()
+                drawCircle(ring, radius = this.size.minDimension / 2 - 10.dp.toPx(), center = Offset(this.size.width / 2, this.size.height / 2), style = Stroke(w))
             },
         contentAlignment = Alignment.Center,
     ) { Icon(icon, contentDescription = description, tint = look.text, modifier = Modifier.size(size * 0.38f)) }
@@ -196,7 +228,8 @@ fun SoftRound(icon: ImageVector, description: String, onClick: () -> Unit, modif
 fun SoftCard(modifier: Modifier = Modifier, padding: Dp = 18.dp, content: @Composable ColumnScope.() -> Unit) {
     val look = LocalLook.current
     Column(
-        modifier.fillMaxWidth().padding(vertical = 8.dp).raised(look, 28.dp).padding(padding),
+        modifier.fillMaxWidth().then(if (look.isClay) Modifier.cardSpacing(look) else Modifier.padding(vertical = 8.dp))
+            .then(if (look.isClay) Modifier.card(look, ClayRadius.card) else Modifier.raised(look, 28.dp)).padding(padding),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         CompositionLocalProvider(LocalContentColor provides look.text) { content() }
@@ -215,5 +248,25 @@ fun SoftHint(text: String, action: String?, onAction: () -> Unit = {}, modifier:
                 modifier = Modifier.clickable(role = Role.Button, onClick = onAction).padding(vertical = 8.dp),
             )
         }
+    }
+}
+
+/** «Тёмная» в «Мяте»: светлая плитка-капсула, включено — мятный шарик, выключено — вдавленная лунка. */
+@Composable
+private fun ClayToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier) {
+    val look = LocalLook.current
+    val c = look.clay
+    Row(
+        modifier.padding(bottom = ClayLevel.L2.depth).height(40.dp).claySlab(look, 20.dp).clip(CircleShape)
+            .clickable(role = Role.Switch) { onChange(!checked) }.padding(start = 14.dp, end = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier.size(30.dp).then(
+                if (checked) Modifier.padding(bottom = 2.dp).claySlab(look, 15.dp, c.mint, ClayLevel.L1) else Modifier.clayHollow(look, 15.dp),
+            ),
+        )
     }
 }

@@ -37,15 +37,14 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** Оформление самого приложения (не путать с темой обоев). */
 enum class AppStyle(val title: String, val note: String) {
+    CLAY("Мята", "Объёмные матовые плитки, мятные кнопки и поля в оправе"),
     SOFT("Мягкий", "Выпуклые кнопки и вдавленные поля, всё в одном цвете"),
     GLASS("Стекло", "Полупрозрачные карточки и мягкое свечение"),
-    EXPRESSIVE("Экспрессив", "Тональные цвета и живые формы"),
-    NEON("Неон", "Сетка и светящиеся рамки"),
 }
 
 enum class AppMode(val title: String) { SYSTEM("Как в системе"), LIGHT("Светлая"), DARK("Тёмная") }
 
-data class Appearance(val style: AppStyle = AppStyle.SOFT, val mode: AppMode = AppMode.SYSTEM)
+data class Appearance(val style: AppStyle = AppStyle.CLAY, val mode: AppMode = AppMode.SYSTEM)
 
 object AppearanceStore {
     private var flow: MutableStateFlow<Appearance>? = null
@@ -55,11 +54,11 @@ object AppearanceStore {
     @Synchronized
     private fun state(context: Context): MutableStateFlow<Appearance> = flow ?: run {
         val p = prefs(context)
-        // С выходом «Мягкого» вида приложение один раз переходит на него (тёмным, как на образце);
-        // прежние оформления и светлый режим остаются в «Настройках».
-        if (!p.getBoolean(KEY_SOFT, false)) p.edit().putBoolean(KEY_SOFT, true).remove("app_style").putString("app_mode", AppMode.DARK.name).apply()
+        // С выходом «Мяты» приложение один раз переходит на неё (светлой, как на образце);
+        // «Мягкий», «Стекло» и тёмный режим остаются в «Настройках». «Экспрессив» и «Неон» убраны.
+        if (!p.getBoolean(KEY_CLAY, false)) p.edit().putBoolean(KEY_CLAY, true).remove("app_style").putString("app_mode", AppMode.LIGHT.name).apply()
         val loaded = Appearance(
-            style = runCatching { AppStyle.valueOf(p.getString("app_style", null)!!) }.getOrDefault(AppStyle.SOFT),
+            style = runCatching { AppStyle.valueOf(p.getString("app_style", null)!!) }.getOrDefault(AppStyle.CLAY),
             mode = runCatching { AppMode.valueOf(p.getString("app_mode", null)!!) }.getOrDefault(AppMode.SYSTEM),
         )
         MutableStateFlow(loaded).also { flow = it }
@@ -68,11 +67,11 @@ object AppearanceStore {
     fun get(context: Context): StateFlow<Appearance> = state(context.applicationContext)
 
     fun set(context: Context, value: Appearance) {
-        prefs(context).edit().putBoolean(KEY_SOFT, true).putString("app_style", value.style.name).putString("app_mode", value.mode.name).apply()
+        prefs(context).edit().putBoolean(KEY_CLAY, true).putString("app_style", value.style.name).putString("app_mode", value.mode.name).apply()
         state(context.applicationContext).value = value
     }
 
-    private const val KEY_SOFT = "app_style_soft"
+    private const val KEY_CLAY = "app_style_clay"
 }
 
 /** Все цвета, шрифты и формы выбранного оформления; акцент берётся из текущих обоев. */
@@ -101,37 +100,23 @@ class Look(
     val bar: Color,
     /** Непрозрачная поверхность для диалогов. */
     val dialog: Color,
-    /** Пятна «Стекла», формы «Экспрессива», сетка «Неона». */
+    /** Пятна «Стекла». */
     val decor: Color,
     val radius: Dp,
     val headings: FontFamily,
     val body: FontFamily,
 ) {
-    val glows get() = style == AppStyle.NEON
-
     val sectionTitle: TextStyle
         get() = when (style) {
-            AppStyle.SOFT -> TextStyle(fontFamily = body, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            AppStyle.GLASS -> TextStyle(fontFamily = body, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            AppStyle.EXPRESSIVE -> TextStyle(fontFamily = body, fontWeight = FontWeight.Black, fontSize = 18.sp)
-            AppStyle.NEON -> TextStyle(fontFamily = headings, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.sp)
+            AppStyle.CLAY -> ClayType.title.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            AppStyle.SOFT, AppStyle.GLASS -> TextStyle(fontFamily = body, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
-
-    fun title(text: String) = if (style == AppStyle.NEON) text.uppercase() else text
 }
 
 // Шрифты лежат готовыми начертаниями: вариативные оси применяются не везде одинаково.
 val Manrope = FontFamily(
     Font(R.font.manrope_400, FontWeight.Normal), Font(R.font.manrope_600, FontWeight.SemiBold),
     Font(R.font.manrope_700, FontWeight.Bold), Font(FaceR.font.manrope_800, FontWeight.ExtraBold),
-)
-val Nunito = FontFamily(
-    Font(R.font.nunito_400, FontWeight.Normal), Font(R.font.nunito_600, FontWeight.SemiBold),
-    Font(R.font.nunito_700, FontWeight.Bold), Font(FaceR.font.nunito_900, FontWeight.Black),
-)
-val Unbounded = FontFamily(
-    Font(R.font.unbounded_500, FontWeight.Medium), Font(FaceR.font.unbounded_700, FontWeight.Bold),
-    Font(R.font.unbounded_800, FontWeight.ExtraBold),
 )
 val Onest = FontFamily(
     Font(R.font.onest_400, FontWeight.Normal), Font(R.font.onest_500, FontWeight.Medium),
@@ -154,6 +139,19 @@ fun lookFor(style: AppStyle, dark: Boolean, accentColor: Int): Look {
     val onPrimary = if (primary.luminance() > 0.35f) Color(0xFF111111) else white
     val accentText = if (dark) mix(accent, white, 0.45f) else mix(accent, black, 0.35f)
     return when (style) {
+        AppStyle.CLAY -> {
+            // «Мята»: тёплый матовый фон, светлые объёмные плитки, мятный главный цвет (см. Clay.kt).
+            val c = if (dark) ClayPalette.Dark else ClayPalette.Light
+            Look(
+                style, dark, accent, primary = c.mint.face, onPrimary = c.mint.content, accentText = c.link,
+                background = c.canvas, text = c.ink, muted = c.muted,
+                card = c.surface.face, highlight = c.field, onHighlight = c.ink,
+                cardBorder = Color.Transparent, control = c.field,
+                bar = c.canvas, dialog = c.surface.face,
+                decor = Color.Transparent, radius = ClayRadius.card, headings = Onest, body = Onest,
+            )
+        }
+
         AppStyle.SOFT -> {
             // Одноцветный: карточки — того же цвета, что фон, их выделяют свет и тень (см. Soft.kt).
             val c = if (dark) SoftPalette.Dark else SoftPalette.Light
@@ -202,64 +200,21 @@ fun lookFor(style: AppStyle, dark: Boolean, accentColor: Int): Look {
                 decor = accent.copy(alpha = 0.32f), radius = 24.dp, headings = Manrope, body = Manrope,
             )
         }
-
-        AppStyle.EXPRESSIVE -> if (dark) {
-            val base = Color(0xFF111114)
-            Look(
-                style, dark, accent, primary, onPrimary, accentText,
-                background = mix(accent, base, 0.88f), text = mix(accent, white, 0.92f), muted = mix(accent, white, 0.7f),
-                card = mix(accent, base, 0.78f), highlight = mix(accent, base, 0.55f), onHighlight = mix(accent, white, 0.9f),
-                cardBorder = Color.Transparent, control = mix(accent, base, 0.72f),
-                bar = mix(accent, base, 0.82f), dialog = mix(accent, base, 0.8f),
-                decor = mix(accent, base, 0.62f), radius = 32.dp, headings = Nunito, body = Nunito,
-            )
-        } else {
-            val ink = mix(accent, black, 0.86f)
-            Look(
-                style, dark, accent, primary, onPrimary, accentText,
-                background = mix(accent, white, 0.93f), text = ink, muted = ink.copy(alpha = 0.7f),
-                card = mix(accent, white, 0.82f), highlight = mix(accent, white, 0.6f), onHighlight = mix(accent, black, 0.7f),
-                cardBorder = Color.Transparent, control = mix(accent, white, 0.82f),
-                bar = mix(accent, white, 0.86f), dialog = mix(accent, white, 0.9f),
-                decor = mix(accent, white, 0.66f), radius = 32.dp, headings = Nunito, body = Nunito,
-            )
-        }
-
-        AppStyle.NEON -> if (dark) {
-            Look(
-                style, dark, accent, primary, onPrimary, accentText,
-                background = Color(0xFF06060A), text = Color(0xFFEDEDF5), muted = Color(0xFF9A9AB0),
-                card = Color(0xFF0C0C12).copy(alpha = 0.88f), highlight = Color(0xFF0C0C12).copy(alpha = 0.88f), onHighlight = Color(0xFFEDEDF5),
-                cardBorder = Color(0xFF1E1E2A), control = Color(0xFF0C0C12),
-                bar = Color(0xFF06060A).copy(alpha = 0.95f), dialog = Color(0xFF111119),
-                decor = accent.copy(alpha = 0.08f), radius = 18.dp, headings = Unbounded, body = Onest,
-            )
-        } else {
-            Look(
-                style, dark, accent, primary, onPrimary, accentText,
-                background = Color(0xFFF3F3F8), text = Color(0xFF12121A), muted = Color(0xFF5A5A70),
-                card = white.copy(alpha = 0.92f), highlight = white.copy(alpha = 0.92f), onHighlight = Color(0xFF12121A),
-                cardBorder = Color(0xFFDCDCE6), control = white,
-                bar = Color(0xFFF3F3F8).copy(alpha = 0.96f), dialog = white,
-                decor = accent.copy(alpha = 0.10f), radius = 18.dp, headings = Unbounded, body = Onest,
-            )
-        }
     }
 }
 
-val LocalLook = staticCompositionLocalOf { lookFor(AppStyle.SOFT, false, 0xFF8B6CF6.toInt()) }
+val LocalLook = staticCompositionLocalOf { lookFor(AppStyle.CLAY, false, 0xFF8B6CF6.toInt()) }
 
 private fun typography(look: Look): Typography {
     val base = Typography()
     fun TextStyle.h() = copy(fontFamily = look.headings)
     fun TextStyle.b() = copy(fontFamily = look.body)
-    val neon = look.style == AppStyle.NEON
-    val heavy = if (look.style == AppStyle.EXPRESSIVE) FontWeight.Black else FontWeight.ExtraBold
+    val clay = look.style == AppStyle.CLAY
     return base.copy(
         displayLarge = base.displayLarge.h(), displayMedium = base.displayMedium.h(), displaySmall = base.displaySmall.h(),
         headlineLarge = base.headlineLarge.h(), headlineMedium = base.headlineMedium.h(),
-        headlineSmall = base.headlineSmall.h().copy(fontWeight = heavy, fontSize = if (neon) 20.sp else 24.sp),
-        titleLarge = base.titleLarge.h().copy(fontWeight = FontWeight.Bold, fontSize = if (neon) 18.sp else 22.sp),
+        headlineSmall = if (clay) ClayType.heading.copy(fontSize = 24.sp) else base.headlineSmall.h().copy(fontWeight = FontWeight.ExtraBold, fontSize = 24.sp),
+        titleLarge = if (clay) ClayType.heading else base.titleLarge.h().copy(fontWeight = FontWeight.Bold, fontSize = 22.sp),
         titleMedium = base.titleMedium.b().copy(fontWeight = FontWeight.Bold),
         titleSmall = base.titleSmall.b().copy(fontWeight = FontWeight.Bold),
         bodyLarge = base.bodyLarge.b(), bodyMedium = base.bodyMedium.b(), bodySmall = base.bodySmall.b(),
@@ -270,10 +225,9 @@ private fun typography(look: Look): Typography {
 }
 
 private fun shapes(look: Look) = when (look.style) {
+    AppStyle.CLAY -> Shapes(RoundedCornerShape(ClayRadius.small), RoundedCornerShape(14.dp), RoundedCornerShape(ClayRadius.tile), RoundedCornerShape(ClayRadius.card), RoundedCornerShape(28.dp))
     AppStyle.SOFT -> Shapes(RoundedCornerShape(12.dp), RoundedCornerShape(16.dp), RoundedCornerShape(20.dp), RoundedCornerShape(28.dp), RoundedCornerShape(32.dp))
     AppStyle.GLASS -> Shapes(RoundedCornerShape(8.dp), RoundedCornerShape(12.dp), RoundedCornerShape(16.dp), RoundedCornerShape(24.dp), RoundedCornerShape(28.dp))
-    AppStyle.EXPRESSIVE -> Shapes(RoundedCornerShape(10.dp), RoundedCornerShape(16.dp), RoundedCornerShape(22.dp), RoundedCornerShape(32.dp), RoundedCornerShape(36.dp))
-    AppStyle.NEON -> Shapes(RoundedCornerShape(6.dp), RoundedCornerShape(8.dp), RoundedCornerShape(12.dp), RoundedCornerShape(18.dp), RoundedCornerShape(20.dp))
 }
 
 /** Тема приложения: выбранное оформление + светлая/тёмная + акцент текущих обоев. */
@@ -302,8 +256,11 @@ fun AppTheme(accentColor: Int, content: @Composable () -> Unit) {
     val solidCard = mix(look.background, look.card.copy(alpha = 1f), look.card.alpha)
     val tonal = mix(look.background, look.primary, if (dark) 0.3f else 0.22f)
     val base = if (dark) darkColorScheme() else lightColorScheme()
+    // В «Мяте» мятная плитка слишком светла для текста: ссылки, переключатели и ползунки Material — тёмно-мятные.
+    val clay = look.style == AppStyle.CLAY
     val scheme = base.copy(
-        primary = look.primary, onPrimary = look.onPrimary,
+        primary = if (clay) look.accentText else look.primary,
+        onPrimary = if (clay) (if (dark) look.onPrimary else Color.White) else look.onPrimary,
         primaryContainer = tonal, onPrimaryContainer = look.text,
         secondary = look.primary, onSecondary = look.onPrimary,
         secondaryContainer = tonal, onSecondaryContainer = look.text,

@@ -91,26 +91,24 @@ object FolderWidget {
                 paint.color = Colors.withAlpha(0xFFFFFFFF.toInt(), 0.18f + 0.3f * opacity)
                 c.drawRoundRect(r, s * 0.3f, s * 0.3f, paint)
             }
-            "ice" -> {
-                // Лёд: светлая стеклянная капсула с толстой белой кромкой, рисунок — тёмный.
-                val r = RectF(s * 0.05f, s * 0.05f, s * 0.95f, s * 0.95f)
-                paint.color = Colors.withAlpha(0xFFF1F3F7.toInt(), 0.6f + 0.4f * opacity)
-                c.drawRoundRect(r, s * 0.3f, s * 0.3f, paint)
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = s * 0.03f
-                paint.color = 0xF5FFFFFF.toInt()
-                c.drawRoundRect(r, s * 0.3f, s * 0.3f, paint)
-            }
-            "glow" -> {
-                // Сияние: тёмная капсула, снизу — полоса света цвета акцента.
-                val r = RectF(s * 0.05f, s * 0.05f, s * 0.95f, s * 0.95f)
-                paint.color = Colors.withAlpha(0xFF17171C.toInt(), 0.78f + 0.22f * opacity)
-                c.drawRoundRect(r, s * 0.26f, s * 0.26f, paint)
-                paint.color = config.accentColor ?: WidgetRenderer.GLOW_PURPLE
+            "mint" -> {
+                // Мята: светлая плитка с толщиной снизу и мягкой тенью, рисунок — графитовый.
+                val d = s * 0.045f
+                val r = RectF(s * 0.06f, s * 0.04f, s * 0.94f, s * 0.9f)
+                paint.color = 0x664A4036
                 paint.maskFilter = BlurMaskFilter(s * 0.05f, BlurMaskFilter.Blur.NORMAL)
-                c.drawRoundRect(RectF(s * 0.22f, s * 0.86f, s * 0.78f, s * 0.9f), s * 0.02f, s * 0.02f, paint)
+                c.drawRoundRect(RectF(r.left + s * 0.03f, r.top + d * 2, r.right - s * 0.03f, r.bottom + d * 1.6f), s * 0.26f, s * 0.26f, paint)
                 paint.maskFilter = null
-                mark = config.textColor ?: 0xFFF4F2FA.toInt()
+                paint.color = 0xFFCFC9C1.toInt()
+                c.drawRoundRect(RectF(r.left, r.top + d, r.right, r.bottom + d), s * 0.26f, s * 0.26f, paint)
+                paint.color = WidgetRenderer.MINT_SURFACE
+                c.drawRoundRect(r, s * 0.26f, s * 0.26f, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = s * 0.014f
+                paint.shader = android.graphics.LinearGradient(0f, r.top, 0f, r.top + s * 0.3f, 0xCCFFFFFF.toInt(), 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP)
+                c.drawRoundRect(r, s * 0.26f, s * 0.26f, paint)
+                paint.shader = null
+                mark = config.textColor ?: WidgetRenderer.MINT_INK
             }
             "neon" -> {
                 paint.color = Colors.withAlpha(0xFF0B0B12.toInt(), opacity)
