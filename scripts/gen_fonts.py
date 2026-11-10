@@ -22,7 +22,7 @@ LICENSES = os.path.join(ROOT, "mobile", "src", "main", "assets", "licenses", "fo
 KT = os.path.join(ROOT, "core", "src", "main", "kotlin", "app", "synctheme", "core", "DigitFont.kt")
 GF = "https://raw.githubusercontent.com/google/fonts/main/ofl/"
 
-# Шесть шрифтов, разных по форме: узкий гротеск, антиква, рукописный, точечный, пузырчатый и ретро-линии.
+# Шрифты из google/fonts, разные по форме: антиква, рукописный, точечный, пузырчатый и ретро-линии.
 # имя константы, ресурс, подпись, путь в google/fonts, оси
 NEW = [
     ("SERIF", "dm_serif", "Антиква", "dmserifdisplay/DMSerifDisplay-Regular.ttf", {}),
@@ -31,8 +31,10 @@ NEW = [
     ("BUBBLE", "dynapuff", "Пузыри", "dynapuff/DynaPuff%5Bwdth,wght%5D.ttf", {"wght": 700, "wdth": 100}),
     ("RETRO", "monoton", "Ретро", "monoton/Monoton-Regular.ttf", {}),
 ]
-# Шрифты, которые уже есть в приложении (полные, с кириллицей).
+# Шрифты, которые уже лежат в :faces: Oswald (полный, с кириллицей) и свой «Растянутый»
+# (его рисует scripts/gen_stretch_font.py — запустить раньше этого скрипта).
 EXISTING = [
+    ("STRETCH", "stretch", "Растянутый"),
     ("NARROW", "oswald_700", "Узкий"),
 ]
 TEXT = "0123456789: AMPamp"
@@ -61,7 +63,8 @@ def metrics(font):
 
 
 rows = []
-licenses = ["Шрифты цифр SyncTheme распространяются по лицензии SIL Open Font License 1.1.",
+licenses = ["«Растянутый» — собственный шрифт SyncTheme.",
+            "Остальные шрифты цифр распространяются по лицензии SIL Open Font License 1.1.",
             "Из них оставлены только цифры, двоеточие и буквы AM/PM."]
 for const, res, title, path, axes in NEW:
     font = TTFont(io.BytesIO(fetch(GF + path)))
@@ -103,7 +106,7 @@ kt = ["package app.synctheme.core", "", "import kotlinx.serialization.Serializab
       "    val res: String?, val title: String,",
       "    val ascent: Float, val descent: Float, val top: Float, val bottom: Float, val digit: Float, val colon: Float,",
       ") {"]
-order = ["NARROW"] + [r[0] for r in NEW]
+order = [r[0] for r in EXISTING] + [r[0] for r in NEW]
 by = {r[0]: r for r in rows}
 for const in order:
     _, res, title, m = by[const]
@@ -117,6 +120,12 @@ kt += ["",
        "",
        "    /** Высота цифр в долях кегля. */",
        "    val digitHeight get() = top - bottom",
+       "",
+       "    /**",
+       "     * Во сколько раз выше обычной рамка для строки времени. Высоким узким цифрам («Растянутый»)",
+       "     * ширины хватает с запасом — их ограничивает высота, и в обычной рамке они вышли бы мелкими.",
+       "     */",
+       "    val tallness get() = if (digitHeight > 2 * digit) 2.1f else 1f",
        "",
        "    /** Ширина текста из цифр и двоеточий в долях кегля. */",
        "    fun width(text: String) = text.sumOf { (if (it == ':') colon else digit).toDouble() }.toFloat()",

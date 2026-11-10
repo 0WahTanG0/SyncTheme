@@ -21,7 +21,7 @@ class LegacyStylesTest {
 
     @Test
     fun oldFontsBecomeSimilarOnes() {
-        assertEquals(6, DigitFonts.choices.size)
+        assertEquals(7, DigitFonts.choices.size)
         assertEquals(DigitFont.NARROW, DigitFonts.of("GROTESK"))
         assertEquals(DigitFont.RETRO, DigitFonts.of("TUBE"))
         assertEquals(DigitFont.DOTS, DigitFonts.of("PIXEL"))

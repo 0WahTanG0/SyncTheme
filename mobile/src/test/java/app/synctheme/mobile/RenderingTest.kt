@@ -329,6 +329,11 @@ class RenderingTest {
             val t = base.copy(watch = base.followPhone().copy(clockStyle = style, digitFont = font, dialStyle = dial, complications = i % 2 == 0, showSeconds = i % 3 != 0))
             assertTrue(style.name, WatchFaceBuilder(context).build(t).token.isNotEmpty())
         }
+        // Свой шрифт «Растянутый» — в каждом стиле: файл есть в шаблоне, валидатор его принимает.
+        ClockStyle.entries.forEach { style ->
+            val t = base.copy(watch = base.followPhone().copy(clockStyle = style, digitFont = DigitFont.STRETCH))
+            assertTrue("${style.name} STRETCH", WatchFaceBuilder(context).build(t).token.isNotEmpty())
+        }
     }
 
     private fun render(view: View, wDp: Int, hDp: Int, background: Bitmap): Bitmap {

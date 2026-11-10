@@ -107,6 +107,8 @@ internal object VerticalFit {
         val w = dp.width - 2 * spec.padH
         val h = dp.height - 2 * spec.padV
         val tall = size == WidgetSize.TALL
+        // «Табло»: цифры картинкой без полей шрифта (ClockDigits.render с tight), как в WidgetRenderer.digits.
+        val tight = family == "board"
         val divBlock = 2 * spec.div + 1
 
         fun main(id: Int, s: Float, em: Em, top: Float, bottom: Float = 0f) {
@@ -116,11 +118,16 @@ internal object VerticalFit {
             rv.setViewLayoutMargin(id, RemoteViews.MARGIN_TOP, top - em.above * s, TypedValue.COMPLEX_UNIT_DIP)
             rv.setViewLayoutMargin(id, RemoteViews.MARGIN_BOTTOM, bottom - em.below * s, TypedValue.COMPLEX_UNIT_DIP)
             // Картинка цифр (ClockDigits) — на том же месте: строка текста той же высоты и с теми же отступами.
+            // На плашках «Табло» картинка «плотная» — цифры занимают TIGHT её высоты, без полей шрифта:
+            // её высота — по самим цифрам, иначе высокие цифры («Растянутый») вылезли бы за плашку.
+            val ink = em.ink * s
+            val imageH = if (tight) ink / ClockDigits.TIGHT else (em.above + em.ink + em.below) * s
+            val over = if (tight) (imageH - ink) / 2 else 0f
             for (image in layout.ids) {
                 if (TimeImages[image]?.clock != id) continue
-                rv.setViewLayoutHeight(image, (em.above + em.ink + em.below) * s, TypedValue.COMPLEX_UNIT_DIP)
-                rv.setViewLayoutMargin(image, RemoteViews.MARGIN_TOP, top - em.above * s, TypedValue.COMPLEX_UNIT_DIP)
-                rv.setViewLayoutMargin(image, RemoteViews.MARGIN_BOTTOM, bottom - em.below * s, TypedValue.COMPLEX_UNIT_DIP)
+                rv.setViewLayoutHeight(image, imageH, TypedValue.COMPLEX_UNIT_DIP)
+                rv.setViewLayoutMargin(image, RemoteViews.MARGIN_TOP, if (tight) top - over else top - em.above * s, TypedValue.COMPLEX_UNIT_DIP)
+                rv.setViewLayoutMargin(image, RemoteViews.MARGIN_BOTTOM, if (tight) bottom - over else bottom - em.below * s, TypedValue.COMPLEX_UNIT_DIP)
             }
         }
         fun show(id: Int, visible: Boolean) {

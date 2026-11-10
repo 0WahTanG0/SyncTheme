@@ -191,7 +191,7 @@ internal object WallClockPlacer {
         val gap = h * 0.012f
         var best: Candidate? = null
         for (scale in listOf(1f, 0.88f, 0.76f)) {
-            val size = WatchFaceXml.fit(font, "00:00", (w * 0.86f).toInt(), (h * 0.12f).toInt()) * scale
+            val size = WatchFaceXml.fit(font, "00:00", (w * 0.86f).toInt(), (h * 0.12f * font.tallness).toInt()) * scale
             val bw = font.width("00:00") * size
             val bh = font.digitHeight * size
             // Центр цифр движется от края экрана к объекту, пока объект не закроет TARGET цифр.

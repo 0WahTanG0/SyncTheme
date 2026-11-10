@@ -9,7 +9,7 @@ import kotlinx.serialization.encoding.Encoder
 
 /** Шрифты цифр на выбор и шрифты прошлых версий. */
 object DigitFonts {
-    /** Шесть шрифтов, разных по форме: системный тонкий остаётся только «как задумано» у некоторых стилей. */
+    /** Семь шрифтов, разных по форме: системный тонкий остаётся только «как задумано» у некоторых стилей. */
     val choices: List<DigitFont> = DigitFont.entries.filter { it.res != null }
 
     /**

@@ -14,6 +14,7 @@ enum class DigitFont(
     val res: String?, val title: String,
     val ascent: Float, val descent: Float, val top: Float, val bottom: Float, val digit: Float, val colon: Float,
 ) {
+    STRETCH("stretch", "Растянутый", 1.060f, 0.200f, 1.000f, 0.000f, 0.362f, 0.150f),
     NARROW("oswald_700", "Узкий", 1.193f, 0.289f, 0.822f, -0.015f, 0.550f, 0.278f),
     SERIF("dm_serif", "Антиква", 1.036f, 0.335f, 0.649f, -0.020f, 0.538f, 0.300f),
     HAND("caveat", "Рукопись", 0.960f, 0.300f, 0.588f, -0.049f, 0.471f, 0.198f),
@@ -27,6 +28,12 @@ enum class DigitFont(
 
     /** Высота цифр в долях кегля. */
     val digitHeight get() = top - bottom
+
+    /**
+     * Во сколько раз выше обычной рамка для строки времени. Высоким узким цифрам («Растянутый»)
+     * ширины хватает с запасом — их ограничивает высота, и в обычной рамке они вышли бы мелкими.
+     */
+    val tallness get() = if (digitHeight > 2 * digit) 2.1f else 1f
 
     /** Ширина текста из цифр и двоеточий в долях кегля. */
     fun width(text: String) = text.sumOf { (if (it == ':') colon else digit).toDouble() }.toFloat()

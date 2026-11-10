@@ -84,9 +84,12 @@ internal object ClockDigits {
         return bmp
     }
 
+    /** Доля высоты «плотной» картинки, которую занимают цифры. */
+    const val TIGHT = 0.88f
+
     /** Одна строка: высота картинки — высота цифр с небольшим запасом, цифры по центру. */
     private fun renderTight(paint: Paint, font: DigitFont, text: String, glow: Boolean, heightPx: Int): Bitmap {
-        paint.textSize = 0.88f * heightPx / font.digitHeight
+        paint.textSize = TIGHT * heightPx / font.digitHeight
         val size = paint.textSize
         val (left, right) = inkSpan(paint, text, glow)
         val width = max(1, ceil(right - left).toInt())

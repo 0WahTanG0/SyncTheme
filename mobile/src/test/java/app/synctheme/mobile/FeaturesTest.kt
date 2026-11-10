@@ -17,6 +17,7 @@ import androidx.test.core.app.ApplicationProvider
 import app.synctheme.core.Background
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
+import app.synctheme.core.DigitFont
 import app.synctheme.core.Presets
 import app.synctheme.core.Theme
 import app.synctheme.core.WallClock
@@ -202,6 +203,35 @@ class FeaturesTest {
         val lock = ThemeRenderer.lockPreview(context, base.copy(wallClock = WallClock(depth = true, onLock = true, weather = true, battery = true)), 540, 1170)
         c.drawBitmap(lock, null, RectF(16f + 3 * (pw + 16), 16f, 16f + 3 * (pw + 16) + pw, 16f + ph), null)
         sheet.save("depth_phone.png")
+    }
+
+    /**
+     * «Растянутый» шрифт: экран блокировки и рабочий стол как на образце (сталь, тёмные тонкие цифры),
+     * часы за объектом фото и небольшие часы по центру.
+     */
+    @Test
+    fun stretchFont() = runBlocking<Unit> {
+        SubjectMask.ensure(context, photo)
+        val steel = Presets.all[0].copy(
+            background = Background(BackgroundType.RADIAL, listOf(0xFF8C9DB6.toInt(), 0xFF3E4C62.toInt(), 0xFF151B26.toInt())),
+            dim = 0f, textColor = 0xFF10141B.toInt(), digitFont = DigitFont.STRETCH,
+        )
+        val shots = listOf(
+            ThemeRenderer.lockPreview(context, steel.copy(wallClock = WallClock(WallClockLayout.TOP, depth = false, onLock = true)), 540, 1170),
+            ThemeRenderer.phonePreview(context, steel.copy(wallClock = WallClock(WallClockLayout.TOP, depth = false)), 540, 1170),
+            ThemeRenderer.phonePreview(context, photoTheme().copy(digitFont = DigitFont.STRETCH, wallClock = WallClock(depth = true)), 540, 1170),
+            ThemeRenderer.phonePreview(context, steel.copy(wallClock = WallClock(WallClockLayout.STACKED, depth = false)), 540, 1170),
+            ThemeRenderer.phonePreview(context, steel.copy(wallClock = WallClock(WallClockLayout.CENTER, depth = false)), 540, 1170),
+        )
+        val pw = 270
+        val ph = 585
+        val sheet = Bitmap.createBitmap(shots.size * (pw + 16) + 16, ph + 32, Bitmap.Config.ARGB_8888)
+        val c = Canvas(sheet)
+        c.drawColor(0xFF202024.toInt())
+        shots.forEachIndexed { i, shot ->
+            c.drawBitmap(shot, null, RectF(16f + i * (pw + 16), 16f, 16f + i * (pw + 16) + pw, 16f + ph), null)
+        }
+        sheet.save("stretch_phone.png")
     }
 
     /**

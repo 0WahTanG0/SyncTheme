@@ -563,10 +563,12 @@ object ThemeRenderer {
         }
         val date = { cy: Float, size: Float -> WallClockSpot.DateLabel(w / 2, cy, size, "EEEE, d MMMM", Paint.Align.CENTER) }
         return when (wall.layout) {
-            app.synctheme.core.WallClockLayout.TOP -> WallClockSpot(
-                listOf(WallClockSpot.Line(WallClockSpot.Part.TIME, w / 2, h * 0.215f, WatchFaceXml.fit(font, "00:00", (w * 0.86f).toInt(), (h * 0.12f).toInt()))),
-                date(h * 0.115f, w * 0.045f),
-            )
+            app.synctheme.core.WallClockLayout.TOP -> {
+                // Высокие цифры опускаются, чтобы не наползать на дату над ними.
+                val size = WatchFaceXml.fit(font, "00:00", (w * 0.86f).toInt(), (h * 0.12f * font.tallness).toInt())
+                val cy = max(h * 0.215f, h * 0.15f + font.digitHeight * size / 2)
+                WallClockSpot(listOf(WallClockSpot.Line(WallClockSpot.Part.TIME, w / 2, cy, size)), date(h * 0.115f, w * 0.045f))
+            }
             app.synctheme.core.WallClockLayout.STACKED -> {
                 val size = WatchFaceXml.fit(font, "00", (w * 0.78f).toInt(), (h * 0.15f).toInt())
                 WallClockSpot(
@@ -577,17 +579,20 @@ object ThemeRenderer {
                     date(h * 0.095f, w * 0.045f),
                 )
             }
-            app.synctheme.core.WallClockLayout.CENTER -> WallClockSpot(
-                listOf(WallClockSpot.Line(WallClockSpot.Part.TIME, w / 2, h * 0.42f, WatchFaceXml.fit(font, "00:00", (w * 0.56f).toInt(), (h * 0.075f).toInt()))),
-                date(h * 0.48f, w * 0.04f),
-            )
+            app.synctheme.core.WallClockLayout.CENTER -> {
+                val size = WatchFaceXml.fit(font, "00:00", (w * 0.56f).toInt(), (h * 0.075f * font.tallness).toInt())
+                WallClockSpot(
+                    listOf(WallClockSpot.Line(WallClockSpot.Part.TIME, w / 2, h * 0.42f, size)),
+                    date(max(h * 0.48f, h * 0.445f + font.digitHeight * size / 2), w * 0.04f),
+                )
+            }
         }
     }
 
     /** Обычный кегль часов на обоях: одной строкой во всю ширину или часы над минутами. */
     private fun baseClockSize(font: DigitFont, w: Float, h: Float, stacked: Boolean) =
         if (stacked) WatchFaceXml.fit(font, "00", (w * 0.42f).toInt(), (h * 0.12f).toInt())
-        else WatchFaceXml.fit(font, "00:00", (w * 0.86f).toInt(), (h * 0.12f).toInt())
+        else WatchFaceXml.fit(font, "00:00", (w * 0.86f).toInt(), (h * 0.12f * font.tallness).toInt())
 
     /** Часы, передвинутые вручную: центр цифр в (x, y), дата над ними. */
     private fun placedSpot(p: ClockPlace, font: DigitFont, w: Float, h: Float): WallClockSpot {
