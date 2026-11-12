@@ -9,20 +9,18 @@ import kotlinx.serialization.encoding.Encoder
 
 /** Шрифты цифр на выбор и шрифты прошлых версий. */
 object DigitFonts {
-    /** Семь шрифтов, разных по форме: системный тонкий остаётся только «как задумано» у некоторых стилей. */
+    /** Шесть своих шрифтов, разных по типу: системный тонкий остаётся только «как задумано» у некоторых стилей. */
     val choices: List<DigitFont> = DigitFont.entries.filter { it.res != null }
 
     /**
-     * До 1.21 шрифтов было 17, многие отличались лишь насыщенностью и шириной. Каждый прежний
-     * становится самым похожим по форме из шести — сохранённые темы и виджеты не ломаются.
+     * Шрифты прошлых версий (до 1.21 — 17 шрифтов, до 1.28 — шрифты Google Fonts) становятся самым
+     * похожим по характеру из нынешних — сохранённые темы и виджеты не ломаются.
      */
     private val legacy = mapOf(
-        "WIDE" to DigitFont.NARROW, "GROTESK" to DigitFont.NARROW, "BLOCK" to DigitFont.NARROW,
-        "STENCIL" to DigitFont.NARROW, "SPACE" to DigitFont.NARROW,
-        "ROUND" to DigitFont.BUBBLE,
-        "OUTLINE" to DigitFont.RETRO, "TUBE" to DigitFont.RETRO,
-        "PIXEL" to DigitFont.DOTS, "MONO" to DigitFont.DOTS,
-        "ITALIC" to DigitFont.SERIF,
+        "NARROW" to DigitFont.COLUMN, "WIDE" to DigitFont.COLUMN, "GROTESK" to DigitFont.COLUMN,
+        "SERIF" to DigitFont.STRETCH, "ITALIC" to DigitFont.STRETCH, "HAND" to DigitFont.STRETCH,
+        "BUBBLE" to DigitFont.OUTLINE, "ROUND" to DigitFont.OUTLINE, "RETRO" to DigitFont.OUTLINE, "TUBE" to DigitFont.OUTLINE,
+        "DOTS" to DigitFont.TECHNO, "PIXEL" to DigitFont.TECHNO, "MONO" to DigitFont.TECHNO, "SPACE" to DigitFont.TECHNO,
     )
 
     /** Шрифт по имени, в том числе из прошлых версий; null — имя неизвестно. */
@@ -35,5 +33,5 @@ object DigitFontSerializer : KSerializer<DigitFont> {
 
     override fun serialize(encoder: Encoder, value: DigitFont) = encoder.encodeString(value.name)
 
-    override fun deserialize(decoder: Decoder): DigitFont = DigitFonts.of(decoder.decodeString()) ?: DigitFont.NARROW
+    override fun deserialize(decoder: Decoder): DigitFont = DigitFonts.of(decoder.decodeString()) ?: DigitFont.COLUMN
 }

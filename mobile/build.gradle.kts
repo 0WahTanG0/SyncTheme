@@ -15,8 +15,8 @@ android {
         // Android 9+: работает на любом телефоне и планшете; новые API — через util/Compat.kt.
         minSdk = 28
         targetSdk = 36
-        versionCode = 47
-        versionName = "1.27.0"
+        versionCode = 48
+        versionName = "1.28.0"
         // Откуда приложение берёт обновления: релизы GitHub owner/repo (-PupdateRepo=... при сборке).
         resValue("string", "update_repo", providers.gradleProperty("updateRepo").getOrElse(""))
         // arm64 — почти все телефоны; armeabi-v7a — недорогие с 32-битной системой (Redmi 9A/9C и др.),

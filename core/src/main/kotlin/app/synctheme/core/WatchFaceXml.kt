@@ -27,10 +27,7 @@ object WatchFaceXml {
     const val HAND_MINUTE_WIDE = "hand_minute_wide"
 
     /** Шрифты в res/font шаблона циферблата (те же, что в приложении на телефоне). */
-    const val FONT_BOLD = "oswald_700"
-    const val FONT_NEON = "unbounded_700"
     const val FONT_ROUND = "nunito_900"
-    const val FONT_GLASS = "manrope_800"
     const val FONT_LABEL = "onest_600"
 
     private const val C = SIZE / 2
@@ -312,7 +309,7 @@ object WatchFaceXml {
     /** «Крупно»: часы и минуты узким шрифтом во весь экран, дата и батарея — в просвете между ними. */
     private fun bold(x: Xml, w: WatchSettings, text: String, accent: String) {
         if (w.showSeconds) secondsRing(x, w.accentColor)
-        val font = w.digits() ?: DigitFont.NARROW
+        val font = w.digits() ?: DigitFont.COLUMN
         block(x) {
             digits(x, C, 136, 300, 170, "hh", font, text)
             digits(x, C, 318, 300, 170, "mm", font, accent, hourFormat = null)
@@ -348,7 +345,7 @@ object WatchFaceXml {
         }
         block(x) {
             if (w.showDate) label(x, 105, 118, 240, 40, 26f, accent, FONT_LABEL, "%s %d %s", "[DAY_OF_WEEK_S]", "[DAY]", "[MONTH_S]")
-            digits(x, C, 222, 280, 76, "hh:mm", w.digits() ?: DigitFont.NARROW, text)
+            digits(x, C, 222, 280, 76, "hh:mm", w.digits() ?: DigitFont.COLUMN, text)
         }
         if (w.complications) {
             complication(x, 0, 152, 290, 66, w, "WATCH_BATTERY", "RANGED_VALUE")
@@ -395,7 +392,7 @@ object WatchFaceXml {
                 dot(x, 210f, head, "#FFFFFFFF", 11f)
             }
         }
-        val font = w.digits() ?: DigitFont.RETRO
+        val font = w.digits() ?: DigitFont.OUTLINE
         block(x) {
             if (layer == Layer.FULL) {
                 // Ореол: две полупрозрачные копии времени цветом акцента со сдвигом.
@@ -479,7 +476,7 @@ object WatchFaceXml {
                 }
             }
             if (w.showDate) label(x, 105, 120, 240, 40, 25f, color(withAlpha(w.textColor, 0xCC)), FONT_LABEL, "%s, %d %s", "[DAY_OF_WEEK_S]", "[DAY]", "[MONTH_S]")
-            digits(x, C, 222, 280, 84, "hh:mm", w.digits() ?: DigitFont.SERIF, text)
+            digits(x, C, 222, 280, 84, "hh:mm", w.digits() ?: DigitFont.STRETCH, text)
         }
         if (w.complications) {
             complication(x, 0, 152, 288, 68, w, "WATCH_BATTERY", "RANGED_VALUE")
@@ -520,7 +517,7 @@ object WatchFaceXml {
      * Подписи повёрнуты вдоль радиуса — в окошке они стоят ровно.
      */
     private fun drum(x: Xml, w: WatchSettings, text: String, accent: String, layer: Layer) {
-        val font = w.digits() ?: DigitFont.DOTS
+        val font = w.digits() ?: DigitFont.TECHNO
         // Окошко показывает, где читать время, — оно есть во всех слоях.
         part(x, "window") {
             x.open("""RoundRectangle x="296" y="191" width="150" height="68" cornerRadiusX="34" cornerRadiusY="34"""")
@@ -577,7 +574,7 @@ object WatchFaceXml {
 
     /** «Колонки»: прошлый, текущий и следующий час и минута столбиками, секунды — шкала между ними. */
     private fun columns(x: Xml, w: WatchSettings, text: String, accent: String, layer: Layer) = block(x) {
-        val font = w.digits() ?: DigitFont.SERIF
+        val font = w.digits() ?: DigitFont.STRETCH
         digits(x, 140, 225, 150, 116, "hh", font, text, hourFormat = "24")
         digits(x, 310, 225, 150, 116, "mm", font, accent, hourFormat = null)
         if (layer == Layer.FULL) {
@@ -605,7 +602,7 @@ object WatchFaceXml {
 
     /** «Планеты»: часы и минуты — шары на своих орбитах, секунды — спутник у края. */
     private fun planets(x: Xml, w: WatchSettings, text: String, accent: String, layer: Layer) {
-        val font = w.digits() ?: DigitFont.BUBBLE
+        val font = w.digits() ?: DigitFont.OUTLINE
         if (layer != Layer.TIME) {
             part(x, "orbits") {
                 val orbit = color(withAlpha(w.textColor, if (layer == Layer.AMBIENT) 0x40 else 0x33))
@@ -665,7 +662,7 @@ object WatchFaceXml {
 
     /** «Матрица»: точечные цифры и 60 огоньков секунд — прошедшие горят цветом акцента. */
     private fun matrix(x: Xml, w: WatchSettings, text: String, accent: String, layer: Layer) {
-        val font = w.digits() ?: DigitFont.DOTS
+        val font = w.digits() ?: DigitFont.TECHNO
         if (layer == Layer.FULL) {
             for (i in 0 until 60) {
                 val a = Math.toRadians(i * 6.0)
@@ -704,7 +701,7 @@ object WatchFaceXml {
 
     /** «Заливка»: за минуту циферблат наполняется «жидкостью» цвета акцента с волной и пузырьками. */
     private fun liquid(x: Xml, w: WatchSettings, text: String, accent: String, layer: Layer) {
-        val font = w.digits() ?: DigitFont.BUBBLE
+        val font = w.digits() ?: DigitFont.BLOCK
         if (layer == Layer.FULL) {
             val fluid = color(withAlpha(w.accentColor, 0x8C))
             val level = "([SECOND] + 1) * 7.5"
@@ -750,7 +747,7 @@ object WatchFaceXml {
 
     /** «Диагональ»: часы слева сверху, минуты справа снизу, секунда бежит по диагонали между ними. */
     private fun diagonal(x: Xml, w: WatchSettings, text: String, accent: String) {
-        val font = w.digits() ?: DigitFont.NARROW
+        val font = w.digits() ?: DigitFont.STENCIL
         block(x) { diagonalBlock(x, w, text, accent, font) }
         if (w.complications) complication(x, 0, 62, 262, 76, w, "WATCH_BATTERY", "RANGED_VALUE")
     }

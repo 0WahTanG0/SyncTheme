@@ -234,6 +234,33 @@ class FeaturesTest {
         sheet.save("stretch_phone.png")
     }
 
+    /** Все шрифты цифр на экране блокировки — каждый в цветах своего образца. */
+    @Test
+    fun digitFontsOnLock() {
+        fun look(font: DigitFont, colors: List<Long>, ink: Long, type: BackgroundType = BackgroundType.RADIAL) = Presets.all[0].copy(
+            background = Background(type, colors.map { it.toInt() }), dim = 0f, textColor = ink.toInt(), digitFont = font,
+            wallClock = WallClock(WallClockLayout.TOP, depth = false, onLock = true),
+        )
+        val themes = listOf(
+            look(DigitFont.STRETCH, listOf(0xFF8C9DB6, 0xFF3E4C62, 0xFF151B26), 0xFF10141B),
+            look(DigitFont.COLUMN, listOf(0xFF3A3B3F, 0xFF1C1D20, 0xFF0E0E10), 0xFFB9BDC6),
+            look(DigitFont.OUTLINE, listOf(0xFF0E1A0E, 0xFF060906), 0xFF39FF3A, BackgroundType.LINEAR),
+            look(DigitFont.BLOCK, listOf(0xFFF4F4F4, 0xFFDADADA), 0xFF0A0A0A, BackgroundType.LINEAR),
+            look(DigitFont.TECHNO, listOf(0xFFB9BEC6, 0xFF6D737C), 0xFF141B33),
+            look(DigitFont.STENCIL, listOf(0xFF4A5A3A, 0xFF1E2617), 0xFFE8E2C8),
+        )
+        val pw = 270
+        val ph = 585
+        val sheet = Bitmap.createBitmap(themes.size * (pw + 16) + 16, ph + 32, Bitmap.Config.ARGB_8888)
+        val c = Canvas(sheet)
+        c.drawColor(0xFF202024.toInt())
+        themes.forEachIndexed { i, theme ->
+            val shot = ThemeRenderer.lockPreview(context, theme, 540, 1170)
+            c.drawBitmap(shot, null, RectF(16f + i * (pw + 16), 16f, 16f + i * (pw + 16) + pw, 16f + ph), null)
+        }
+        sheet.save("fonts_lock.png")
+    }
+
     /**
      * Умная обводка: палец примерно обвёл правый объект — в маску попадает он целиком (по его настоящим
      * границам), а левый объект рядом — нет. Обводка там, где распознаватель ничего не нашёл, — сама становится объектом.

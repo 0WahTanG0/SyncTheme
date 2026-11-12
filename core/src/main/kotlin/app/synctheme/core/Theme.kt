@@ -54,17 +54,17 @@ enum class ClockStyle {
     /** Шрифт цифр, с которым стиль задуман; null — системный шрифт с выбранной насыщенностью. */
     val defaultDigitFont: DigitFont?
         get() = when (this) {
-            BOLD -> DigitFont.NARROW
-            ORBIT -> DigitFont.NARROW
-            NEON -> DigitFont.RETRO
-            GLASS -> DigitFont.SERIF
+            BOLD -> DigitFont.COLUMN
+            ORBIT -> DigitFont.COLUMN
+            NEON -> DigitFont.OUTLINE
+            GLASS -> DigitFont.STRETCH
             MINIMAL -> DigitFont.THIN
-            DRUM -> DigitFont.DOTS
-            COLUMNS -> DigitFont.SERIF
-            PLANETS -> DigitFont.BUBBLE
-            MATRIX -> DigitFont.DOTS
-            LIQUID -> DigitFont.BUBBLE
-            DIAGONAL -> DigitFont.NARROW
+            DRUM -> DigitFont.TECHNO
+            COLUMNS -> DigitFont.STRETCH
+            PLANETS -> DigitFont.OUTLINE
+            MATRIX -> DigitFont.TECHNO
+            LIQUID -> DigitFont.BLOCK
+            DIAGONAL -> DigitFont.STENCIL
             DIGITAL, STACKED, ANALOG, BLOB -> null
         }
 }

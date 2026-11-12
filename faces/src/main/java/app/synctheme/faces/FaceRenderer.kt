@@ -348,7 +348,7 @@ object FaceRenderer {
 
         fun bold() {
             if (w.showSeconds) secondsRing()
-            val font = w.digits() ?: DigitFont.NARROW
+            val font = w.digits() ?: DigitFont.COLUMN
             block {
                 digits(s.hourText, 225f, 136f, 300, 170, font, w.textColor)
                 digits(s.minuteText, 225f, 318f, 300, 170, font, w.accentColor)
@@ -378,7 +378,7 @@ object FaceRenderer {
             }
             block {
                 if (w.showDate) textCentered(date("EEE d MMM"), 225f, 138f, textPaint(w.accentColor, 26f, f.label))
-                digits(s.timeText, 225f, 222f, 280, 76, w.digits() ?: DigitFont.NARROW, w.textColor)
+                digits(s.timeText, 225f, 222f, 280, 76, w.digits() ?: DigitFont.COLUMN, w.textColor)
             }
             if (w.complications) {
                 complication(185f, 323f, 33f, true)
@@ -407,7 +407,7 @@ object FaceRenderer {
                 }
                 dot(210f, head, Color.WHITE, 11f)
             }
-            val font = w.digits() ?: DigitFont.RETRO
+            val font = w.digits() ?: DigitFont.OUTLINE
             block {
                 if (full) {
                     val halo = withAlpha(w.accentColor, 0x66)
@@ -454,7 +454,7 @@ object FaceRenderer {
                     dot(172f, s.secondAngle, w.accentColor, 13f)
                 }
                 if (w.showDate) textCentered(date("EEE, d MMM"), 225f, 140f, textPaint(withAlpha(w.textColor, 0.8f), 25f, f.label))
-                digits(s.timeText, 225f, 222f, 280, 84, w.digits() ?: DigitFont.SERIF, w.textColor)
+                digits(s.timeText, 225f, 222f, 280, 84, w.digits() ?: DigitFont.STRETCH, w.textColor)
             }
             if (w.complications) {
                 complication(186f, 322f, 34f, true)
@@ -490,7 +490,7 @@ object FaceRenderer {
         }
 
         fun drum() {
-            val font = w.digits() ?: DigitFont.DOTS
+            val font = w.digits() ?: DigitFont.TECHNO
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
             val window = RectF(296f, 191f, 446f, 259f)
             if (full) {
@@ -535,7 +535,7 @@ object FaceRenderer {
         }
 
         fun columns() = block {
-            val font = w.digits() ?: DigitFont.SERIF
+            val font = w.digits() ?: DigitFont.STRETCH
             val h = s.hour
             val m = s.minute
             digits("%02d".format(h), 140f, 225f, 150, 116, font, w.textColor)
@@ -557,7 +557,7 @@ object FaceRenderer {
         }
 
         fun planets() {
-            val font = w.digits() ?: DigitFont.BUBBLE
+            val font = w.digits() ?: DigitFont.OUTLINE
             if (layer != Layer.TIME) {
                 val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2f; color = withAlpha(w.textColor, if (ambient) 0.25f else 0.2f) }
                 canvas.drawCircle(C, C, 105f, p)
@@ -618,7 +618,7 @@ object FaceRenderer {
                 }
             }
             block {
-                digits(s.timeText, 225f, 212f, 330, 112, w.digits() ?: DigitFont.DOTS, w.textColor)
+                digits(s.timeText, 225f, 212f, 330, 112, w.digits() ?: DigitFont.TECHNO, w.textColor)
                 if (w.showDate) textCentered(date("EEE d MMM"), 225f, 308f, textPaint(w.accentColor, 24f, f.label))
             }
             if (w.complications) {
@@ -629,7 +629,7 @@ object FaceRenderer {
 
         fun liquid() {
             val second = s.second.toInt()
-            val font = w.digits() ?: DigitFont.BUBBLE
+            val font = w.digits() ?: DigitFont.BLOCK
             if (full) {
                 val level = (second + 1) * 7.5f
                 val fluid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = withAlpha(w.accentColor, 0x8C) }
@@ -672,7 +672,7 @@ object FaceRenderer {
                 val t = s.second.toInt() * 234f / 59
                 canvas.drawCircle(108f + t, 342f - t, 8f, p)
             }
-            val font = w.digits() ?: DigitFont.NARROW
+            val font = w.digits() ?: DigitFont.STENCIL
             digits(s.hourText, 165f, 165f, 210, 140, font, w.textColor)
             digits(s.minuteText, 288f, 292f, 210, 140, font, w.accentColor)
             if (w.showDate) textCentered(date("EEE d"), 355f, 135f, textPaint(w.accentColor, 22f, f.label))

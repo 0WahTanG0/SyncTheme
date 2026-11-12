@@ -46,7 +46,7 @@ def B(f):
 
 
 def load_digit_fonts():
-    """Шрифты цифр и их метрики — из core/DigitFont.kt (его пишет scripts/gen_fonts.py)."""
+    """Шрифты цифр и их метрики — из core/DigitFont.kt (его пишет scripts/gen_digit_fonts.py)."""
     path = os.path.join(os.path.dirname(__file__), "..", "core", "src", "main", "kotlin", "app", "synctheme", "core", "DigitFont.kt")
     out = OrderedDict()
     pattern = r'^\s+(\w+)\((?:"(\w+)"|null), "[^"]+", ([-\d.]+)f, ([-\d.]+)f, ([-\d.]+)f, ([-\d.]+)f, ([-\d.]+)f, ([-\d.]+)f\)'

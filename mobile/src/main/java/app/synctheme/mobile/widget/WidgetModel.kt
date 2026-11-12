@@ -27,7 +27,7 @@ private val LEGACY_STYLES = mapOf(
 
 /** Вид виджета: у каждого свой набор стилей; prefix — начало имён его разметки. */
 enum class WidgetKind(val title: String, val description: String, val prefix: String, val styles: List<WidgetStyle>) {
-    CLOCK("Часы", "Время любым из семи шрифтов; на большом виджете — дата и будильник", "clock", FAMILY_STYLES),
+    CLOCK("Часы", "Время любым из шести шрифтов; на большом виджете — дата и будильник", "clock", FAMILY_STYLES),
     CALENDAR("Календарь", "Число, ближайшие события и месяц", "cal", FAMILY_STYLES),
     WEATHER("Погода", "Сейчас, по часам и на 5 дней", "wx", FAMILY_STYLES),
     BATTERY("Батарея", "Заряд, время до полной зарядки, температура", "bat", FAMILY_STYLES),
@@ -48,10 +48,11 @@ data class WidgetStyle(val id: String, val title: String)
  */
 fun defaultDigitFont(style: String): DigitFont = when (style) {
     "glass" -> DigitFont.THIN
-    "neon" -> DigitFont.RETRO
-    "paper" -> DigitFont.SERIF
-    "board" -> DigitFont.DOTS
-    else -> DigitFont.NARROW
+    "neon" -> DigitFont.OUTLINE
+    "paper" -> DigitFont.STRETCH
+    "board" -> DigitFont.TECHNO
+    "poster" -> DigitFont.BLOCK
+    else -> DigitFont.COLUMN
 }
 
 /**

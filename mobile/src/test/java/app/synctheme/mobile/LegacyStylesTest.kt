@@ -21,15 +21,22 @@ class LegacyStylesTest {
 
     @Test
     fun oldFontsBecomeSimilarOnes() {
-        assertEquals(7, DigitFonts.choices.size)
-        assertEquals(DigitFont.NARROW, DigitFonts.of("GROTESK"))
-        assertEquals(DigitFont.RETRO, DigitFonts.of("TUBE"))
-        assertEquals(DigitFont.DOTS, DigitFonts.of("PIXEL"))
-        assertEquals(DigitFont.SERIF, DigitFonts.of("ITALIC"))
-        assertEquals(DigitFont.BUBBLE, DigitFonts.of("ROUND"))
-        // Тема 1.20 со шрифтами, которых больше нет, читается и получает похожие.
-        val old = Presets.all[0].copy(digitFont = DigitFont.HAND).toJson().replace("\"HAND\"", "\"STENCIL\"")
-        assertEquals(DigitFont.NARROW, Theme.fromJson(old).digitFont)
+        assertEquals(6, DigitFonts.choices.size)
+        // Шрифты до 1.21 и шрифты Google Fonts до 1.28 становятся похожими своими.
+        assertEquals(DigitFont.COLUMN, DigitFonts.of("GROTESK"))
+        assertEquals(DigitFont.COLUMN, DigitFonts.of("NARROW"))
+        assertEquals(DigitFont.OUTLINE, DigitFonts.of("TUBE"))
+        assertEquals(DigitFont.OUTLINE, DigitFonts.of("RETRO"))
+        assertEquals(DigitFont.TECHNO, DigitFonts.of("PIXEL"))
+        assertEquals(DigitFont.TECHNO, DigitFonts.of("DOTS"))
+        assertEquals(DigitFont.STRETCH, DigitFonts.of("SERIF"))
+        assertEquals(DigitFont.OUTLINE, DigitFonts.of("BUBBLE"))
+        // Тема 1.27 со шрифтом, которого больше нет, читается и получает похожий.
+        val old = Presets.all[0].copy(digitFont = DigitFont.BLOCK).toJson().replace("\"BLOCK\"", "\"HAND\"")
+        assertEquals(DigitFont.STRETCH, Theme.fromJson(old).digitFont)
+        // Совсем неизвестное имя — шрифт по умолчанию, тема всё равно читается.
+        val unknown = Presets.all[0].copy(digitFont = DigitFont.BLOCK).toJson().replace("\"BLOCK\"", "\"WHATEVER\"")
+        assertEquals(DigitFont.COLUMN, Theme.fromJson(unknown).digitFont)
     }
 
     @Test
@@ -45,6 +52,6 @@ class LegacyStylesTest {
         WidgetConfigStore.set(app, 41, WidgetConfig(style = "minimal", font = "MONO"))
         val config = WidgetConfigStore.get(app, 41, WidgetKind.CLOCK, 0.4f)
         assertEquals("paper", config.style)
-        assertEquals(DigitFont.DOTS, config.digitFont())
+        assertEquals(DigitFont.TECHNO, config.digitFont())
     }
 }
