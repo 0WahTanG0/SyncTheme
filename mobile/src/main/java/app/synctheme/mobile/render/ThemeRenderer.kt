@@ -533,7 +533,7 @@ object ThemeRenderer {
 
     /** Шрифт часов на обоях: свой, как у циферблата или «Узкий». */
     fun wallClockFont(theme: Theme): DigitFont =
-        theme.wallClock?.font ?: theme.digitFont ?: theme.clockStyle.defaultDigitFont ?: DigitFont.COLUMN
+        theme.wallClock?.font ?: theme.digitFont ?: theme.clockStyle.defaultDigitFont ?: DigitFont.STRETCH
 
     /**
      * Где стоят часы на обоях. С эффектом глубины — напротив объекта фото (объект справа — часы слева,

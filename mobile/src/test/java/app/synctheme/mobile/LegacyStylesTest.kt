@@ -21,22 +21,22 @@ class LegacyStylesTest {
 
     @Test
     fun oldFontsBecomeSimilarOnes() {
-        assertEquals(6, DigitFonts.choices.size)
+        assertEquals(7, DigitFonts.choices.size)
         // Шрифты до 1.21 и шрифты Google Fonts до 1.28 становятся похожими своими.
-        assertEquals(DigitFont.COLUMN, DigitFonts.of("GROTESK"))
-        assertEquals(DigitFont.COLUMN, DigitFonts.of("NARROW"))
-        assertEquals(DigitFont.OUTLINE, DigitFonts.of("TUBE"))
-        assertEquals(DigitFont.OUTLINE, DigitFonts.of("RETRO"))
-        assertEquals(DigitFont.TECHNO, DigitFonts.of("PIXEL"))
-        assertEquals(DigitFont.TECHNO, DigitFonts.of("DOTS"))
+        assertEquals(DigitFont.ECHO, DigitFonts.of("GROTESK"))
+        assertEquals(DigitFont.ECHO, DigitFonts.of("NARROW"))
+        assertEquals(DigitFont.NEON, DigitFonts.of("TUBE"))
+        assertEquals(DigitFont.NEON, DigitFonts.of("RETRO"))
+        assertEquals(DigitFont.HALFTONE, DigitFonts.of("PIXEL"))
+        assertEquals(DigitFont.HALFTONE, DigitFonts.of("DOTS"))
         assertEquals(DigitFont.STRETCH, DigitFonts.of("SERIF"))
-        assertEquals(DigitFont.OUTLINE, DigitFonts.of("BUBBLE"))
+        assertEquals(DigitFont.VOLUME, DigitFonts.of("BUBBLE"))
         // Тема 1.27 со шрифтом, которого больше нет, читается и получает похожий.
-        val old = Presets.all[0].copy(digitFont = DigitFont.BLOCK).toJson().replace("\"BLOCK\"", "\"HAND\"")
+        val old = Presets.all[0].copy(digitFont = DigitFont.ECHO).toJson().replace("\"ECHO\"", "\"HAND\"")
         assertEquals(DigitFont.STRETCH, Theme.fromJson(old).digitFont)
         // Совсем неизвестное имя — шрифт по умолчанию, тема всё равно читается.
-        val unknown = Presets.all[0].copy(digitFont = DigitFont.BLOCK).toJson().replace("\"BLOCK\"", "\"WHATEVER\"")
-        assertEquals(DigitFont.COLUMN, Theme.fromJson(unknown).digitFont)
+        val unknown = Presets.all[0].copy(digitFont = DigitFont.ECHO).toJson().replace("\"ECHO\"", "\"WHATEVER\"")
+        assertEquals(DigitFont.STRETCH, Theme.fromJson(unknown).digitFont)
     }
 
     @Test
@@ -52,6 +52,6 @@ class LegacyStylesTest {
         WidgetConfigStore.set(app, 41, WidgetConfig(style = "minimal", font = "MONO"))
         val config = WidgetConfigStore.get(app, 41, WidgetKind.CLOCK, 0.4f)
         assertEquals("paper", config.style)
-        assertEquals(DigitFont.TECHNO, config.digitFont())
+        assertEquals(DigitFont.HALFTONE, config.digitFont())
     }
 }

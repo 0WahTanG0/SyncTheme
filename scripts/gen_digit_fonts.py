@@ -5,11 +5,12 @@
 виджетов, обоев и циферблата.
 
   «Растянутый» — высокие узкие цифры одной тонкой линией;
-  «Колонна»    — те же высокие цифры, но жирные;
-  «Контур»     — скруглённые «техно»-цифры, нарисованные только контуром (полые);
-  «Блок»       — очень жирные узкие квадратные цифры с узкими просветами;
-  «Техно»      — широкие жирные цифры со срезанными углами и перечёркнутым нулём;
-  «Трафарет»   — жирные округлые цифры с разрывами, как по трафарету.
+  «Эхо»       — жирная узкая цифра и два её контура, отставших по диагонали;
+  «Неон»      — стеклянная трубка вывески: два края, круглые концы и тёмные промежутки;
+  «Глитч»     — цифровой сбой: полосы цифры сдвинуты, строка развёртки уехала дальше всех;
+  «Полутон»   — точки печатного растра под 45°: внизу плотные, кверху тают;
+  «Штрихкод»  — высокая жирная цифра из вертикальных полос разной ширины;
+  «Объём»     — цифра с заштрихованной гранью, уходящей вглубь, как на гравюре.
 
 Кладёт <res>.ttf в модуль :faces и в шаблон циферблата, пишет core/DigitFont.kt (метрики)
 и лицензию. Запуск: python3 scripts/gen_digit_fonts.py [--preview out.png]
@@ -75,40 +76,6 @@ class Line:
     def close(self):
         self.p.close()
         return self
-
-
-def poly(points, closed=False, corner="square", size=0.0):
-    """Ломаная с обработкой углов: square — острые, round — скруглены радиусом size, chamfer — срезаны на size."""
-    pts = list(points)
-    n = len(pts)
-
-    def toward(a, b, d):
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        length = math.hypot(dx, dy)
-        return (a[0] + dx / length * d, a[1] + dy / length * d), length
-
-    path = Line(*(((pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2) if closed else pts[0]))
-    corners = list(range(1, n)) + [0] if closed else list(range(1, n - 1))
-    for i in corners:
-        v, prev, nxt = pts[i], pts[i - 1], pts[(i + 1) % n]
-        if corner == "square" or size <= 0:
-            path.to(*v)
-            continue
-        _, l1 = toward(v, prev, 0)
-        _, l2 = toward(v, nxt, 0)
-        s = min(size, l1 / 2, l2 / 2)
-        a, _ = toward(v, prev, s)
-        b, _ = toward(v, nxt, s)
-        path.to(*a)
-        if corner == "round":
-            path.curve((a[0] + (v[0] - a[0]) * K, a[1] + (v[1] - a[1]) * K), (b[0] + (v[0] - b[0]) * K, b[1] + (v[1] - b[1]) * K), *b)
-        else:
-            path.to(*b)
-    if closed:
-        path.close()
-    else:
-        path.to(*pts[-1])
-    return path
 
 
 def rotated(lines, w):
@@ -186,19 +153,187 @@ def stroke(lines, width, join=pathops.LineJoin.MITER_JOIN):
     return shape
 
 
+# ---------------------------------------------------------------- приёмы над фигурами
+
+def moved(shape, dx, dy):
+    return shape.transform(1, 0, 0, 1, dx, dy)
+
+
+def contour(shape, width):
+    """Линия толщины width по краю фигуры (наполовину внутри, наполовину снаружи)."""
+    band = pathops.Path()
+    band.addPath(shape)
+    band.stroke(width, pathops.LineCap.BUTT_CAP, pathops.LineJoin.ROUND_JOIN, 4)
+    band.convertConicsToQuads()
+    return union(pathops.Path(), band)
+
+
+def dilate(shape, d):
+    """Фигура, раздутая на d во все стороны."""
+    return union(shape, contour(shape, 2 * d))
+
+
+def silhouette(shape):
+    """Фигура без внутренних просветов: только внешние контуры, залитые."""
+    cs = list(shape.contours)
+    if not cs:
+        return shape
+    outer = max(cs, key=lambda c: abs(c.area)).clockwise
+    out = pathops.Path()
+    for c in cs:
+        if c.clockwise == outer:
+            out = union(out, c)
+    return out
+
+
+def without_crumbs(shape, size):
+    """Без мелких обрывков: контуры, которые меньше size и по ширине, и по высоте, выбрасываются."""
+    out = pathops.Path()
+    for c in shape.contours:
+        x0, y0, x1, y1 = c.bounds
+        if max(x1 - x0, y1 - y0) >= size:
+            out.addPath(c)
+    return out
+
+
+def minus(a, b):
+    return pathops.op(a, b, pathops.PathOp.DIFFERENCE)
+
+
+def inter(a, b):
+    return pathops.op(a, b, pathops.PathOp.INTERSECTION)
+
+
+def flatten(path, steps=18):
+    """Контуры пути ломаными: [(точки, замкнут ли)]."""
+    out, pts, last = [], [], None
+    for verb, args in path.segments:
+        if verb == "moveTo":
+            if len(pts) > 1:
+                out.append((pts, False))
+            pts = [args[0]]
+        elif verb == "lineTo":
+            pts.append(args[0])
+        elif verb == "curveTo":
+            (x0, y0), (x1, y1), (x2, y2), (x3, y3) = pts[-1], *args
+            for i in range(1, steps + 1):
+                t = i / steps
+                u = 1 - t
+                pts.append((u ** 3 * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t ** 3 * x3,
+                            u ** 3 * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t ** 3 * y3))
+        elif verb == "qCurveTo":
+            for p in args:
+                pts.append(p)
+        elif verb in ("closePath", "endPath"):
+            if len(pts) > 1:
+                out.append((pts, verb == "closePath"))
+            pts = []
+    if len(pts) > 1:
+        out.append((pts, False))
+    return out
+
+
+def cut(pts, closed, fractions, gap):
+    """Ломаная без промежутков длины gap в долях fractions её длины — куски-ломаные."""
+    if closed:
+        pts = pts + [pts[0]]
+    cum = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        cum.append(cum[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+    total = cum[-1]
+
+    def at(s):
+        s = max(0.0, min(total, s))
+        for i in range(1, len(cum)):
+            if cum[i] >= s:
+                t = (s - cum[i - 1]) / max(1e-9, cum[i] - cum[i - 1])
+                a, b = pts[i - 1], pts[i]
+                return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+        return pts[-1]
+
+    def piece(s0, s1):
+        inner = [pts[i] for i in range(len(pts)) if s0 < cum[i] < s1]
+        return [at(s0)] + inner + [at(s1)]
+
+    if not fractions:
+        return [(pts, closed)]
+    if closed:
+        # Начало — в первом промежутке: тогда все куски незамкнутые.
+        f0 = fractions[0]
+        spans = []
+        for f in fractions:
+            c = ((f - f0) % 1.0) * total
+            spans.append((c - gap / 2, c + gap / 2))
+        keep, s = [], gap / 2
+        for a, b in sorted(spans)[1:]:
+            keep.append((s, a))
+            s = b
+        keep.append((s, total - gap / 2))
+        shift = f0 * total
+        out = []
+        for a, b in keep:
+            a, b = a + shift, b + shift
+            if b <= total:
+                out.append((piece(a, b), False))
+            elif a >= total:
+                out.append((piece(a - total, b - total), False))
+            else:
+                out.append((piece(a, total) + piece(0, b - total)[1:], False))
+        return out
+    keep, s = [], 0.0
+    for f in sorted(fractions):
+        c = f * total
+        keep.append((s, c - gap / 2))
+        s = c + gap / 2
+    keep.append((s, total))
+    return [(piece(a, b), False) for a, b in keep if b - a > 1]
+
+
+def stroke_polys(polys, width):
+    """Ломаные пером с круглыми концами и стыками (как трубка)."""
+    shape = pathops.Path()
+    for pts, closed in polys:
+        p = pathops.Path()
+        p.moveTo(*pts[0])
+        for q in pts[1:]:
+            p.lineTo(*q)
+        if closed:
+            p.close()
+        p.stroke(width, pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4)
+        p.convertConicsToQuads()
+        shape = union(shape, p)
+    return shape
+
+
+def stripes(x0, x1, y0, y1, widths, gap, start=0):
+    """Вертикальные полосы разной ширины, как у штрихкода."""
+    out, x, i = pathops.Path(), x0, start
+    while x < x1:
+        w = widths[i % len(widths)]
+        out.addPath(rect(x, y0, min(x + w, x1), y1))
+        x += w + gap
+        i += 1
+    return out
+
+
 # ---------------------------------------------------------------- шрифты
 
 class Font:
-    """Общее: рамка цифры W × H, поля SIDE, двоеточие."""
+    """Общее: рамка цифры W × H, поля SIDE, двоеточие. EXTRA — добавка справа (тени, отражения)."""
     res = title = const = family = ""
     W = 300
     S = 20
     SIDE = 40
     COLON_ADV = 200
+    EXTRA = 0
 
     @property
     def adv(self):
-        return self.W + 2 * self.SIDE
+        return self.W + 2 * self.SIDE + self.EXTRA
+
+    @property
+    def colon_adv(self):
+        return self.COLON_ADV + self.EXTRA
 
     def glyph(self, ch):
         raise NotImplementedError
@@ -207,18 +342,27 @@ class Font:
         raise NotImplementedError
 
     def clip(self, shape):
-        return pathops.op(shape, rect(0, 0, self.W, H), pathops.PathOp.INTERSECTION)
+        return inter(shape, rect(0, 0, self.W, H))
 
 
 class Curvy(Font):
-    """Высокие округлые цифры: прямые бока и дуги-эллипсы (по образцу «растянутого» шрифта)."""
+    """Высокие округлые цифры: прямые бока и дуги-эллипсы (по образцу «растянутого» шрифта).
+    INSET — осевая линия от края рамки, EXT — насколько концы штрихов выходят за рамку (их срезает clip)."""
     DOT = 21
-    SLOT = 0          # ширина разрыва «трафарета»; 0 — без разрывов
+
+    @property
+    def inset(self):
+        return self.S / 2
+
+    @property
+    def ext(self):
+        return self.S
 
     def lines(self, ch):
-        W, S = self.W, self.S
-        L, R, B, T = S / 2, W - S / 2, S / 2, H - S / 2
-        CX, RX = W / 2, (W - S) / 2
+        W, I, E = self.W, self.inset, self.ext
+        L, R, B, T = I, W - I, I, H - I
+        CX, RX = W / 2, (W - 2 * I) / 2
+        xlo, xhi, ylo, yhi = -E, W + E, -E, H + E
         ry = min(1.5 * RX, 0.3 * H)
 
         def stadium(y0, y1, r, l=L, rr=R):
@@ -231,10 +375,10 @@ class Curvy(Font):
             return [stadium(B, T, ry)]
         if ch == "1":
             sx = 0.64 * W
-            return [Line(sx - 0.5 * W, T - 0.13 * H).to(sx, T).to(sx, -S)]
+            return [Line(sx - 0.5 * W, T - 0.13 * H).to(sx, T).to(sx, ylo)]
         if ch == "2":
             top = Line(L, T - 0.17 * H).arc(CX, T, True).arc(R, T - 0.17 * H, False)
-            top.to(R, 0.66 * H).curve((R, 0.47 * H), (L, 0.30 * H), L, B).to(W + S, B)
+            top.to(R, 0.66 * H).curve((R, 0.47 * H), (L, 0.30 * H), L, B).to(xhi, B)
             return [top]
         if ch == "3":
             ym, ryt, ryb = 0.555 * H, 0.155 * H, 0.19 * H
@@ -243,10 +387,10 @@ class Curvy(Font):
             return [top, bottom]
         if ch == "4":
             sx, yc = 0.74 * W, 0.30 * H
-            return [Line(W + S, yc).to(L, yc).to(sx, H + S), Line(sx, H + S).to(sx, -S)]
+            return [Line(xhi, yc).to(L, yc).to(sx, yhi), Line(sx, yhi).to(sx, ylo)]
         if ch == "5":
             yb, r = 0.60 * H, 0.19 * H
-            s = Line(W + S, T).to(L, T).to(L, yb - 0.035 * H).curve((L + 0.22 * W, yb), (CX - 0.12 * W, yb), CX, yb)
+            s = Line(xhi, T).to(L, T).to(L, yb - 0.035 * H).curve((L + 0.22 * W, yb), (CX - 0.12 * W, yb), CX, yb)
             s.arc(R, yb - r, False).to(R, B + r).arc(CX, B, True).arc(L, B + r * 0.92, False)
             return [s]
         if ch == "6":
@@ -257,201 +401,175 @@ class Curvy(Font):
         if ch == "9":
             return rotated(self.lines("6"), W)
         if ch == "7":
-            return [Line(-S, T).to(R, T).curve((R - 0.02 * W, 0.62 * H), (0.36 * W, 0.30 * H), 0.30 * W, -S)]
+            return [Line(xlo, T).to(R, T).curve((R - 0.02 * W, 0.62 * H), (0.36 * W, 0.30 * H), 0.30 * W, ylo)]
         if ch == "8":
             ym = 0.545 * H
             # Петли касаются в одной точке — в талии линия той же толщины.
             return [stadium(ym, T, 0.17 * H, L + 0.035 * W, R - 0.035 * W), stadium(B, ym, 0.20 * H)]
         raise KeyError(ch)
 
-    def glyph(self, ch):
-        shape = self.clip(stroke(self.lines(ch), self.S))
-        if self.SLOT:
-            # Разрыв по центру (у «1», «4» и «7» — поперёк, на середине высоты).
-            g = self.SLOT
-            cut = rect(-10, H * 0.5 - g / 2, self.W + 10, H * 0.5 + g / 2) if ch in "147" else rect(self.W / 2 - g / 2, -10, self.W / 2 + g / 2, H + 10)
-            shape = pathops.op(shape, cut, pathops.PathOp.DIFFERENCE)
-        return shape
+    def base(self, ch):
+        return self.clip(stroke(self.lines(ch), self.S))
 
-    def colon(self):
+    def dots(self):
         c = self.COLON_ADV / 2
         return union(circle(c, 0.34 * H, self.DOT), circle(c, 0.66 * H, self.DOT))
 
+    def effect(self, shape, w, key):
+        return shape
+
+    def glyph(self, ch):
+        return self.effect(self.base(ch), self.W, ch)
+
+    def colon(self):
+        return self.effect(self.dots(), self.COLON_ADV, ":")
+
 
 class Stretch(Curvy):
+    """Высокие узкие цифры одной тонкой линией."""
     const, res, title, family = "STRETCH", "stretch", "Растянутый", "Stretch"
     W, S, SIDE, COLON_ADV, DOT = 270, 18, 46, 150, 21
 
 
-class Column(Curvy):
-    const, res, title, family = "COLUMN", "column", "Колонна", "Column"
-    W, S, SIDE, COLON_ADV, DOT = 380, 84, 40, 220, 46
+class Echo(Curvy):
+    """Жирная узкая цифра и два её контура, отставших по диагонали, — эхо, движение."""
+    const, res, title, family = "ECHO", "echo", "Эхо", "Echo"
+    W, S, SIDE, COLON_ADV, DOT = 360, 112, 26, 190, 50
+    STEP, LINE, GAP, COUNT = 44, 12, 13, 2
+    EXTRA = STEP * COUNT
+
+    def effect(self, shape, w, key):
+        # Отражения — по внешнему силуэту: без линий в просветах и обрывков в изгибах.
+        body = silhouette(shape)
+        out, hidden = shape, body
+        for k in range(1, self.COUNT + 1):
+            ghost = moved(body, k * self.STEP, -k * self.STEP)
+            echo = without_crumbs(minus(contour(ghost, self.LINE), dilate(hidden, self.GAP)), 5 * self.LINE)
+            out = union(out, echo)
+            hidden = union(hidden, ghost)
+        return out
 
 
-class Stencil(Curvy):
-    const, res, title, family = "STENCIL", "stencil", "Трафарет", "Stencil"
-    W, S, SIDE, COLON_ADV, DOT, SLOT = 520, 128, 40, 250, 56, 38
-
-
-class Ortho(Font):
-    """Цифры из прямых, как у «техно»-шрифтов: углы острые, скруглённые или срезанные."""
-    CORNER = "square"
-    CORNER_SIZE = 0
-    MID = 0.52        # высота средней черты
-    INSET = None      # осевая линия от края рамки; по умолчанию — половина пера
-
-    def box(self):
-        i = self.S / 2 if self.INSET is None else self.INSET
-        return i, self.W - i, i, H - i
-
-    def lines(self, ch):
-        W = self.W
-        l, r, b, t = self.box()
-        m = self.MID * H
-        c, z = self.CORNER, self.CORNER_SIZE
-
-        def P(points, closed=False):
-            return poly(points, closed, c, z)
-
-        x0, x1 = (0, W) if self.INSET is None else (l, r)
-        y0, y1 = (0, H) if self.INSET is None else (b, t)
-        if ch == "0":
-            return [P([(l, b), (r, b), (r, t), (l, t)], True)] + self.zero_extra(l, r, b, t)
-        if ch == "1":
-            sx = 0.62 * W
-            return [P(self.one_flag(sx, l, t) + [(sx, t), (sx, y0)])]
-        if ch == "2":
-            return [P([(x0, t), (r, t), (r, m), (l, m), (l, b), (x1, b)])]
-        if ch == "3":
-            return [P([(x0, t), (r, t), (r, b), (x0, b)]), P([(l + 0.3 * (r - l), m), (r, m)])]
-        if ch == "4":
-            return [P([(l, y1), (l, m), (r, m)]), P([(r, y1), (r, y0)])]
-        if ch == "5":
-            return [P([(x1, t), (l, t), (l, m), (r, m), (r, b), (x0, b)])]
-        if ch == "6":
-            return [P([(x1, t), (l, t), (l, b), (r, b), (r, m), (l, m)])]
-        if ch == "7":
-            return [P(self.seven(x0, l, r, t, y0))]
-        if ch == "8":
-            return self.eight(P, l, r, b, t, m)
-        if ch == "9":
-            return [P([(r, m), (l, m), (l, t), (r, t), (r, b), (x0, b)])]
-        raise KeyError(ch)
-
-    def zero_extra(self, l, r, b, t):
-        return []
-
-    def eight(self, P, l, r, b, t, m):
-        """Две коробки, верхняя чуть уже: талия отличает «8» от «0» с чертой."""
-        d = 0.07 * (r - l)
-        return [P([(l, b), (r, b), (r, m), (l, m)], True), P([(l + d, m), (r - d, m), (r - d, t), (l + d, t)], True)]
-
-    def one_flag(self, sx, l, t):
-        return [(l + 0.08 * self.W, t)]
-
-    def seven(self, x0, l, r, t, y0):
-        return [(x0, t), (r, t), (r, y0)]
-
-    def glyph(self, ch):
-        return self.clip(stroke(self.lines(ch), self.S))
-
-
-class Block(Ortho):
-    """Очень жирные узкие квадратные цифры: просветы — узкие щели."""
-    const, res, title, family = "BLOCK", "block", "Блок", "Block"
-    W, S, SIDE, COLON_ADV = 420, 150, 30, 210
-    MID = 0.52
-
-    def seven(self, x0, l, r, t, y0):
-        return [(x0, t), (r, t), (r, 0.68 * H), (l + 0.28 * (r - l), y0 - self.S)]
-
-    def eight(self, P, l, r, b, t, m):
-        # У жирных узких цифр — коробка с перемычкой: две щели против одной у «0».
-        return [P([(l, b), (r, b), (r, t), (l, t)], True), P([(l, m), (r, m)])]
-
-    def colon(self):
-        c, d = self.COLON_ADV / 2, 66
-        return union(rect(c - d, 0.30 * H - d, c + d, 0.30 * H + d), rect(c - d, 0.70 * H - d, c + d, 0.70 * H + d))
-
-
-class Techno(Ortho):
-    """Широкие жирные цифры со срезанными углами и перечёркнутым нулём."""
-    const, res, title, family = "TECHNO", "techno", "Техно", "Techno"
-    W, S, SIDE, COLON_ADV = 660, 150, 40, 270
-    CORNER, CORNER_SIZE = "chamfer", 150
-    MID = 0.5
-
-    def zero_extra(self, l, r, b, t):
-        w, h = r - l, t - b
-        return [Line(l + 0.30 * w, b + 0.30 * h).to(r - 0.30 * w, t - 0.30 * h)]
-
-    def one_flag(self, sx, l, t):
-        return [(sx - 0.34 * self.W, t - 0.2 * H)]
-
-    def lines(self, ch):
-        lines = super().lines(ch)
-        if ch == "0":
-            # Черта внутри нуля — тоньше основной линии.
-            frame, slash = lines
-            self._slash = slash
-            return [frame]
-        self._slash = None
-        return lines
-
-    def glyph(self, ch):
-        shape = stroke(self.lines(ch), self.S)
-        if self._slash is not None:
-            shape = union(shape, stroke([self._slash], self.S * 0.62))
-        return self.clip(shape)
-
-    def colon(self):
-        c, d, k = self.COLON_ADV / 2, 72, 30
-
-        def octagon(cy):
-            return poly([(c - d, cy - d), (c + d, cy - d), (c + d, cy + d), (c - d, cy + d)], True, "chamfer", k).p
-
-        return union(octagon(0.30 * H), octagon(0.70 * H))
-
-
-class Outline(Ortho):
-    """Скруглённые «техно»-цифры, нарисованные только контуром: толстая линия, от которой остаются края."""
-    const, res, title, family = "OUTLINE", "outline", "Контур", "Outline"
-    W, SIDE, COLON_ADV = 600, 48, 290
-    THICK = 150       # толщина «невидимой» линии, контур которой рисуется
-    S = 24            # толщина контура
-    CORNER, CORNER_SIZE = "round", 150
-    MID = 0.53
+class Neon(Curvy):
+    """Неоновая вывеска: стеклянная трубка (два края), круглые концы и тёмные промежутки, где трубка «ныряет»."""
+    const, res, title, family = "NEON", "neon", "Неон", "Neon"
+    W, SIDE, COLON_ADV = 480, 36, 220
+    TUBE, LINE = 78, 15
+    GAP = TUBE + 46   # круглые концы трубки съедают по половине толщины — тёмный промежуток остаётся ~46
+    S = TUBE
+    # Где у каждой цифры промежуток: доли длины линии (по номеру линии в цифре).
+    GAPS = {
+        "0": {0: [0.08, 0.58]}, "1": {0: [0.55]}, "2": {0: [0.5]}, "3": {0: [0.45], 1: [0.62]},
+        "4": {0: [0.55], 1: [0.78]}, "5": {0: [0.3, 0.8]}, "6": {0: [0.22, 0.78]}, "7": {0: [0.62]},
+        "8": {0: [0.5], 1: [0.62]}, "9": {0: [0.22, 0.78]},
+    }
 
     @property
-    def INSET(self):
-        return self.THICK / 2 + self.S / 2
+    def inset(self):
+        return self.TUBE / 2 + self.LINE / 2
 
-    def one_flag(self, sx, l, t):
-        return [(sx - 0.36 * self.W, t - 0.16 * H)]
-
-    def seven(self, x0, l, r, t, y0):
-        return [(x0, t), (r, t), (r, 0.72 * H), (l + 0.3 * (r - l), y0)]
-
-    def outline(self, thick):
-        edge = pathops.Path()
-        edge.addPath(thick)
-        edge.stroke(self.S, pathops.LineCap.BUTT_CAP, pathops.LineJoin.ROUND_JOIN, 4)
-        edge.convertConicsToQuads()
-        return union(pathops.Path(), edge)
+    @property
+    def ext(self):
+        return -self.inset
 
     def glyph(self, ch):
-        return self.clip(self.outline(stroke(self.lines(ch), self.THICK, pathops.LineJoin.ROUND_JOIN)))
+        pieces = []
+        for i, line in enumerate(self.lines(ch)):
+            for pts, closed in flatten(line.p):
+                pieces += cut(pts, closed, self.GAPS.get(ch, {}).get(i, []), self.GAP)
+        return contour(stroke_polys(pieces, self.TUBE), self.LINE)
 
     def colon(self):
-        c, d, rr = self.COLON_ADV / 2, 70, 40
-
-        def dot(cy):
-            return poly([(c - d, cy - d), (c + d, cy - d), (c + d, cy + d), (c - d, cy + d)], True, "round", rr).p
-
-        return self.outline(union(dot(0.32 * H), dot(0.68 * H)))
+        c, r = self.COLON_ADV / 2, self.TUBE * 0.62
+        return contour(union(circle(c, 0.34 * H, r), circle(c, 0.66 * H, r)), self.LINE)
 
 
-FONTS = [Stretch(), Column(), Outline(), Block(), Techno(), Stencil()]
+class Glitch(Curvy):
+    """Цифровой сбой: цифра разрезана на полосы, полосы сдвинуты, тонкая «строка развёртки» уехала дальше всех."""
+    const, res, title, family = "GLITCH", "glitch", "Глитч", "Glitch"
+    W, S, SIDE, COLON_ADV, DOT = 440, 122, 64, 230, 54
+    CUTS = [(0.31, 0.345), (0.585, 0.62)]
+    SCAN = (0.79, 0.82)
+    OFFS = {
+        "0": (0.00, 0.07, -0.04, 0.16), "1": (0.00, -0.06, 0.05, -0.15), "2": (0.05, -0.04, 0.00, 0.14),
+        "3": (-0.04, 0.06, 0.00, -0.16), "4": (0.00, 0.05, -0.06, 0.15), "5": (0.06, 0.00, -0.05, -0.14),
+        "6": (-0.05, 0.04, 0.02, 0.16), "7": (0.04, -0.06, 0.00, -0.15), "8": (0.00, -0.05, 0.06, 0.14),
+        "9": (-0.06, 0.03, 0.00, -0.16), ":": (0.00, 0.12, 0.00, 0.00),
+    }
+
+    def effect(self, shape, w, key):
+        if key == ":":
+            return shape  # двоеточие целое — по нему читается время
+        lo, mid, hi, scan = self.OFFS[key]
+        (a0, a1), (b0, b1) = self.CUTS
+        s0, s1 = self.SCAN
+        big = 3 * w
+        bands = [(-H, a0 * H, lo), (a1 * H, b0 * H, mid), (b1 * H, s0 * H, hi), (s1 * H, 2 * H, hi)]
+        out = pathops.Path()
+        for y0, y1, off in bands:
+            out = union(out, moved(inter(shape, rect(-big, y0, big, y1)), off * w, 0))
+        if scan:
+            out = union(out, moved(inter(shape, rect(-big, s0 * H, big, s1 * H)), scan * w, 0))
+        else:
+            out = union(out, moved(inter(shape, rect(-big, s0 * H, big, s1 * H)), hi * w, 0))
+        return out
+
+
+class Halftone(Curvy):
+    """Полутон, как в печати: цифра из точек, внизу крупных и плотных, кверху тающих."""
+    const, res, title, family = "HALFTONE", "halftone", "Полутон", "Halftone"
+    W, S, SIDE, COLON_ADV, DOT = 540, 176, 28, 230, 74
+    STEP = 58         # шаг растра; растр повёрнут на 45°, как в печати
+
+    def effect(self, shape, w, key):
+        out = pathops.Path()
+        dy = self.STEP / 2
+        pitch = self.STEP / math.sqrt(2)          # расстояние между соседними точками
+        rows = int(H // dy) + 1
+        for iy in range(rows):
+            y = dy / 2 + iy * dy
+            r = pitch * (0.49 - 0.33 * y / H)      # внизу точки почти сливаются, кверху тают
+            x = (self.STEP / 2 if iy % 2 else 0) - self.STEP
+            while x < w + self.STEP:
+                if shape.contains((x, y)):
+                    out.addPath(circle(x, y, r))
+                x += self.STEP
+        return out
+
+
+class Barcode(Curvy):
+    """Штрихкод: высокая жирная цифра из вертикальных полос разной ширины."""
+    const, res, title, family = "BARCODE", "barcode", "Штрихкод", "Barcode"
+    W, S, SIDE, COLON_ADV, DOT = 400, 150, 30, 190, 52
+    BARS = [30, 12, 44, 18, 12, 36, 22, 14, 50, 16, 26, 12, 40, 20]
+    GAP = 11
+
+    def effect(self, shape, w, key):
+        if key == ":":
+            return shape
+        return inter(shape, stripes(0, w, -50, H + 50, self.BARS, self.GAP, start=3 * int(key)))
+
+
+class Volume(Curvy):
+    """Объём: цифра с гранью, уходящей вглубь, — грань заштрихована, как на гравюре."""
+    const, res, title, family = "VOLUME", "volume", "Объём", "Volume"
+    W, S, SIDE, COLON_ADV, DOT = 450, 110, 28, 200, 50
+    DEPTH, GAP, HATCH, PERIOD = 74, 11, 9, 23
+    EXTRA = DEPTH
+
+    def effect(self, shape, w, key):
+        side = pathops.Path()
+        for k in range(1, 13):
+            side = union(side, moved(shape, self.DEPTH * k / 12, -self.DEPTH * k / 12))
+        side = minus(side, dilate(shape, self.GAP))
+        hatch = pathops.Path()
+        for c in range(-2 * H, 2 * H, self.PERIOD):
+            line = Line(c - 1500, 1500).to(c + 1500, -1500)
+            hatch.addPath(stroke([line], self.HATCH))
+        return union(shape, inter(side, hatch))
+
+
+FONTS = [Stretch(), Echo(), Neon(), Glitch(), Halftone(), Barcode(), Volume()]
 
 
 # ---------------------------------------------------------------- TrueType
@@ -475,7 +593,7 @@ def build(font):
     glyphs[".notdef"], metrics[".notdef"] = tt_glyph(nd, 0), (300, 40)
     glyphs["space"], metrics["space"] = TTGlyphPen(None).glyph(), (font.adv // 2, 0)
     shapes = [(name, font.glyph(ch), font.SIDE, font.adv) for ch, name in zip(DIGITS, NAMES)]
-    shapes.append(("colon", font.colon(), 0, font.COLON_ADV))
+    shapes.append(("colon", font.colon(), 0, font.colon_adv))
     for name, shape, dx, adv in shapes:
         glyphs[name] = tt_glyph(shape, dx)
         # Левый отступ — от левого края самого рисунка (так требует TrueType).
@@ -527,6 +645,7 @@ def write_kotlin(rows):
           "    val ascent: Float, val descent: Float, val top: Float, val bottom: Float, val digit: Float, val colon: Float,",
           ") {"]
     for font, m in rows:
+        m = {k: round(v, 3) + 0.0 for k, v in m.items()}  # без «-0.000f»
         kt.append(f'    {font.const}("{font.res}", "{font.title}", {m["ascent"]:.3f}f, {m["descent"]:.3f}f, {m["top"]:.3f}f, '
                   f'{m["bottom"]:.3f}f, {m["digit"]:.3f}f, {m["colon"]:.3f}f),')
     # Системный Roboto Thin: метрики Roboto.

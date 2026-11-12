@@ -9,7 +9,7 @@ import kotlinx.serialization.encoding.Encoder
 
 /** Шрифты цифр на выбор и шрифты прошлых версий. */
 object DigitFonts {
-    /** Шесть своих шрифтов, разных по типу: системный тонкий остаётся только «как задумано» у некоторых стилей. */
+    /** Свои шрифты, у каждого своя идея; системный тонкий остаётся только «как задумано» у некоторых стилей. */
     val choices: List<DigitFont> = DigitFont.entries.filter { it.res != null }
 
     /**
@@ -17,10 +17,12 @@ object DigitFonts {
      * похожим по характеру из нынешних — сохранённые темы и виджеты не ломаются.
      */
     private val legacy = mapOf(
-        "NARROW" to DigitFont.COLUMN, "WIDE" to DigitFont.COLUMN, "GROTESK" to DigitFont.COLUMN,
+        "NARROW" to DigitFont.ECHO, "WIDE" to DigitFont.ECHO, "GROTESK" to DigitFont.ECHO, "BLOCK" to DigitFont.ECHO,
         "SERIF" to DigitFont.STRETCH, "ITALIC" to DigitFont.STRETCH, "HAND" to DigitFont.STRETCH,
-        "BUBBLE" to DigitFont.OUTLINE, "ROUND" to DigitFont.OUTLINE, "RETRO" to DigitFont.OUTLINE, "TUBE" to DigitFont.OUTLINE,
-        "DOTS" to DigitFont.TECHNO, "PIXEL" to DigitFont.TECHNO, "MONO" to DigitFont.TECHNO, "SPACE" to DigitFont.TECHNO,
+        "BUBBLE" to DigitFont.VOLUME, "ROUND" to DigitFont.VOLUME,
+        "RETRO" to DigitFont.NEON, "TUBE" to DigitFont.NEON, "OUTLINE" to DigitFont.NEON,
+        "DOTS" to DigitFont.HALFTONE, "PIXEL" to DigitFont.HALFTONE, "MONO" to DigitFont.HALFTONE,
+        "STENCIL" to DigitFont.GLITCH, "SPACE" to DigitFont.GLITCH,
     )
 
     /** Шрифт по имени, в том числе из прошлых версий; null — имя неизвестно. */
@@ -33,5 +35,5 @@ object DigitFontSerializer : KSerializer<DigitFont> {
 
     override fun serialize(encoder: Encoder, value: DigitFont) = encoder.encodeString(value.name)
 
-    override fun deserialize(decoder: Decoder): DigitFont = DigitFonts.of(decoder.decodeString()) ?: DigitFont.COLUMN
+    override fun deserialize(decoder: Decoder): DigitFont = DigitFonts.of(decoder.decodeString()) ?: DigitFont.STRETCH
 }

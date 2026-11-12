@@ -238,16 +238,17 @@ class FeaturesTest {
     @Test
     fun digitFontsOnLock() {
         fun look(font: DigitFont, colors: List<Long>, ink: Long, type: BackgroundType = BackgroundType.RADIAL) = Presets.all[0].copy(
-            background = Background(type, colors.map { it.toInt() }), dim = 0f, textColor = ink.toInt(), digitFont = font,
+            background = Background(type, colors.map { it.toInt() }), dim = 0f, textColor = ink.toInt(), accentColor = ink.toInt(), digitFont = font,
             wallClock = WallClock(WallClockLayout.TOP, depth = false, onLock = true),
         )
         val themes = listOf(
             look(DigitFont.STRETCH, listOf(0xFF8C9DB6, 0xFF3E4C62, 0xFF151B26), 0xFF10141B),
-            look(DigitFont.COLUMN, listOf(0xFF3A3B3F, 0xFF1C1D20, 0xFF0E0E10), 0xFFB9BDC6),
-            look(DigitFont.OUTLINE, listOf(0xFF0E1A0E, 0xFF060906), 0xFF39FF3A, BackgroundType.LINEAR),
-            look(DigitFont.BLOCK, listOf(0xFFF4F4F4, 0xFFDADADA), 0xFF0A0A0A, BackgroundType.LINEAR),
-            look(DigitFont.TECHNO, listOf(0xFFB9BEC6, 0xFF6D737C), 0xFF141B33),
-            look(DigitFont.STENCIL, listOf(0xFF4A5A3A, 0xFF1E2617), 0xFFE8E2C8),
+            look(DigitFont.ECHO, listOf(0xFFF3EADB, 0xFFE2D5C0), 0xFFB3261E, BackgroundType.LINEAR),
+            look(DigitFont.NEON, listOf(0xFF0E1A0E, 0xFF060906), 0xFF39FF3A, BackgroundType.LINEAR),
+            look(DigitFont.GLITCH, listOf(0xFF101418, 0xFF05070A), 0xFF2DF5FF, BackgroundType.LINEAR),
+            look(DigitFont.HALFTONE, listOf(0xFFFFD84A, 0xFFF4B400), 0xFF121212),
+            look(DigitFont.BARCODE, listOf(0xFFF4F4F4, 0xFFD9D9D9), 0xFF0A0A0A, BackgroundType.LINEAR),
+            look(DigitFont.VOLUME, listOf(0xFFB9BEC6, 0xFF6D737C), 0xFF141B33),
         )
         val pw = 270
         val ph = 585

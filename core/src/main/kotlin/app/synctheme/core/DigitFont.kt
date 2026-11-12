@@ -15,11 +15,12 @@ enum class DigitFont(
     val ascent: Float, val descent: Float, val top: Float, val bottom: Float, val digit: Float, val colon: Float,
 ) {
     STRETCH("stretch", "Растянутый", 1.060f, 0.200f, 1.000f, 0.000f, 0.362f, 0.150f),
-    COLUMN("column", "Колонна", 1.060f, 0.200f, 1.000f, 0.000f, 0.460f, 0.220f),
-    OUTLINE("outline", "Контур", 1.060f, 0.200f, 1.000f, 0.000f, 0.696f, 0.290f),
-    BLOCK("block", "Блок", 1.060f, 0.200f, 1.000f, 0.000f, 0.480f, 0.210f),
-    TECHNO("techno", "Техно", 1.060f, 0.200f, 1.000f, 0.000f, 0.740f, 0.270f),
-    STENCIL("stencil", "Трафарет", 1.060f, 0.200f, 1.000f, 0.000f, 0.600f, 0.250f),
+    ECHO("echo", "Эхо", 1.060f, 0.200f, 1.000f, -0.094f, 0.500f, 0.278f),
+    NEON("neon", "Неон", 1.060f, 0.200f, 1.000f, 0.000f, 0.552f, 0.220f),
+    GLITCH("glitch", "Глитч", 1.060f, 0.200f, 1.000f, 0.000f, 0.568f, 0.230f),
+    HALFTONE("halftone", "Полутон", 1.060f, 0.200f, 0.978f, -0.005f, 0.596f, 0.230f),
+    BARCODE("barcode", "Штрихкод", 1.060f, 0.200f, 1.000f, 0.000f, 0.460f, 0.190f),
+    VOLUME("volume", "Объём", 1.060f, 0.200f, 1.000f, -0.074f, 0.580f, 0.274f),
     THIN(null, "Тонкий", 0.928f, 0.244f, 0.711f, -0.010f, 0.562f, 0.240f);
 
     /** Высота строки в долях кегля. */
