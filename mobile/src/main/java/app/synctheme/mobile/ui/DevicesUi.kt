@@ -140,13 +140,10 @@ fun DevicesSection(vm: MainViewModel, onOpenInstaller: () -> Unit, onOpenTvInsta
         AccentButton("Добавить устройство", { adding = true }, quiet = devices.watch || devices.peers.isNotEmpty(), height = 48.dp)
         if (!devices.watch && devices.peers.isEmpty()) {
             Text(
-                "Часы, планшет, телевизор с Google TV или другой телефон — одна тема на всех, по одной кнопке «Применить».",
+                "Часы, планшет или телевизор с Google TV — одна тема на всех, по одной кнопке «Применить».",
                 style = MaterialTheme.typography.bodySmall, color = LocalLook.current.muted,
             )
         }
-        // Этот телефон тоже может получать тему — с другого телефона.
-        var receive by rememberSaveable { mutableStateOf(LinkStore.receiving(context)) }
-        OtherDevice(NavIcons.Phone, "Получать тему с другого телефона", receive, { receive = !receive }) { ReceiverBlock(vm) }
     }
     if (adding) AddDeviceDialog(vm, onOpenInstaller, onOpenTvInstaller) { adding = false }
 }
@@ -161,8 +158,8 @@ fun ProSection(vm: MainViewModel) {
     Section("Часы и другие устройства") {
         SwitchRow("Подключать часы, планшет или телевизор", pro, onChange = vm::setPro)
         Text(
-            if (pro) "Часы, планшеты, телевизор и другие телефоны получают ту же тему по «Поставить на телефон». Подключить — ниже, в «Устройствах»."
-            else "Сейчас SyncTheme работает только с этим телефоном. Включите, чтобы добавить часы, планшет, телевизор или другой телефон.",
+            if (pro) "Часы, планшеты и телевизор получают ту же тему по «Поставить на телефон». Подключить — ниже, в «Устройствах»."
+            else "Сейчас SyncTheme работает только с этим телефоном. Включите, чтобы добавить часы, планшет или телевизор.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -326,7 +323,7 @@ private fun AddDeviceDialog(vm: MainViewModel, onOpenInstaller: () -> Unit, onOp
                         style = MaterialTheme.typography.bodySmall, color = look.muted,
                     )
                 }
-                OtherDevice(NavIcons.Tablet, "Планшет или другой телефон", other == "tablet", { other = if (other == "tablet") null else "tablet" }) {
+                OtherDevice(NavIcons.Tablet, "Планшет", other == "tablet", { other = if (other == "tablet") null else "tablet" }) {
                     Text(
                         "Установите на него SyncTheme (тот же файл, что и на телефон), откройте «Настройки» → «Устройства» и включите " +
                             "«Принимать тему с телефона». Устройства должны быть в одной сети Wi‑Fi — тогда оно появится в списке выше.",

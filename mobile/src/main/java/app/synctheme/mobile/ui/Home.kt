@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -70,14 +71,9 @@ import app.synctheme.mobile.render.ThemeRenderer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Подробный раздел темы, который открывается из «Всех настроек темы». */
+/** Подробный раздел темы: часы на обоях (из «Часов на экране»). */
 enum class WallDetail(val title: String) {
-    BACKGROUND("Фон без фото"),
-    COLORS("Цвета"),
-    MODE("Светлая и тёмная"),
     CLOCK("Часы на обоях"),
-    LOCK("Экран блокировки"),
-    SAVE("Название темы"),
 }
 
 /** Что нужно главному экрану от остального приложения. */
@@ -89,14 +85,9 @@ class HomeState(
     val targets: ApplyTargets,
     val devices: DeviceSet,
     val onDetail: (WallDetail) -> Unit,
-    val editColor: (ColorTarget) -> Unit,
     val openThemes: () -> Unit,
-    /** Состояние часов и устройств одной строкой — только если они подключены. */
-    val deviceStatus: @Composable () -> Unit,
-)
-
-private val MODE_TITLES = listOf(
-    ThemeMode.ORIGINAL to "Как на фото", ThemeMode.LIGHT to "Светлее", ThemeMode.DARK to "Темнее", ThemeMode.AUTO to "Днём светло, ночью темно",
+    /** Шестерёнка в шапке: «Настройки». */
+    val openSettings: () -> Unit,
 )
 
 private fun wallTitle(wall: WallClock?) = when {
@@ -106,9 +97,9 @@ private fun wallTitle(wall: WallClock?) = when {
 }
 
 /**
- * Главный экран — тема из фото, как экран входа на образце: сверху «Мои темы», название и «Тёмная»;
- * превью; три поля — «Фото», «Яркость», «Часы на экране»; большая кнопка «Поставить на телефон»;
- * круглая кнопка «Все настройки темы». При первом запуске вместо полей — «Выбрать фото».
+ * Главный экран — тема из фото: сверху «Мои темы», название, «Тёмная» и шестерёнка настроек; превью;
+ * поля «Фото» и «Часы на экране»; большая кнопка «Поставить на телефон». При первом запуске вместо
+ * полей — «Выбрать фото».
  */
 fun LazyListScope.home(theme: Theme, a: ScreenActions, s: HomeState, firstRun: Boolean) {
     item(key = "h_top") { TopBar(theme, s) }
@@ -137,10 +128,19 @@ fun LazyListScope.home(theme: Theme, a: ScreenActions, s: HomeState, firstRun: B
     item(key = "h_photo") {
         SoftField("Фото", if (theme.background.type == BackgroundType.PHOTO) "Заменить фото" else "Выбрать фото", NavIcons.Camera, a.themeFromPhoto)
     }
-    item(key = "h_mode") { ModeField(theme, a) }
     item(key = "h_clock") { ClockField(theme, a, s) }
     item(key = "h_apply") { ApplyButton(a, s) }
-    item(key = "h_more") { MoreButton(theme, a, s) }
+}
+
+/** Шестерёнка «Настройки» — круглая выпуклая кнопка, как «Назад» в шапке разделов. */
+@Composable
+fun SettingsButton(onClick: () -> Unit) {
+    val look = LocalLook.current
+    Box(
+        Modifier.size(44.dp).raised(look, 22.dp, 4.dp).clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = "Настройки" },
+        contentAlignment = Alignment.Center,
+    ) { Icon(Icons.Outlined.Settings, null, tint = look.text, modifier = Modifier.size(24.dp)) }
 }
 
 @Composable
@@ -156,10 +156,8 @@ private fun TopBar(theme: Theme, s: HomeState) {
                 textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(horizontal = 8.dp).clickable(role = Role.Button, onClick = s.openThemes),
             )
             SoftToggle("Тёмная", look.dark, { on -> AppearanceStore.set(context, appearance.copy(mode = if (on) AppMode.DARK else AppMode.LIGHT)) })
-        }
-        if (s.devices.watch || s.devices.peers.any { it.enabled }) {
-            Spacer(Modifier.height(10.dp))
-            s.deviceStatus()
+            Spacer(Modifier.width(10.dp))
+            SettingsButton(s.openSettings)
         }
     }
 }
@@ -191,25 +189,6 @@ private fun Preview(theme: Theme, a: ScreenActions, s: HomeState) {
             )
         }
     }
-}
-
-@Composable
-private fun ModeField(theme: Theme, a: ScreenActions) {
-    val expandAll = LocalExpandAll.current
-    var open by rememberSaveable { mutableStateOf(false) }
-    val minis by a.vm.choicePreviews.collectAsStateWithLifecycle()
-    val shown = open || expandAll
-    SoftField(
-        "Яркость", MODE_TITLES.first { it.first == theme.mode }.second,
-        if (shown) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, { open = !open },
-        content = if (!shown) null else {
-            {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MODE_TITLES.forEach { (m, label) -> Choice(label, minis[m.name], theme.mode == m) { a.vm.update { it.copy(mode = m) } } }
-                }
-            }
-        },
-    )
 }
 
 @Composable
@@ -284,100 +263,6 @@ private fun ApplyButton(a: ScreenActions, s: HomeState) {
         }
     }
     if (targetsOpen) TargetsDialog(s.targets, s.devices, a.vm::setTargets, a.vm::setPeerEnabled) { targetsOpen = false }
-}
-
-/** Круглая кнопка «Все настройки темы» — как отпечаток на образце; раскрывает остальное обычными словами. */
-@Composable
-private fun MoreButton(theme: Theme, a: ScreenActions, s: HomeState) {
-    val look = LocalLook.current
-    val expandAll = LocalExpandAll.current
-    var open by rememberSaveable { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        SoftRound(NavIcons.Settings, "Все настройки темы", { open = !open })
-        Text(
-            if (open || expandAll) "Скрыть настройки темы" else "Все настройки темы", color = look.text, fontWeight = FontWeight.Bold, fontSize = 14.sp,
-            modifier = Modifier.padding(top = 16.dp).clickable(role = Role.Button) { open = !open }.padding(6.dp),
-        )
-        if (open || expandAll) MoreSettings(theme, a, s)
-    }
-}
-
-/** Всё, что реже нужно: каждая настройка подписана тем, что она делает. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun MoreSettings(theme: Theme, a: ScreenActions, s: HomeState) {
-    val look = LocalLook.current
-    val photo = theme.background.type == BackgroundType.PHOTO
-    SoftCard(Modifier.padding(top = 10.dp)) {
-        Setting("Цвет виджетов и подписей", if (photo) "Взят с вашего фото. Нажмите другой кружок, чтобы поменять." else "Нажмите кружок, чтобы поменять.") {
-            val colors = (theme.background.colors + theme.accentColor + app.synctheme.core.Presets.all.map { it.accentColor }).distinct().take(6)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                colors.forEach { c -> ColorSwatch(c, size = 36.dp, selected = c == theme.accentColor) { a.vm.update { it.copy(accentColor = c) } } }
-                Box(
-                    Modifier.size(36.dp).raised(look, 18.dp, 3.dp).clip(CircleShape).clickable { s.editColor(ColorTarget.Accent) }
-                        .semantics { contentDescription = "Другой цвет" },
-                    contentAlignment = Alignment.Center,
-                ) { Text("+", color = look.text, fontSize = 20.sp) }
-            }
-        }
-        Setting("Цвет цифр", null) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val white = 0xFFFFFFFF.toInt()
-                val dark = 0xFF1A1A1A.toInt()
-                StyledChip(theme.textColor == white, { a.vm.update { it.copy(textColor = white) } }, label = { Text("Белые") })
-                StyledChip(theme.textColor == dark, { a.vm.update { it.copy(textColor = dark) } }, label = { Text("Тёмные") })
-                StyledChip(theme.textColor != white && theme.textColor != dark, { s.editColor(ColorTarget.Text) }, label = { Text("Другой…") })
-            }
-        }
-        Setting("Затемнить фото", "Цифры и виджеты читаются лучше.") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("нет", color = look.muted, fontSize = 12.sp)
-                Slider(theme.dim.coerceIn(0f, 0.8f), { d -> a.vm.update { it.copy(dim = d) } }, valueRange = 0f..0.8f, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
-                Text("сильно", color = look.muted, fontSize = 12.sp)
-            }
-        }
-        if (photo) LinkText("Подвинуть или приблизить фото") { a.arrange(ArrangeTarget.HOME) }
-        theme.wallClock?.let { wall ->
-            Setting("Где часы", null) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(WallClockLayout.TOP to "Вверху", WallClockLayout.STACKED to "Столбиком", WallClockLayout.CENTER to "По центру").forEach { (l, label) ->
-                        StyledChip(wall.layout == l && wall.place == null, { a.vm.setWallClock(wall.copy(layout = l, place = null)) }, label = { Text(label) })
-                    }
-                }
-            }
-            Setting("Рядом с часами", null) {
-                SwitchRow("Дата", wall.showDate) { on -> a.vm.setWallClock(wall.copy(showDate = on)) }
-                SwitchRow("Погода", wall.weather) { on -> a.vm.setWallClock(wall.copy(weather = on)) }
-                SwitchRow("Заряд батареи", wall.battery) { on -> a.vm.setWallClock(wall.copy(battery = on)) }
-            }
-            LinkText("Все настройки часов: шрифт, приложение по нажатию") { s.onDetail(WallDetail.CLOCK) }
-        }
-        Setting("Экран блокировки", null) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StyledChip(theme.lockBackground == null, { a.vm.setLockSeparate(false) }, label = { Text("То же фото") })
-                StyledChip(theme.lockBackground != null, { a.pickPhoto(BgTarget.LOCK) }, label = { Text(if (theme.lockBackground != null) "Другое фото ✓" else "Другое фото") })
-            }
-            LinkText("Часы на экране блокировки") { s.onDetail(WallDetail.LOCK) }
-        }
-        Setting("Без фото", "Фон из цветов — градиент или один цвет.") {
-            LinkText(if (photo) "Сделать фон из цветов" else "Настроить цвета фона") { s.onDetail(WallDetail.BACKGROUND) }
-        }
-        Setting("Название темы", theme.name) {
-            LinkText("Переименовать или сохранить копию") { s.onDetail(WallDetail.SAVE) }
-        }
-    }
-}
-
-@Composable
-private fun Setting(title: String, subtitle: String?, content: @Composable ColumnScope.() -> Unit) {
-    val look = LocalLook.current
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column {
-            Text(title, color = look.text, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            subtitle?.let { Text(it, color = look.muted, fontSize = 13.sp, lineHeight = 18.sp) }
-        }
-        content()
-    }
 }
 
 @Composable

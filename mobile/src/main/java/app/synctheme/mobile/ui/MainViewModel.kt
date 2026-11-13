@@ -1,7 +1,5 @@
 package app.synctheme.mobile.ui
 
-import app.synctheme.mobile.icons.IconPinner
-import app.synctheme.mobile.icons.IconStyle
 import android.Manifest
 import android.graphics.Bitmap
 import android.app.Application
@@ -98,8 +96,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val choicePreviews: StateFlow<Map<String, ImageBitmap>> = _choicePreviews.asStateFlow()
     private val _watchPreview = MutableStateFlow<ImageBitmap?>(null)
     val watchPreview: StateFlow<ImageBitmap?> = _watchPreview.asStateFlow()
-    private val _lockPreview = MutableStateFlow<ImageBitmap?>(null)
-    val lockPreview: StateFlow<ImageBitmap?> = _lockPreview.asStateFlow()
     /** Циферблат в режиме Always-On. */
     private val _ambientPreview = MutableStateFlow<ImageBitmap?>(null)
     val ambientPreview: StateFlow<ImageBitmap?> = _ambientPreview.asStateFlow()
@@ -201,6 +197,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        // Тему с другого устройства принимают только планшет и телевизор; у телефона этой настройки больше нет.
+        if (DeviceSettings.kind(app) == DeviceKind.PHONE && _receiving.value) setReceiving(false)
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
             // Подключили или отключили планшет либо телевизор — нужны (или больше не нужны) их превью.
@@ -311,36 +309,22 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val face = DayNight.forWatch(stored)
         // На планшете своё превью — планшет в альбомной ориентации.
         val phone = if (selfTablet) ThemeRenderer.tabletPreview(app, t, 800, 500) else ThemeRenderer.phonePreview(app, t, 540, 1170)
-        val lock = if (selfTablet) ThemeRenderer.lockPreview(app, t, 800, 500) else ThemeRenderer.lockPreview(app, t, 540, 1170)
         val watch = ThemeRenderer.watchPreview(app, face, 450)
         _ambientPreview.value = ThemeRenderer.watchAmbientPreview(app, face, 240).asImageBitmap()
         _phonePreview.value = phone.asImageBitmap()
         if (!selfTablet) _choicePreviews.value = runCatching { choiceShots(stored) }.getOrDefault(emptyMap())
-        _lockPreview.value = lock.asImageBitmap()
         _watchPreview.value = watch.asImageBitmap()
         val kinds = devices.value.peers.map { it.kind }
         _tabletPreview.value = if (DeviceKind.TABLET in kinds) ThemeRenderer.tabletPreview(app, t, 800, 500).asImageBitmap() else null
         _tvPreview.value = if (DeviceKind.TV in kinds) ThemeRenderer.tvFrame(app, t, 960, 540).asImageBitmap() else null
     }
 
-    /** Без виджетов — только фон и часы: так варианты рисуются быстро и отличаются тем, что выбирают. */
+    /** Варианты «Часов на экране» — без виджетов, только фон и часы: рисуются быстро и отличаются тем, что выбирают. */
     private fun choiceShots(stored: Theme): Map<String, ImageBitmap> {
-        val w = 160
-        val h = 347
-        val night = DayNight.isNight(app)
-        fun shot(t: Theme): Bitmap = ThemeRenderer.phonePreview(app, t, w, h, widgets = false)
+        fun shot(t: Theme): Bitmap = ThemeRenderer.phonePreview(app, t, 160, 347, widgets = false)
         val shown = DayNight.of(app, stored)
-        val light = shot(stored.copy(mode = ThemeMode.LIGHT).resolved(night))
-        val dark = shot(stored.copy(mode = ThemeMode.DARK).resolved(night))
-        // «Днём светло, ночью темно» — половина светлой версии и половина тёмной.
-        val split = light.copy(Bitmap.Config.ARGB_8888, true)
-        android.graphics.Canvas(split).drawBitmap(dark, android.graphics.Rect(w / 2, 0, w, h), android.graphics.Rect(w / 2, 0, w, h), null)
         val wall = stored.wallClock ?: WallClock()
         return mapOf(
-            ThemeMode.ORIGINAL.name to shot(stored.copy(mode = ThemeMode.ORIGINAL).resolved(night)),
-            ThemeMode.LIGHT.name to light,
-            ThemeMode.DARK.name to dark,
-            ThemeMode.AUTO.name to split,
             "none" to shot(shown.copy(wallClock = null)),
             "on" to shot(shown.copy(wallClock = wall.copy(depth = false))),
             "depth" to shot(shown.copy(wallClock = wall.copy(depth = true))),
@@ -559,11 +543,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             ThemeApplier.Report(emptyList(), listOf(e.message ?: e.javaClass.simpleName), false)
         } finally {
             _busy.value = null
-        }
-        // Значки «Цвет темы» на рабочем столе перекрашиваются под новую тему.
-        if (IconPinner.style(app, IconStyle.CLAY) == IconStyle.THEME) {
-            val accent = theme.value.accentColor
-            launch(Dispatchers.Default) { runCatching { IconPinner.restyle(app, IconStyle.THEME, accent) } }
         }
         val notes = mutableListOf<String>()
         if (targets.watch) {

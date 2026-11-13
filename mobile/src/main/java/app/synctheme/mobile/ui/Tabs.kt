@@ -83,117 +83,15 @@ import app.synctheme.core.FontWeight as ClockFont
 
 // ---------------------------------------------------------------- Обои
 
-/** Раздел «Обоев», открытый с плитки; каждый — отдельной карточкой под превью. */
-fun LazyListScope.wallpaperDetail(detail: WallDetail, theme: Theme, a: ScreenActions, editColor: (ColorTarget) -> Unit) {
-    // При раскрытых разделах (скриншоты) все разделы идут друг под другом — с заголовками.
-    val panel: @Composable (@Composable () -> Unit) -> Unit = { content ->
-        if (LocalExpandAll.current) Section(detail.title) { content() } else Panel { content() }
-    }
+/** Раздел темы — часы на обоях — отдельной карточкой под превью. */
+fun LazyListScope.wallpaperDetail(detail: WallDetail, theme: Theme, a: ScreenActions) {
     when (detail) {
-        WallDetail.MODE -> item(key = "d_mode") {
-            panel {
-                // Все четыре варианта видны сразу: на узком экране переносятся на вторую строку.
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ThemeMode.entries.forEach { m ->
-                        StyledChip(selected = theme.mode == m, onClick = { a.vm.update { it.copy(mode = m) } }, label = { Text(m.title) })
-                    }
-                }
-                Text(modeHint(theme.mode), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        WallDetail.BACKGROUND -> item(key = "d_bg") {
-            panel {
-                BackgroundEditorContent(
-                    bg = theme.background, dim = theme.dim,
-                    onBg = { b -> a.vm.update { it.copy(background = b) } },
-                    onDim = { d -> a.vm.update { it.copy(dim = d) } },
-                    onPickPhoto = { a.pickPhoto(BgTarget.HOME) },
-                    onEditColor = { editColor(ColorTarget.Gradient(BgTarget.HOME, it)) },
-                    onArrange = { a.arrange(ArrangeTarget.HOME) },
-                )
-            }
-        }
-        WallDetail.COLORS -> item(key = "d_colors") {
-            panel {
-                Text("Цифры и акцент — для виджетов, часов на обоях и циферблата.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                ColorsContent(
-                    theme.textColor, theme.accentColor, theme.background.colors,
-                    onEditText = { editColor(ColorTarget.Text) },
-                    onEditAccent = { editColor(ColorTarget.Accent) },
-                    onAccent = { c -> a.vm.update { it.copy(accentColor = c) } },
-                )
-            }
-        }
         WallDetail.CLOCK -> item(key = "d_clock") {
-            panel { WallClockContent(theme, a.vm) { a.arrange(ArrangeTarget.HOME) } }
-        }
-        WallDetail.SAVE -> item(key = "d_save") {
-            val saved by a.vm.saved.collectAsStateWithLifecycle()
-            panel { NameRow(theme, saved.any { it.id == theme.id }, onRename = { name -> a.vm.update { it.copy(name = name) } }, onSave = a.vm::saveCurrent) }
-        }
-        WallDetail.LOCK -> lockDetail(theme, a, editColor)
-    }
-}
-
-private fun LazyListScope.lockDetail(theme: Theme, a: ScreenActions, editColor: (ColorTarget) -> Unit) {
-    item(key = "l_own") {
-        Section("Обои блокировки") {
-            SwitchRow("Свои обои для экрана блокировки", theme.lockBackground != null) { a.vm.setLockSeparate(it) }
-            Text(
-                if (theme.lockBackground == null) "Сейчас на экране блокировки те же обои, что и на рабочем столе."
-                else "Обои ниже ставятся только на экран блокировки.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // При раскрытых разделах (скриншоты) раздел идёт под главным экраном — с заголовком.
+            if (LocalExpandAll.current) Section(detail.title) { WallClockContent(theme, a.vm) { a.arrange(ArrangeTarget.HOME) } }
+            else Panel { WallClockContent(theme, a.vm) { a.arrange(ArrangeTarget.HOME) } }
         }
     }
-    if (theme.lockBackground != null) {
-        item(key = "l_bg") {
-            ExpandableSection("Фон блокировки", summary = backgroundSummary(theme.lockScreenBackground(), theme.lockScreenDim()), initiallyExpanded = true) {
-                BackgroundEditorContent(
-                    bg = theme.lockScreenBackground(), dim = theme.lockScreenDim(),
-                    onBg = { b -> a.vm.update { it.copy(lockBackground = b) } },
-                    onDim = { d -> a.vm.update { it.copy(lockDim = d) } },
-                    onPickPhoto = { a.pickPhoto(BgTarget.LOCK) },
-                    onEditColor = { editColor(ColorTarget.Gradient(BgTarget.LOCK, it)) },
-                )
-            }
-        }
-    }
-    item(key = "l_clock") {
-        val own = theme.wallClock?.onLock == true
-        ExpandableSection(
-            "Часы и эффект глубины", summary = if (own) "Часы SyncTheme" + (if (theme.wallClock?.depth == true) " за объектом фото" else "") else "Часы телефона",
-            initiallyExpanded = own,
-        ) { LockClockContent(theme, a.vm) }
-    }
-    item(key = "l_note") {
-        Text(
-            "Свои часы телефона на экране блокировки остаются всегда — их стиль и размер меняются в настройках " +
-                "экрана блокировки самого телефона.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-        )
-    }
-}
-
-private fun modeHint(mode: ThemeMode): String = when (mode) {
-    ThemeMode.ORIGINAL -> "Цвета — ровно как в теме."
-    ThemeMode.LIGHT -> "Светлые фон и подложки виджетов, тёмные цифры. Тёмное фото — под светлой вуалью."
-    ThemeMode.DARK -> "Приглушённый фон, затемнённое фото, белые цифры — спокойно вечером и экономит заряд."
-    ThemeMode.AUTO -> "Днём — светлая, когда на телефоне включена тёмная тема — тёмная. Обои и виджеты переключаются сами, " +
-        "циферблат часов всегда тёмный."
-}
-
-private fun backgroundSummary(bg: Background, dim: Float): String {
-    val type = when (bg.type) {
-        BackgroundType.AURORA -> "Аврора"
-        BackgroundType.LINEAR -> "Градиент"
-        BackgroundType.RADIAL -> "Сияние"
-        BackgroundType.SOLID -> "Цвет"
-        BackgroundType.PHOTO -> "Фото"
-    }
-    val colors = if (bg.type == BackgroundType.PHOTO || bg.type == BackgroundType.SOLID) "" else " · цветов: ${bg.colors.size}"
-    return "$type$colors · затемнение ${(dim * 100).toInt()}%"
 }
 
 @Composable
@@ -201,20 +99,6 @@ private fun SwatchPair(text: Int, accent: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
         ColorSwatch(text, size = 26.dp) {}
         ColorSwatch(accent, size = 26.dp) {}
-    }
-}
-
-@Composable
-private fun NameRow(theme: Theme, isSaved: Boolean, onRename: (String) -> Unit, onSave: (replace: Boolean) -> Unit) {
-    OutlinedTextField(value = theme.name, onValueChange = onRename, singleLine = true, label = { Text("Название") }, modifier = Modifier.fillMaxWidth())
-    // Сохранение не стирает прежние темы: новая тема — рядом; заменить можно только явно.
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        StyledTonalButton(onClick = { onSave(false) }) {
-            Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(if (isSaved) "Сохранить как новую" else "Сохранить")
-        }
-        if (isSaved) StyledOutlinedButton(onClick = { onSave(true) }) { Text("Обновить эту тему") }
     }
 }
 
@@ -278,14 +162,6 @@ fun LazyListScope.widgetsTab(theme: Theme, a: ScreenActions) {
         ExpandableSection("Прозрачность всех виджетов", summary = "Подложка ${(theme.widgetOpacity * 100).toInt()}%") {
             LabeledSlider("Подложка", opacity, 0f..1f, "${(opacity * 100).toInt()}%") { opacity = it }
             StyledButton(onClick = { a.vm.setOpacityForAll(opacity) }) { Text("Применить ко всем виджетам") }
-        }
-    }
-    item {
-        val context = LocalContext.current
-        // Итог в заголовке обновляется сразу, как только город выбран.
-        var place by remember { mutableStateOf(WeatherRepository(context).place?.name) }
-        ExpandableSection("Город для погоды", summary = place ?: "Не выбран") {
-            WeatherPlaceEditor { place = WeatherRepository(context).place?.name }
         }
     }
 }
@@ -435,7 +311,7 @@ fun LazyListScope.watchTab(theme: Theme, a: ScreenActions, editColor: (ColorTarg
 // ---------------------------------------------------------------- Настройки
 
 fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable () -> Unit) {
-    // Четыре раздела по порядку того, что ищут чаще: обновления, устройства, вид приложения, о приложении.
+    // Разделы по порядку того, что ищут чаще: обновления, устройства, вид приложения, о приложении.
     item { updates() }
     item { ProSection(a.vm) }
     item {
@@ -443,7 +319,6 @@ fun LazyListScope.moreTab(theme: Theme, a: ScreenActions, updates: @Composable (
         if (pro) DevicesSection(a.vm, a.openInstaller, a.openTvInstaller)
     }
     item { AppearanceSection(theme.accentColor) }
-    item { IconsSection(theme.accentColor, a.openIcons) }
     item {
         val context = LocalContext.current
         var licenses by remember { mutableStateOf<String?>(null) }

@@ -179,17 +179,4 @@ object NavIcons {
         stroke { moveTo(12f, 7.5f); lineTo(12f, 12.5f) }
         fill { moveTo(12f, 14.9f); arcTo(1.1f, 1.1f, 0f, true, true, 12f, 17.1f); arcTo(1.1f, 1.1f, 0f, true, true, 12f, 14.9f); close() }
     }
-
-    /** Иконки приложений: четыре скруглённые плитки, одна со звёздочкой. */
-    val Icons = icon("AppIcons") {
-        stroke {
-            moveTo(6f, 3.5f); lineTo(8.5f, 3.5f); quadTo(10.5f, 3.5f, 10.5f, 5.5f); lineTo(10.5f, 8.5f); quadTo(10.5f, 10.5f, 8.5f, 10.5f)
-            lineTo(5.5f, 10.5f); quadTo(3.5f, 10.5f, 3.5f, 8.5f); lineTo(3.5f, 5.5f); quadTo(3.5f, 3.5f, 5.5f, 3.5f); close()
-            moveTo(15.5f, 3.5f); lineTo(18.5f, 3.5f); quadTo(20.5f, 3.5f, 20.5f, 5.5f); lineTo(20.5f, 8.5f); quadTo(20.5f, 10.5f, 18.5f, 10.5f)
-            lineTo(15.5f, 10.5f); quadTo(13.5f, 10.5f, 13.5f, 8.5f); lineTo(13.5f, 5.5f); quadTo(13.5f, 3.5f, 15.5f, 3.5f); close()
-            moveTo(5.5f, 13.5f); lineTo(8.5f, 13.5f); quadTo(10.5f, 13.5f, 10.5f, 15.5f); lineTo(10.5f, 18.5f); quadTo(10.5f, 20.5f, 8.5f, 20.5f)
-            lineTo(5.5f, 20.5f); quadTo(3.5f, 20.5f, 3.5f, 18.5f); lineTo(3.5f, 15.5f); quadTo(3.5f, 13.5f, 5.5f, 13.5f); close()
-        }
-        stroke { moveTo(17f, 13f); lineTo(17f, 21f); moveTo(13f, 17f); lineTo(21f, 17f); moveTo(14.2f, 14.2f); lineTo(19.8f, 19.8f); moveTo(19.8f, 14.2f); lineTo(14.2f, 19.8f) }
-    }
 }

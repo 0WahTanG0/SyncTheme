@@ -26,18 +26,6 @@ import app.synctheme.mobile.widget.AppPickerDialog
 
 // ---------------------------------------------------------------- часы на обоях
 
-fun wallClockSummary(theme: Theme): String {
-    val wall = theme.wallClock ?: return "Выключены"
-    if (wall.place != null) return "Вкл · где вы поставили"
-    if (wall.depth && theme.background.type == BackgroundType.PHOTO) return "Вкл · рядом с объектом фото"
-    val layout = when (wall.layout) {
-        WallClockLayout.TOP -> "вверху"
-        WallClockLayout.STACKED -> "столбиком"
-        WallClockLayout.CENTER -> "по центру"
-    }
-    return "Вкл · $layout"
-}
-
 /** Часы прямо на обоях рабочего стола (живые обои) и эффект глубины. */
 @Composable
 fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}) {
@@ -89,7 +77,7 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
     if (wall.weather || wall.battery) {
         Text(
             "Они на обоях, как и часы, — поэтому тоже уходят за объект фото." +
-                if (wall.weather) " Погода — для города из «Виджеты» → «Город для погоды»." else "",
+                if (wall.weather) " Погода — для города из настроек виджета «Погода»." else "",
             style = MaterialTheme.typography.bodySmall, color = muted,
         )
     }
@@ -153,33 +141,4 @@ private fun LockClockHint(onLock: Boolean) {
             runCatching { context.startActivity(ClockWallpaper.setIntent(context)) }
         }) { Text("Поставить живые обои на оба экрана") }
     }
-}
-
-/**
- * Экран блокировки: свои часы SyncTheme (живые обои) с эффектом глубины — одинаково на любом телефоне.
- * Часы самого телефона там остаются: их убрать нельзя, только уменьшить в настройках телефона.
- */
-@Composable
-fun LockClockContent(theme: Theme, vm: MainViewModel) {
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    val wall = theme.wallClock
-    val photo = theme.lockScreenBackground().type == BackgroundType.PHOTO
-    SwitchRow("Часы SyncTheme на экране блокировки", wall?.onLock == true) { on ->
-        vm.setWallClock((wall ?: WallClock(depth = photo)).copy(onLock = on))
-    }
-    if (wall == null || !wall.onLock) {
-        Text(
-            "Крупные часы прямо на обоях экрана блокировки — с эффектом глубины: объект с фото встаёт перед ними.",
-            style = MaterialTheme.typography.bodySmall, color = muted,
-        )
-        return
-    }
-    SwitchRow("За объектом фото", wall.depth && photo, enabled = photo) { on -> vm.setWallClock(wall.copy(depth = on)) }
-    if (!photo) {
-        Text("Эффект глубины работает с фото на экране блокировки.", style = MaterialTheme.typography.bodySmall, color = muted)
-    } else if (wall.depth) {
-        StyledOutlinedButton(onClick = { vm.editSubject(theme.lockScreenBackground()) }) { Text("Выбрать объект") }
-    }
-    Text("Шрифт, место, погода и заряд — в «Обои» → «Часы на обоях».", style = MaterialTheme.typography.bodySmall, color = muted)
-    LockClockHint(true)
 }

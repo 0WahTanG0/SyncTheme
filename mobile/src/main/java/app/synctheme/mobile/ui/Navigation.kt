@@ -58,7 +58,7 @@ import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.data.DeviceSet
 import app.synctheme.mobile.util.within
 
-/** Нижнее меню: четыре раздела под большим пальцем. */
+/** Нижнее меню: главные разделы под большим пальцем («Настройки» — шестерёнкой в шапке). */
 @Composable
 fun BottomNav(tab: Tab, tabs: List<Tab> = Tab.entries, onTab: (Tab) -> Unit) {
     val look = LocalLook.current

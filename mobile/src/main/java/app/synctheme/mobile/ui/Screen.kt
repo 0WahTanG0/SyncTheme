@@ -98,7 +98,6 @@ fun SyncThemeScreen(
     vm: MainViewModel,
     initialTab: Tab = Tab.WALLPAPER,
     onOpenInstaller: () -> Unit = {},
-    initialLock: Boolean = false,
     onOpenTvInstaller: () -> Unit = {},
     expandSections: Boolean = false,
     /** При первом запуске — проверка совместимости (из MainActivity; в тестах экран сразу главный). */
@@ -106,7 +105,7 @@ fun SyncThemeScreen(
     /** Сразу открыть раздел «Обоев» (скриншоты). */
     initialDetail: WallDetail? = null,
 ) = androidx.compose.runtime.CompositionLocalProvider(LocalExpandAll provides expandSections) {
-    SyncThemeContent(vm, initialTab, onOpenInstaller, initialDetail ?: WallDetail.LOCK.takeIf { initialLock }, onOpenTvInstaller, firstLaunchCheck)
+    SyncThemeContent(vm, initialTab, onOpenInstaller, initialDetail, onOpenTvInstaller, firstLaunchCheck)
 }
 
 @Composable
@@ -116,18 +115,16 @@ private fun SyncThemeContent(
     val theme by vm.theme.collectAsStateWithLifecycle()
     val applied by vm.applied.collectAsStateWithLifecycle()
     val phonePreview by vm.phonePreview.collectAsStateWithLifecycle()
-    val lockPreview by vm.lockPreview.collectAsStateWithLifecycle()
     val watchPreview by vm.watchPreview.collectAsStateWithLifecycle()
-    val connection by vm.connection.collectAsStateWithLifecycle()
     val targets by vm.targets.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val devices by vm.devices.collectAsStateWithLifecycle()
     val tabletPreview by vm.tabletPreview.collectAsStateWithLifecycle()
     val tvPreview by vm.tvPreview.collectAsStateWithLifecycle()
-    val linkPush by vm.linkPush.collectAsStateWithLifecycle()
     // Без часов вкладка «Часы» не нужна.
-    // Внизу — только главное: тема, виджеты, (часы) и настройки. «Мои темы» открываются кнопкой на главном экране.
-    val tabs = Tab.entries.filter { it != Tab.THEMES && (it != Tab.WATCH || devices.watch) }
+    // Внизу — только главное: тема, виджеты и (часы). «Мои темы» открываются кнопкой на главном экране,
+    // «Настройки» — шестерёнкой в шапке.
+    val tabs = Tab.entries.filter { it != Tab.THEMES && it != Tab.MORE && (it != Tab.WATCH || devices.watch) }
     val context = LocalContext.current
 
     val snackbar = remember { SnackbarHostState() }
@@ -140,16 +137,19 @@ private fun SyncThemeContent(
         tab = it
         detail = null
     }
+    /** Откуда открыли «Настройки» — туда же «Назад». */
+    var settingsFrom by rememberSaveable { mutableStateOf(Tab.WALLPAPER) }
+    val openSettings: () -> Unit = {
+        if (tab != Tab.MORE) settingsFrom = tab
+        openTab(Tab.MORE)
+    }
     LaunchedEffect(Unit) { vm.tabRequests.collect(openTab) }
-    LaunchedEffect(tabs) { if (tab !in tabs && tab != Tab.THEMES) openTab(Tab.WALLPAPER) }
-    val lock = detail == WallDetail.LOCK
+    LaunchedEffect(tabs) { if (tab !in tabs && tab != Tab.THEMES && tab != Tab.MORE) openTab(Tab.WALLPAPER) }
     var photoTarget by remember { mutableStateOf(BgTarget.HOME) }
     /** Фото выбирают для новой темы («Из фото»), а не для фона текущей. */
     var photoTheme by remember { mutableStateOf(false) }
     /** Открыт редактор расположения (часы и фото). */
     var arrange by rememberSaveable { mutableStateOf<ArrangeTarget?>(null) }
-    /** Открыт экран «Иконки приложений». */
-    var icons by rememberSaveable { mutableStateOf(false) }
     /** Открыта проверка совместимости: при первом запуске сама, потом — из «Настроек». */
     var compat by rememberSaveable { mutableStateOf(firstLaunchCheck && !CompatCheck.shown(context)) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -184,7 +184,6 @@ private fun SyncThemeContent(
             openTvInstaller = onOpenTvInstaller,
             arrange = { arrange = it },
             openCompat = { compat = true },
-            openIcons = { icons = true },
             configureWidget = { id ->
                 context.startActivity(
                     Intent(context, WidgetConfigActivity::class.java)
@@ -205,11 +204,6 @@ private fun SyncThemeContent(
         CompatScreen(close)
         return
     }
-    if (icons) {
-        androidx.activity.compose.BackHandler { icons = false }
-        IconsScreen(theme.accentColor) { icons = false }
-        return
-    }
     val subject by vm.subjectEditor.collectAsStateWithLifecycle()
     subject?.let { photo ->
         androidx.activity.compose.BackHandler { vm.closeSubjectEditor() }
@@ -224,6 +218,7 @@ private fun SyncThemeContent(
 
     if (tab == Tab.WALLPAPER && detail != null) androidx.activity.compose.BackHandler { detail = null }
     if (tab == Tab.THEMES) androidx.activity.compose.BackHandler { openTab(Tab.WALLPAPER) }
+    if (tab == Tab.MORE) androidx.activity.compose.BackHandler { openTab(settingsFrom) }
 
     val density = LocalDensity.current
     val collapsing = remember(density) { CollapsingHeader(with(density) { 224.dp.toPx() }, with(density) { 96.dp.toPx() }) }
@@ -243,17 +238,16 @@ private fun SyncThemeContent(
         when (tab) {
             Tab.WATCH -> PreviewRow(null, watchPreview, null, null, height)
             Tab.WALLPAPER -> PreviewRow(
-                if (lock) lockPreview else phonePreview, watchPreview.takeIf { devices.watch },
-                tabletPreview.takeIf { !lock }, tvPreview.takeIf { !lock }, height, vm.selfTablet,
+                phonePreview, watchPreview.takeIf { devices.watch }, tabletPreview, tvPreview, height, vm.selfTablet,
             )
             else -> PreviewRow(phonePreview, watchPreview.takeIf { devices.watch }, tabletPreview, tvPreview, height, vm.selfTablet)
         }
     }
-    val header: @Composable () -> Unit = { Header(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) } }
+    // На главном экране шестерёнка — в его верхней строке; в шапке она для остальных вкладок.
+    val header: @Composable () -> Unit = { Header(openSettings.takeIf { !hub }) }
     val home = HomeState(
         phonePreview, watchPreview, theme != applied, busy, targets, devices,
-        onDetail = { detail = it }, editColor = { colorTarget = it }, openThemes = { openTab(Tab.THEMES) },
-        deviceStatus = { DeviceStatus(connection, devices, linkPush, onOpenInstaller) { openTab(Tab.MORE) } },
+        onDetail = { detail = it }, openThemes = { openTab(Tab.THEMES) }, openSettings = openSettings,
     )
     val settings: LazyListScope.() -> Unit = {
         item(key = "update") { UpdateBanner(vm) }
@@ -263,9 +257,9 @@ private fun SyncThemeContent(
                 if (open == null) {
                     home(theme, actions, home, firstRun)
                     // Для скриншотов во всю высоту — все разделы сразу под шагами.
-                    if (expandAll) WallDetail.entries.forEach { d -> wallpaperDetail(d, theme, actions) { colorTarget = it } }
+                    if (expandAll) WallDetail.entries.forEach { d -> wallpaperDetail(d, theme, actions) }
                 } else {
-                    wallpaperDetail(open, theme, actions) { colorTarget = it }
+                    wallpaperDetail(open, theme, actions)
                 }
             }
             Tab.THEMES -> themesTab(theme, actions) { openTab(Tab.WALLPAPER) }
@@ -280,6 +274,7 @@ private fun SyncThemeContent(
         when {
             tab == Tab.WALLPAPER && open != null -> DetailHeader(open.title) { detail = null }
             tab == Tab.THEMES -> DetailHeader(Tab.THEMES.title) { openTab(Tab.WALLPAPER) }
+            tab == Tab.MORE -> DetailHeader(Tab.MORE.title) { openTab(settingsFrom) }
             else -> header()
         }
     }
@@ -324,8 +319,8 @@ private fun SyncThemeContent(
                     }
                 }
                 if (wide) SnackbarHost(snackbar, Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(8.dp).widthIn(max = 520.dp))
-                // Запросы на подключение видны на любом экране: этот телефон подключает устройство
-                // или сам принимает тему с другого телефона.
+                // Запросы на подключение видны на любом экране: этот телефон подключает устройство,
+                // а планшет или телевизор подтверждает подключение.
                 LinkingDialog(vm)
                 LinkRequestDialog()
             }
@@ -379,8 +374,6 @@ class ScreenActions(
     val openCompat: () -> Unit = {},
     /** Новая тема из фото в один шаг. */
     val themeFromPhoto: () -> Unit = {},
-    /** Значки приложений в стиле оформления. */
-    val openIcons: () -> Unit = {},
 ) {
     /** Меняет циферблат: в отдельных настройках часов или, если их нет, в общей теме. */
     fun editWatchFace(transform: (app.synctheme.core.WatchSettings) -> app.synctheme.core.WatchSettings) {
@@ -405,63 +398,15 @@ class ScreenActions(
     }
 }
 
-/** Шапка: название и состояние подключённых устройств (часы и устройства по Wi‑Fi — если есть). */
+/** Шапка: значок и название приложения, справа — шестерёнка «Настройки» (null — без неё). */
 @Composable
-private fun Header(
-    connection: WatchConnection,
-    devices: DeviceSet,
-    push: Map<String, LinkPush>,
-    onOpenInstaller: () -> Unit,
-    onDevices: () -> Unit,
-) {
+private fun Header(onSettings: (() -> Unit)?) {
     val look = LocalLook.current
     Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         AppMark(look, 36.dp)
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) { AppTitle(look) }
-        DeviceStatus(connection, devices, push, onOpenInstaller, onDevices)
-    }
-}
-
-/** Плашка состояния часов и устройств по Wi‑Fi (если есть). */
-@Composable
-fun DeviceStatus(
-    connection: WatchConnection,
-    devices: DeviceSet,
-    push: Map<String, LinkPush>,
-    onOpenInstaller: () -> Unit,
-    onDevices: () -> Unit,
-) {
-    run {
-        val peers = devices.peers.filter { it.enabled }
-        val (watchDot, watchText) = when {
-            !connection.checked -> Color.Gray to "Ищу часы…"
-            connection.hasApp -> StatusOk to "Часы на связи"
-            connection.hasWatch -> StatusWait to "Установить на часы"
-            else -> StatusBad to "Часы не найдены"
-        }
-        // Точка — худшее состояние среди устройств: ошибка, затем ожидание, затем «всё на месте».
-        val states = peers.map { push[it.id] }
-        val peersDot = when {
-            states.any { it != null && !it.ok && !it.pending } -> StatusBad
-            states.any { it?.pending == true } -> StatusWait
-            states.all { it?.ok == true } -> StatusOk
-            else -> Color.Gray
-        }
-        when {
-            // Часы и другие устройства вместе — одна плашка «Устройства · N», иначе не помещается название.
-            devices.watch && peers.isNotEmpty() -> {
-                val dot = listOf(StatusBad, StatusWait, StatusOk).firstOrNull { it == watchDot || it == peersDot } ?: Color.Gray
-                StatusChip(dot, "Устройства · ${peers.size + 1}") {
-                    if (connection.hasWatch && !connection.hasApp) onOpenInstaller() else onDevices()
-                }
-            }
-            devices.watch -> StatusChip(watchDot, watchText) {
-                if (connection.hasWatch && !connection.hasApp) onOpenInstaller() else onDevices()
-            }
-            // Одно устройство — его тип; несколько — сколько их.
-            peers.isNotEmpty() -> StatusChip(peersDot, if (peers.size == 1) peers.single().kind.title else "Устройства · ${peers.size}", onDevices)
-        }
+        onSettings?.let { SettingsButton(it) }
     }
 }
 

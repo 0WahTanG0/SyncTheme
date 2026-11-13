@@ -135,25 +135,6 @@ fun AppTitle(look: Look) {
     }
 }
 
-/** Плашка статуса часов в шапке. */
-@Composable
-fun StatusChip(dot: Color, text: String, onClick: () -> Unit) {
-    val look = LocalLook.current
-    val surface = when (look.style) {
-        AppStyle.CLAY -> Modifier.padding(bottom = ClayLevel.L1.depth).claySlab(look, 16.dp, level = ClayLevel.L1).clip(CircleShape)
-        AppStyle.SOFT -> Modifier.clip(CircleShape).background(look.card)
-        AppStyle.GLASS -> Modifier.clip(CircleShape).background(look.control).border(1.dp, look.cardBorder, CircleShape)
-    }
-    Row(
-        surface.clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
-        Spacer(Modifier.width(6.dp))
-        Text(text, color = look.text, fontFamily = look.body, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
-    }
-}
-
 /** Вкладки в стиле оформления; ширина делится пропорционально длине подписей. */
 @Composable
 fun StyledTabs(titles: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -270,7 +251,7 @@ fun AppearanceSection(accentColor: Int) {
         Text(appearance.style.note, style = MaterialTheme.typography.bodySmall, color = look.muted)
         StyledTabs(AppMode.entries.map { it.title }, AppMode.entries.indexOf(appearance.mode), { AppearanceStore.set(context, appearance.copy(mode = AppMode.entries[it])) })
         Text(
-            if (appearance.style == AppStyle.GLASS) "Цвет акцента, как и раньше, подстраивается под обои." else "Иконки приложений в этом же стиле — в разделе «Иконки».",
+            "Цвет акцента подстраивается под обои.",
             style = MaterialTheme.typography.bodySmall, color = look.muted,
         )
     }

@@ -57,7 +57,7 @@ class AddDeviceTest {
         settle()
         // Ничего не нашлось — подсказки, как подключить часы и планшет.
         compose.onNodeWithText("Часы на Wear OS").assertExists()
-        compose.onNodeWithText("Планшет или другой телефон").performClick()
+        compose.onNodeWithText("Планшет").performClick()
         settle()
         compose.onNodeWithText("Адрес с его экрана").assertExists()
         compose.onNode(isDialog()).captureRoboImage(File(out, "screen_add_device.png").absolutePath)
