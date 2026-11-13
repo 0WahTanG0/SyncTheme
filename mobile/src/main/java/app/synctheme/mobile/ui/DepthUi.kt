@@ -100,7 +100,10 @@ fun WallClockContent(theme: Theme, vm: MainViewModel, onArrange: () -> Unit = {}
         }
     }
     Text("Шрифт", style = MaterialTheme.typography.labelMedium)
-    DigitFontPicker(wall.font, ThemeRenderer.wallClockFont(theme.copy(wallClock = wall.copy(font = null)))) { f -> vm.setWallClock(wall.copy(font = f)) }
+    DigitFontPicker(
+        wall.font, ThemeRenderer.wallClockFont(theme.copy(wallClock = wall.copy(font = null))),
+        defaultTitle = if (theme.digitFont != null) "Как в теме" else "Как в стиле",
+    ) { f -> vm.setWallClock(wall.copy(font = f)) }
     var active by remember { mutableStateOf(ClockWallpaper.isActive(context)) }
     LaunchedEffect(theme) { active = ClockWallpaper.isActive(context) }
     if (active) {

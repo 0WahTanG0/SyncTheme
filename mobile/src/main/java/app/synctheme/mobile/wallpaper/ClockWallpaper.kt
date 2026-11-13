@@ -1,6 +1,7 @@
 package app.synctheme.mobile.wallpaper
 
 import android.app.KeyguardManager
+import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -116,6 +117,8 @@ class ClockWallpaperService : WallpaperService() {
         private val guard = TapGuard()
         /** До этого момента часы нарисованы «нажатыми» — отклик на нажатие. */
         private var pressedUntil = 0L
+        /** Какие цвета системе сообщили последними (см. [SystemColors]). */
+        private var colorsKey: List<Int>? = null
 
         private val tick = object : Runnable {
             override fun run() {
@@ -292,7 +295,8 @@ class ClockWallpaperService : WallpaperService() {
 
         private fun scheduleTick() {
             handler.removeCallbacks(tick)
-            if (!visible) return
+            // Без часов (обои SyncTheme оставлены ради цветов телефона) перерисовывать каждую минуту нечего.
+            if (!visible || current().wallClock == null) return
             val now = System.currentTimeMillis()
             handler.postDelayed(tick, 60_000 - now % 60_000 + 20)
         }
@@ -305,10 +309,22 @@ class ClockWallpaperService : WallpaperService() {
         /** Применённая тема в версии для нынешнего оформления телефона (светлая или тёмная). */
         private fun current(): Theme = DayNight.of(this@ClockWallpaperService, repo.applied.value)
 
+        /** Цвета для палитры телефона — по акценту темы (Android 12+ красит в них шторку, клавиатуру, значки). */
+        override fun onComputeColors(): WallpaperColors = SystemColors.of(current())
+
         /** Готовит фон и слой глубины; пока готовит, на экране остаётся предыдущий кадр. */
         fun prepare() {
-            if (width == 0 || height == 0) return
             val theme = current()
+            // Новая тема с другим акцентом — система перекрашивает палитру телефона.
+            val colors = SystemColors.key(theme)
+            if (colors != colorsKey) {
+                val first = colorsKey == null
+                colorsKey = colors
+                if (!first) runCatching { notifyColorsChanged() }
+            }
+            // Часы могли появиться или пропасть — перерисовка раз в минуту только с ними.
+            scheduleTick()
+            if (width == 0 || height == 0) return
             val lock = lockOnly
             val touches = !lock && theme.wallClock?.tapToOpen == true
             if (touches != touchesEnabled) {

@@ -69,6 +69,15 @@
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
 
+        <ImageView
+            android:id="@+id/tn_m_temp"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="fitStart"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
         <TextView
             android:id="@+id/s_desc"
             android:layout_width="match_parent"

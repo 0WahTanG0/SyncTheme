@@ -59,6 +59,16 @@
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
+
+                <ImageView
+                    android:id="@+id/tn_m_temp"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:scaleType="fitStart"
+                    android:visibility="gone"
+                    android:importantForAccessibility="no" />
             </LinearLayout>
 
             <TextView

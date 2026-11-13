@@ -57,6 +57,14 @@
             android:shadowDy="0"
             android:textColor="#FFFFFFFF" />
 
+        <ImageView
+            android:id="@+id/tn_m_pct"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
         <FrameLayout
             android:id="@+id/box_vbar"
             android:layout_height="0dp"

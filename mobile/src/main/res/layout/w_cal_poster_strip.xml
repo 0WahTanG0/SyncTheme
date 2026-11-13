@@ -41,6 +41,14 @@
             android:ellipsize="end"
             android:textColor="#FFFFFFFF" />
 
+        <ImageView
+            android:id="@+id/tn_m_day"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
         <LinearLayout
             android:layout_width="0dp"
             android:layout_weight="1"

@@ -16,6 +16,7 @@
 и лицензию. Запуск: python3 scripts/gen_digit_fonts.py [--preview out.png]
 (нужны fonttools и skia-pathops; интернет не нужен).
 """
+import copy
 import io
 import math
 import os
@@ -40,6 +41,8 @@ ASCENT, DESCENT = 1060, 200
 K = 0.5523        # четверть эллипса кубической кривой
 DIGITS = "0123456789"
 NAMES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+# Знаки для чисел остальных виджетов: «75%», «21°», «−3°». Имя глифа, символы, доля ширины цифры.
+EXTRA = [("percent", "%", 1.0), ("degree", "°", 0.62), ("minus", "-\u2212", 0.72), ("plus", "+", 1.0)]
 
 
 # ---------------------------------------------------------------- осевые линии
@@ -344,6 +347,14 @@ class Font:
     def clip(self, shape):
         return inter(shape, rect(0, 0, self.W, H))
 
+    def sized(self, ratio):
+        """Тот же шрифт в рамке другой ширины — для узких знаков («°», «−»)."""
+        if ratio == 1.0:
+            return self
+        other = copy.copy(self)
+        other.W = self.W * ratio
+        return other
+
 
 class Curvy(Font):
     """Высокие округлые цифры: прямые бока и дуги-эллипсы (по образцу «растянутого» шрифта).
@@ -406,10 +417,23 @@ class Curvy(Font):
             ym = 0.545 * H
             # Петли касаются в одной точке — в талии линия той же толщины.
             return [stadium(ym, T, 0.17 * H, L + 0.035 * W, R - 0.035 * W), stadium(B, ym, 0.20 * H)]
+        if ch == "-":
+            return [Line(L, 0.47 * H).to(R, 0.47 * H)]
+        if ch == "+":
+            arm = min(0.36 * W, 0.2 * H)
+            return [Line(L + 0.04 * W, 0.47 * H).to(R - 0.04 * W, 0.47 * H), Line(CX, 0.47 * H - arm).to(CX, 0.47 * H + arm)]
+        if ch == "°":
+            return [stadium(0.66 * H, T, min(RX, 0.1 * H))]
+        if ch == "%":
+            rw = 0.40 * W
+            r = min(rw / 2 * 1.4, 0.16 * H)
+            return [stadium(0.6 * H, T, r, L, L + rw), stadium(B, 0.4 * H, r, R - rw, R), Line(R, yhi).to(L, ylo)]
         raise KeyError(ch)
 
     def base(self, ch):
-        return self.clip(stroke(self.lines(ch), self.S))
+        # У маленьких колец «%» и «°» в жирных шрифтах линия тоньше — иначе просвет внутри заплывёт.
+        width = self.S if ch not in "%°" else min(self.S, 0.3 * (0.4 * self.W if ch == "%" else self.W))
+        return self.clip(stroke(self.lines(ch), width))
 
     def dots(self):
         c = self.COLON_ADV / 2
@@ -500,7 +524,7 @@ class Glitch(Curvy):
     def effect(self, shape, w, key):
         if key == ":":
             return shape  # двоеточие целое — по нему читается время
-        lo, mid, hi, scan = self.OFFS[key]
+        lo, mid, hi, scan = self.OFFS.get(key, (0.0, 0.06, -0.04, 0.14))
         (a0, a1), (b0, b1) = self.CUTS
         s0, s1 = self.SCAN
         big = 3 * w
@@ -547,7 +571,8 @@ class Barcode(Curvy):
     def effect(self, shape, w, key):
         if key == ":":
             return shape
-        return inter(shape, stripes(0, w, -50, H + 50, self.BARS, self.GAP, start=3 * int(key)))
+        start = 3 * int(key) if key.isdigit() else ord(key) % len(self.BARS)
+        return inter(shape, stripes(0, w, -50, H + 50, self.BARS, self.GAP, start=start))
 
 
 class Volume(Curvy):
@@ -581,7 +606,7 @@ def tt_glyph(path, dx):
 
 
 def build(font):
-    names = [".notdef", "space"] + NAMES + ["colon"]
+    names = [".notdef", "space"] + NAMES + ["colon"] + [e[0] for e in EXTRA]
     glyphs, metrics = {}, {}
     nd = pathops.Path()
     for (x0, y0, x1, y1), cw in [((40, 0, 260, 700), True), ((60, 20, 240, 680), False)]:
@@ -594,6 +619,9 @@ def build(font):
     glyphs["space"], metrics["space"] = TTGlyphPen(None).glyph(), (font.adv // 2, 0)
     shapes = [(name, font.glyph(ch), font.SIDE, font.adv) for ch, name in zip(DIGITS, NAMES)]
     shapes.append(("colon", font.colon(), 0, font.colon_adv))
+    for name, chars, ratio in EXTRA:
+        g = font.sized(ratio)
+        shapes.append((name, g.glyph(chars[0]), g.SIDE, g.adv))
     for name, shape, dx, adv in shapes:
         glyphs[name] = tt_glyph(shape, dx)
         # Левый отступ — от левого края самого рисунка (так требует TrueType).
@@ -603,6 +631,7 @@ def build(font):
     fb.setupGlyphOrder(names)
     cmap = {ord(" "): "space", ord(":"): "colon"}
     cmap.update({ord(c): n for c, n in zip(DIGITS, NAMES)})
+    cmap.update({ord(c): name for name, chars, _ in EXTRA for c in chars})
     fb.setupCharacterMap(cmap)
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)

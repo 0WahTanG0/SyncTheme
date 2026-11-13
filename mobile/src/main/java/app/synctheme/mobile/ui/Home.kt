@@ -1,5 +1,6 @@
 package app.synctheme.mobile.ui
 
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -63,8 +65,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.synctheme.core.BackgroundType
+import app.synctheme.core.DigitFont
+import app.synctheme.core.DigitFonts
 import app.synctheme.core.Theme
 import app.synctheme.core.ThemeMode
 import app.synctheme.core.WallClock
@@ -74,6 +79,7 @@ import app.synctheme.mobile.data.ColorChoice
 import app.synctheme.mobile.data.DeviceSet
 import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.ThemeRenderer
+import app.synctheme.mobile.wallpaper.ClockWallpaper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -254,6 +260,103 @@ private fun ColorsBlock(theme: Theme, a: ScreenActions, s: HomeState) {
             OwnColor("Цифры", theme.textColor) { s.editColor(ColorTarget.Text) }
             OwnColor("Акцент", theme.accentColor) { s.editColor(ColorTarget.Accent) }
         }
+        FontRow(theme, a, options?.thumb)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PhoneColors()
+    }
+}
+
+/**
+ * «Цвета телефона»: когда стоят живые обои SyncTheme, система берёт акцент темы для своей палитры
+ * (шторка, клавиатура, кнопки, тематические значки). Если обои SyncTheme не стоят — кнопка «Включить».
+ */
+@Composable
+private fun PhoneColors() {
+    val look = LocalLook.current
+    val context = LocalContext.current
+    var live by remember { mutableStateOf(ClockWallpaper.isActive(context)) }
+    LifecycleResumeEffect(Unit) {
+        live = ClockWallpaper.isActive(context)
+        onPauseOrDispose { }
+    }
+    val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+    Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 10.dp)) {
+            Text("Цвета телефона", color = look.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                when {
+                    !live -> "Шторка, клавиатура и значки возьмут акцент темы — нужны живые обои SyncTheme."
+                    samsung -> "Шторка, клавиатура и значки — в цветах темы ✓ Если не поменялись — «Обои и стиль» → «Цветовая палитра»."
+                    else -> "Шторка, клавиатура и значки — в цветах темы ✓"
+                },
+                color = look.muted, fontSize = 12.sp, lineHeight = 16.sp,
+            )
+        }
+        if (!live) {
+            Box(
+                Modifier.raised(look, 20.dp, 3.dp).clip(CircleShape).clickable(role = Role.Button) {
+                    runCatching { context.startActivity(ClockWallpaper.setIntent(context)) }
+                }.padding(horizontal = 16.dp, vertical = 10.dp),
+            ) { Text("Включить", color = look.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+        }
+    }
+}
+
+/**
+ * «Шрифт» — рядом с цветами: один шрифт цифр на всё — часы на обоях, все виджеты (время, число месяца,
+ * температура, заряд) и циферблат. «Как в стиле» — у каждого стиля виджетов и циферблата свой.
+ */
+@Composable
+private fun FontRow(theme: Theme, a: ScreenActions, thumb: ImageBitmap?) {
+    val look = LocalLook.current
+    val context = LocalContext.current
+    val families = remember { DigitFont.entries.associateWith { it.family(context) } }
+    Text(
+        "Шрифт", color = look.text, fontSize = 13.sp, fontWeight = if (look.isClay) FontWeight.SemiBold else null,
+        modifier = Modifier.padding(start = 18.dp, top = 18.dp, bottom = 8.dp),
+    )
+    val options: List<DigitFont?> = listOf(null) + DigitFonts.choices
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp)) {
+        items(options, key = { it?.name ?: "style" }) { font ->
+            FontTile(
+                title = font?.title ?: "Как в стиле",
+                family = families.getValue(font ?: ThemeRenderer.wallClockFont(theme.copy(digitFont = null, wallClock = theme.wallClock?.copy(font = null)))),
+                thumb = thumb, ink = Color(theme.textColor), accent = Color(theme.accentColor),
+                selected = theme.digitFont == font,
+            ) { a.vm.setThemeFont(font) }
+        }
+    }
+}
+
+/** Плитка шрифта: на кусочке фона — время и температура этим шрифтом, цветами темы. */
+@Composable
+private fun FontTile(title: String, family: FontFamily, thumb: ImageBitmap?, ink: Color, accent: Color, selected: Boolean, onClick: () -> Unit) {
+    val look = LocalLook.current
+    Column(
+        Modifier.width(98.dp).then(if (selected) Modifier.inset(look, 18.dp, 4.dp) else Modifier.raised(look, 18.dp, 4.dp))
+            .clip(RoundedCornerShape(18.dp)).clickable(role = Role.RadioButton, onClick = onClick)
+            .semantics { contentDescription = "Шрифт «$title»" }
+            .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().height(118.dp).clip(RoundedCornerShape(12.dp)).background(Color.Black), contentAlignment = Alignment.Center) {
+            thumb?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize()) }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("10:08", color = ink, fontFamily = family, fontSize = 30.sp, maxLines = 1, softWrap = false)
+                // Числа виджетов — на подложке, как на самом виджете: читаются на любом фото.
+                Row(
+                    Modifier.clip(RoundedCornerShape(8.dp))
+                        .background(if (ink.luminance() > 0.5f) Color.Black.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.5f))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Text("21°", color = ink, fontFamily = family, fontSize = 15.sp, maxLines = 1, softWrap = false)
+                    Box(Modifier.size(5.dp).clip(CircleShape).background(accent))
+                    Text("75%", color = ink, fontFamily = family, fontSize = 15.sp, maxLines = 1, softWrap = false)
+                }
+            }
+        }
+        Text(title, color = if (selected) look.text else look.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

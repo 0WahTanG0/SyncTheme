@@ -99,6 +99,8 @@ internal object VerticalFit {
     fun apply(
         context: Context, rv: RemoteViews, layout: WidgetLayout, kind: WidgetKind, family: String, digit: DigitFont,
         size: WidgetSize, dp: SizeF, content: VerticalContent,
+        /** Шрифт темы для главного числа (оно тогда картинкой, см. WidgetRenderer.numbers); null — системный шрифт стиля. */
+        number: DigitFont? = null,
     ) {
         if (!layout.has(R.id.box_v)) return
         val spec = VSpecs.of(size)
@@ -124,7 +126,7 @@ internal object VerticalFit {
             val imageH = if (tight) ink / ClockDigits.TIGHT else (em.above + em.ink + em.below) * s
             val over = if (tight) (imageH - ink) / 2 else 0f
             for (image in layout.ids) {
-                if (TimeImages[image]?.clock != id) continue
+                if (TimeImages[image]?.clock != id && NumberImages[image] != id) continue
                 rv.setViewLayoutHeight(image, imageH, TypedValue.COMPLEX_UNIT_DIP)
                 rv.setViewLayoutMargin(image, RemoteViews.MARGIN_TOP, if (tight) top - over else top - em.above * s, TypedValue.COMPLEX_UNIT_DIP)
                 rv.setViewLayoutMargin(image, RemoteViews.MARGIN_BOTTOM, if (tight) bottom - over else bottom - em.below * s, TypedValue.COMPLEX_UNIT_DIP)
@@ -153,7 +155,7 @@ internal object VerticalFit {
                 if (alarm && !tall) rv.setTextViewText(R.id.s_alarm, content.alarm!!.substringAfterLast(' '))
             }
             WidgetKind.CALENDAR -> {
-                val em = measure("main_$family", mainFont(family), "", digits = true)
+                val em = if (number != null) measure(context, number, "", digits = true) else measure("main_$family", mainFont(family), "", digits = true)
                 val head = 2 * sp(spec.labelBox) + spec.gap
                 val s = fit(em, h - head)
                 main(R.id.m_day, s, em, top = spec.gap, bottom = 2f)
@@ -168,7 +170,8 @@ internal object VerticalFit {
                 show(R.id.if_line, rows > 0 || hint)
             }
             WidgetKind.WEATHER -> {
-                val em = measure("main_$family", mainFont(family), content.main, digits = false)
+                val em = if (number != null) measure(context, number, content.main, digits = false)
+                else measure("main_$family", mainFont(family), content.main, digits = false)
                 val head = spec.icon + spec.gap + sp(spec.smallBox) + if (tall) sp(spec.cityBox) + sp(spec.descBox) else 0f
                 val s = fit(em, h - head)
                 main(R.id.m_temp, s, em, top = spec.gap, bottom = 2f)
@@ -181,7 +184,8 @@ internal object VerticalFit {
                 show(R.id.if_line, rows > 0)
             }
             WidgetKind.BATTERY -> {
-                val em = measure("main_$family", mainFont(family), content.main, digits = false)
+                val em = if (number != null) measure(context, number, content.main, digits = false)
+                else measure("main_$family", mainFont(family), content.main, digits = false)
                 val bolt = if (!tall && content.charging) 14f else 0f
                 val state = sp(spec.stateBox)
                 var extras = if (tall) sp(spec.extraBox) * (1 + if (content.remain) 1 else 0) else 0f

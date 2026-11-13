@@ -42,6 +42,7 @@ object WidgetScheduler {
                 PeriodicWorkRequestBuilder<CalendarWorker>(1, TimeUnit.HOURS).build(),
             )
             watchCalendar(context, ExistingWorkPolicy.KEEP)
+            DayTicker.schedule(context)
         } else {
             wm.cancelUniqueWork(CALENDAR)
             wm.cancelUniqueWork(CALENDAR_CHANGES)

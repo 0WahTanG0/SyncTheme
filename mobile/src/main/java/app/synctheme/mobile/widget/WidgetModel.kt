@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.SizeF
 import app.synctheme.core.DigitFont
 import app.synctheme.core.DigitFonts
+import app.synctheme.core.Theme
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -211,7 +212,14 @@ data class WidgetConfig(
     /** Приложения раскрываются из папки, а не лежат на виджете. */
     val isFolder get() = folder != FolderMode.ICONS
 
-    fun digitFont(): DigitFont = DigitFonts.of(font) ?: defaultDigitFont(style)
+    /** Шрифт цифр часов: свой у виджета, иначе шрифт темы, иначе — как задуман в стиле. */
+    fun digitFont(theme: Theme? = null): DigitFont = DigitFonts.of(font) ?: theme?.digitFont ?: defaultDigitFont(style)
+
+    /**
+     * Шрифт главного числа остальных виджетов (число месяца, температура, заряд): свой или шрифт темы;
+     * null — число текстом, системным шрифтом стиля (так было до шрифтов темы).
+     */
+    fun numberFont(theme: Theme): DigitFont? = (DigitFonts.of(font) ?: theme.digitFont)?.takeIf { it.res != null }
 }
 
 /** Хранит настройки каждого виджета по его appWidgetId. */

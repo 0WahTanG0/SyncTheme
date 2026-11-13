@@ -143,8 +143,11 @@ object ClockTicker {
     }
 
     /** Есть часы со шрифтом из ресурсов — им нужны картинки. */
-    private fun needed(context: Context): Boolean = WidgetUpdater.ids(context, WidgetKind.CLOCK).any { id ->
-        ClockDigits.enabled(context, WidgetUpdater.config(context, id, WidgetKind.CLOCK).digitFont())
+    private fun needed(context: Context): Boolean {
+        val theme = app.synctheme.mobile.data.ThemeRepository.get(context).applied.value
+        return WidgetUpdater.ids(context, WidgetKind.CLOCK).any { id ->
+            ClockDigits.enabled(context, WidgetUpdater.config(context, id, WidgetKind.CLOCK).digitFont(theme))
+        }
     }
 
     private fun pending(context: Context): PendingIntent = PendingIntent.getBroadcast(
@@ -153,11 +156,46 @@ object ClockTicker {
     )
 }
 
-/** Новая минута, смена времени или часового пояса, перезагрузка — перерисовать цифры часов. */
+/**
+ * Полночь: число месяца на календаре нарисовано картинкой (шрифт темы) и само не сменится — обновляем
+ * календарь сразу после полуночи. Будильник неточный и без пробуждения: сработает, как только экран включат.
+ */
+object DayTicker {
+    const val ACTION = "app.synctheme.DAY_TICK"
+
+    fun schedule(context: Context) {
+        val am = context.getSystemService(AlarmManager::class.java) ?: return
+        val pending = PendingIntent.getBroadcast(
+            context, 7101, Intent(context, ClockTickReceiver::class.java).setAction(ACTION),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        if (WidgetUpdater.ids(context, WidgetKind.CALENDAR).isEmpty()) {
+            am.cancel(pending)
+            return
+        }
+        val midnight = java.util.Calendar.getInstance().apply {
+            add(java.util.Calendar.DAY_OF_YEAR, 1)
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 20)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        runCatching { am.set(AlarmManager.RTC, midnight, pending) }
+    }
+}
+
+/** Новая минута, смена времени или часового пояса, перезагрузка — перерисовать цифры часов (а в полночь — календарь). */
 class ClockTickReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == DayTicker.ACTION) {
+            WidgetUpdater.update(context, WidgetKind.CALENDAR)
+            DayTicker.schedule(context)
+            return
+        }
         if (intent.action !in ACTIONS) return
         WidgetUpdater.update(context, WidgetKind.CLOCK)
+        // После перезагрузки или смены времени — и полночное обновление календаря заново.
+        if (intent.action != "app.synctheme.CLOCK_TICK") DayTicker.schedule(context)
     }
 
     private companion object {

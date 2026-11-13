@@ -41,7 +41,7 @@ fun DigitFont.family(context: Context): FontFamily {
  * своими цифрами. selected == null — шрифт по умолчанию для стиля (styleDefault).
  */
 @Composable
-fun DigitFontPicker(selected: DigitFont?, styleDefault: DigitFont, onPick: (DigitFont?) -> Unit) {
+fun DigitFontPicker(selected: DigitFont?, styleDefault: DigitFont, defaultTitle: String = "Как в стиле", onPick: (DigitFont?) -> Unit) {
     val context = LocalContext.current
     val families = remember { DigitFont.entries.associateWith { it.family(context) } }
     val options: List<DigitFont?> = listOf(null) + DigitFonts.choices
@@ -51,7 +51,7 @@ fun DigitFontPicker(selected: DigitFont?, styleDefault: DigitFont, onPick: (Digi
         items(options, key = { it?.name ?: "style" }) { font ->
             FontCard(
                 family = families.getValue(font ?: styleDefault),
-                title = font?.title ?: "Как в стиле",
+                title = font?.title ?: defaultTitle,
                 selected = selected == font,
             ) { onPick(font) }
         }

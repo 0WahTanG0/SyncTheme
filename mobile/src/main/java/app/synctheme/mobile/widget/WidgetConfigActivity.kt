@@ -74,6 +74,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import app.synctheme.core.DigitFont
 import app.synctheme.core.DigitFonts
 import app.synctheme.core.Theme
 import app.synctheme.mobile.data.CalendarData
@@ -259,12 +260,14 @@ fun WidgetConfigScreen(
             Text(styleNote(style), style = MaterialTheme.typography.bodySmall, color = look.muted)
         }
     }
-    if (kind == WidgetKind.CLOCK) {
+    // Шрифт цифр — у часов и у главного числа остальных виджетов; по умолчанию — шрифт темы.
+    if (kind != WidgetKind.APPS) {
         item {
-            Section("Шрифт цифр") {
+            Section(if (kind == WidgetKind.CLOCK) "Шрифт цифр" else "Шрифт числа") {
                 DigitFontPicker(
                     selected = DigitFonts.of(config.font),
-                    styleDefault = defaultDigitFont(style),
+                    styleDefault = theme.digitFont ?: if (kind == WidgetKind.CLOCK) defaultDigitFont(style) else DigitFont.THIN,
+                    defaultTitle = if (theme.digitFont != null) "Как в теме" else "Как в стиле",
                 ) { font -> config = config.copy(font = font?.name) }
             }
         }

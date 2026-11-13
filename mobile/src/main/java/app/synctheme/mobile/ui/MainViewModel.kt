@@ -76,6 +76,8 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import app.synctheme.core.DigitFont
+import app.synctheme.mobile.widget.WidgetConfigStore
 
 /** Идёт подключение устройства: [code] — код сверки (одинаковый на телефоне и устройстве), когда он уже есть. */
 data class Linking(val device: String, val code: String? = null)
@@ -617,6 +619,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Часы на обоях телефона; с глубиной объект с фото рабочего стола закрывает цифры. */
+    /**
+     * Шрифт темы — у часов на обоях, всех виджетов (их главных чисел) и циферблата. Свои шрифты виджетов
+     * и часов на обоях сбрасываются, чтобы поменялось всё сразу; null — у каждого стиля свой шрифт.
+     */
+    fun setThemeFont(font: DigitFont?) {
+        update { it.copy(digitFont = font, wallClock = it.wallClock?.copy(font = null)) }
+        for (kind in WidgetKind.entries) {
+            for (id in WidgetUpdater.ids(app, kind)) {
+                val config = WidgetConfigStore.get(app, id, kind, theme.value.widgetOpacity)
+                if (config.font != null) WidgetConfigStore.set(app, id, config.copy(font = null))
+            }
+        }
+    }
+
     fun setWallClock(clock: WallClock?) {
         val wantsDepth = clock?.depth == true && theme.value.wallClock?.depth != true
         if (!wantsDepth) return update { it.copy(wallClock = clock) }

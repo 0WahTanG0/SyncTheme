@@ -71,6 +71,16 @@
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:textColor="#FFFFFFFF" />
+
+                <ImageView
+                    android:id="@+id/tn_m_pct"
+                    android:layout_width="160dp"
+                    android:layout_height="160dp"
+                    android:layout_gravity="center"
+                    android:padding="32dp"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:importantForAccessibility="no" />
             </FrameLayout>
         </FrameLayout>
 

@@ -50,6 +50,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:padding="4dp" />
+
+            <ImageView
+                android:id="@+id/tn_m_pct"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                android:importantForAccessibility="no"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="4dp" />
         </FrameLayout>
 
         <LinearLayout

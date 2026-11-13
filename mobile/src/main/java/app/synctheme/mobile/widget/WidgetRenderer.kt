@@ -34,6 +34,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.TextStyle
+import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -195,11 +196,11 @@ object WidgetRenderer {
     /** Стиль оформления виджета (для цветов): у всех видов одни и те же стили. */
     fun family(kind: WidgetKind, style: String): String = kind.style(style).id
 
-    fun layoutKey(kind: WidgetKind, config: WidgetConfig, size: WidgetSize): String {
+    fun layoutKey(kind: WidgetKind, config: WidgetConfig, size: WidgetSize, theme: Theme? = null): String {
         val style = kind.style(config.style).id
         val base = "${kind.prefix}_${style}_${size.key}"
         // У часов своя разметка на каждый шрифт цифр.
-        return if (kind == WidgetKind.CLOCK) base + "_" + config.copy(style = style).digitFont().name.lowercase() else base
+        return if (kind == WidgetKind.CLOCK) base + "_" + config.copy(style = style).digitFont(theme).name.lowercase() else base
     }
 
     /**
@@ -251,7 +252,7 @@ object WidgetRenderer {
         context: Context, kind: WidgetKind, config: WidgetConfig, theme: Theme, size: WidgetSize, data: Data, dp: SizeF,
     ): RemoteViews {
         if (kind == WidgetKind.APPS && config.isFolder) return FolderWidget.views(context, config, DayNight.of(context, theme), dp, data.widgetId)
-        val layout = WidgetLayouts[layoutKey(kind, config, size)]
+        val layout = WidgetLayouts[layoutKey(kind, config, size, theme)]
             ?: WidgetLayouts[layoutKey(kind, WidgetConfig(style = kind.defaultStyle), size)]!!
         val style = kind.style(config.style).id
         val rv = RemoteViews(context.packageName, layout.res)
@@ -272,7 +273,7 @@ object WidgetRenderer {
         when (kind) {
             WidgetKind.CLOCK -> {
                 v.clock(data)
-                val font = config.copy(style = style).digitFont()
+                val font = config.copy(style = style).digitFont(theme)
                 if (ClockDigits.enabled(context, font)) {
                     v.digits(context, font, family(kind, style), config.align, dp, data, p)
                 }
@@ -282,6 +283,9 @@ object WidgetRenderer {
             WidgetKind.BATTERY -> v.battery(context, data.battery)
             WidgetKind.APPS -> v.apps(context, data)
         }
+        // Главное число шрифтом темы — картинкой на месте текста (как цифры часов).
+        val numberFont = if (kind == WidgetKind.CLOCK || kind == WidgetKind.APPS || !Compat.modernWidgets) null else config.numberFont(theme)
+        numberFont?.let { v.numbers(context, it, family(kind, style), dp, data, p) }
         if (size.vertical) {
             val content = when (kind) {
                 WidgetKind.CLOCK -> VerticalContent(alarm = data.alarm)
@@ -300,7 +304,10 @@ object WidgetRenderer {
                 WidgetKind.BATTERY -> data.battery.let { VerticalContent(main = "${it.level}%", charging = it.charging, remain = it.remain != null) }
                 WidgetKind.APPS -> VerticalContent(rows = data.apps.size, title = config.title.isNotBlank())
             }
-            VerticalFit.apply(context, rv, layout, kind, family(kind, style), config.copy(style = style).digitFont(), size, dp, content)
+            VerticalFit.apply(
+                context, rv, layout, kind, family(kind, style), config.copy(style = style).digitFont(theme), size, dp, content,
+                number = numberFont?.takeIf { kind != WidgetKind.CLOCK },
+            )
         }
         if (kind != WidgetKind.APPS) {
             AppCatalog.clickIntent(context, kind, config)?.let { rv.setOnClickPendingIntent(R.id.widget_root, it) }
@@ -310,7 +317,13 @@ object WidgetRenderer {
 
     /** RemoteViews одной разметки: действия только для элементов, которые в ней есть. */
     private class Views(val rv: RemoteViews, val layout: WidgetLayout) {
-        fun text(slot: String, value: CharSequence) = each(slot) { rv.setTextViewText(it, value) }
+        /** Что поставлено в тексты — главные числа потом рисуются этим же текстом картинкой ([numbers]). */
+        val texts = HashMap<Int, CharSequence>()
+
+        fun text(slot: String, value: CharSequence) = each(slot) {
+            rv.setTextViewText(it, value)
+            texts[it] = value
+        }
         fun visible(slot: String, show: Boolean) = each(slot) { rv.setViewVisibility(it, if (show) View.VISIBLE else View.GONE) }
         fun textColor(slot: String, p: Paints, pick: (Palette) -> Int) = each(slot) { p.text(rv, it, pick) }
         fun tint(slot: String, color: Int) = each(slot) { rv.setInt(it, "setColorFilter", color) }
@@ -455,6 +468,37 @@ object WidgetRenderer {
                 }
                 visible("tb_$i", cell.today)
                 if (cell.today) tint("tb_$i", p) { it.accent }
+            }
+        }
+
+        /**
+         * Главное число остальных виджетов — число месяца, температура, заряд — шрифтом темы: картинка
+         * (в разметке рядом с текстом) встаёт на место текста, сам текст прячется.
+         */
+        fun numbers(context: Context, font: DigitFont, family: String, dp: SizeF, data: Data, p: Paints) {
+            val glow = family == "neon"
+            val tight = family == "board"
+            val density = context.resources.displayMetrics.density
+            val px = (dp.height * density * 0.8f).toInt().coerceIn(64, 320)
+            for (i in layout.ids.indices) {
+                val textId = NumberImages[layout.ids[i]] ?: continue
+                val text = if (textId == R.id.m_day) SimpleDateFormat("d", Locale.getDefault()).format(Date()) else texts[textId]?.toString()
+                if (text.isNullOrBlank()) continue
+                val image = layout.ids[i]
+                val bmp = data.digits.getOrPut("n|${font.name}|$text|$px|$tight|$glow") { ClockDigits.render(context, font, text, glow, px, tight) }
+                rv.setImageViewBitmap(image, bmp)
+                rv.setViewVisibility(image, View.VISIBLE)
+                rv.setViewVisibility(textId, View.GONE)
+                val role = layout.ids.indexOf(textId).takeIf { it >= 0 }?.let { layout.roles[2 * it] }
+                p.tint(rv, image) {
+                    when (role) {
+                        'a' -> it.label
+                        's' -> it.sub
+                        'o' -> it.on
+                        'n' -> it.onSub
+                        else -> it.main
+                    }
+                }
             }
         }
 

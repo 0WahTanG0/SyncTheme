@@ -222,7 +222,7 @@ def text(id_, *, clock=None, font=None, size=None, auto=None, w="match", h="wrap
     kw["textColor"] = "#FFFFFFFF"
     if txt:
         kw["text"] = txt
-    images = time_images(id_, clock, font, kw)
+    images = time_images(id_, clock, font, kw) + number_images(id_, kw)
     node = E(tag, attrs_of(kw))
     return [node] + images if images else node
 
@@ -252,6 +252,24 @@ def time_images(id_, clock, font, kw):
         TIME_IMAGES[image] = (id_, code, align)
         out.append(E("ImageView", attrs_of(dict(base, id=image, scale=scale, vis="gone", importantForAccessibility="no"))))
     return out
+
+
+# Главные числа остальных виджетов — число месяца, температура, заряд — тоже картинкой рядом с текстом:
+# если у темы (или виджета) выбран шрифт цифр, WidgetRenderer рисует ими число и прячет текст;
+# иначе остаётся текст системным шрифтом стиля.
+NUMBER_IDS = ("m_day", "m_temp", "m_pct")
+NUMBER_IMAGES = OrderedDict()  # id картинки -> id текста
+
+
+def number_images(id_, kw):
+    if id_ not in NUMBER_IDS:
+        return []
+    base = {k: kw[k] for k in LAYOUT_KEYS if k in kw}
+    g = kw.get("g", "center")
+    scale = "fitStart" if ("start" in g or "top" in g) else "fitEnd" if ("end" in g or "bottom" in g) else "fitCenter"
+    image = f"tn_{id_}"
+    NUMBER_IMAGES[image] = id_
+    return [E("ImageView", attrs_of(dict(base, id=image, scale=scale, vis="gone", importantForAccessibility="no")))]
 
 
 LAYOUTS = OrderedDict()  # имя -> список id в порядке появления
@@ -334,14 +352,19 @@ def tile(id_, node, square=False, **kw):
 
 
 def T(f, id_, node, pad="4dp"):
-    """У «Табло» главное значение — на плашке: место и вес элемента переходят к плашке, текст заполняет её."""
+    """У «Табло» главное значение — на плашке: место и вес элемента переходят к плашке, текст заполняет её.
+    node — элемент или список (текст и картинки числа на его месте): картинки тоже заполняют плашку."""
     if f != "board":
         return node
-    outer = OrderedDict((k, node.attrs.pop(k)) for k in list(node.attrs) if k.startswith("android:layout_"))
-    node.attrs["android:layout_width"] = "match_parent"
-    node.attrs["android:layout_height"] = "match_parent"
-    node.attrs.setdefault("android:padding", pad)
-    return E("FrameLayout", outer, [img(id_, "wtile", scale="fitXY"), node])
+    nodes = node if isinstance(node, list) else [node]
+    outer = OrderedDict((k, nodes[0].attrs.pop(k)) for k in list(nodes[0].attrs) if k.startswith("android:layout_"))
+    for n in nodes:
+        for k in [k for k in n.attrs if k.startswith("android:layout_")]:
+            n.attrs.pop(k)
+        n.attrs["android:layout_width"] = "match_parent"
+        n.attrs["android:layout_height"] = "match_parent"
+        n.attrs.setdefault("android:padding", pad)
+    return E("FrameLayout", outer, [img(id_, "wtile", scale="fitXY")] + nodes)
 
 
 def hline(id_="if_line", **kw):
@@ -1627,6 +1650,11 @@ kt += ["", "/**",
 for image, (clock_id, code, align) in TIME_IMAGES.items():
     kt.append(f"        TimeImage(R.id.{image}, R.id.{clock_id}, '{code}', '{align}'),")
 kt += ["    ).associateBy { it.image }", "", "    operator fun get(id: Int): TimeImage? = map[id]", "}"]
+kt += ["", "/** Картинка главного числа (число месяца, температура, заряд) шрифтом темы — id текста, место которого она занимает. */",
+       "object NumberImages {", "    private val map: Map<Int, Int> = mapOf("]
+for image, text_id in NUMBER_IMAGES.items():
+    kt.append(f"        R.id.{image} to R.id.{text_id},")
+kt += ["    )", "", "    operator fun get(id: Int): Int? = map[id]", "}"]
 kt += ["", "/** Небо (по погоде или времени суток): градиент со скруглением подложки стиля. */", "object SkyScenes {",
        "    val radii = intArrayOf(" + ", ".join(str(r) for r in SKY_RADII) + ")", "",
        "    fun of(scene: String, radius: Int): Int = when (\"${scene}_$radius\") {"]

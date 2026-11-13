@@ -71,6 +71,16 @@
                     android:shadowDx="0"
                     android:shadowDy="0"
                     android:textColor="#FFFFFFFF" />
+
+                <ImageView
+                    android:id="@+id/tn_m_pct"
+                    android:layout_width="92dp"
+                    android:layout_height="92dp"
+                    android:layout_gravity="center"
+                    android:padding="18dp"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:importantForAccessibility="no" />
             </FrameLayout>
         </FrameLayout>
 

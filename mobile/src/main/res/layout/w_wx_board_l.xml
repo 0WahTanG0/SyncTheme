@@ -91,6 +91,15 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:padding="6dp" />
+
+                <ImageView
+                    android:id="@+id/tn_m_temp"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:importantForAccessibility="no"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:padding="6dp" />
             </FrameLayout>
         </LinearLayout>
 

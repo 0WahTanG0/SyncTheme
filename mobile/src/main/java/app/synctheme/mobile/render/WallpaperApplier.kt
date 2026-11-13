@@ -18,8 +18,9 @@ object WallpaperApplier {
         // квадрат по длинной стороне, и система вырезает из него и портрет, и альбомную ориентацию.
         val (w, h) = Compat.screen(context).let { (w, h) -> if (DeviceSettings.isTablet(context)) h to h else w to h }
         val manager = WallpaperManager.getInstance(context)
-        // Живые обои с часами перерисуются сами — картинку поверх них не ставим.
-        val liveHome = theme.wallClock != null && ClockWallpaper.isActive(context)
+        // Живые обои SyncTheme перерисуются сами — картинку поверх них не ставим, даже без часов:
+        // через них цвета телефона (Android 12+) берутся из темы, а не угадываются по картинке.
+        val liveHome = ClockWallpaper.isActive(context)
         val setHome = home && !liveHome
         val sameOnLock = theme.lockBackground == null && theme.lockDim == null
         // Живые обои с часами стоят и на экране блокировки — картинка их там заменила бы, и часы пропали бы.
