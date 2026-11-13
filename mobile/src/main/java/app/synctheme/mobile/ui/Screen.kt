@@ -247,7 +247,7 @@ private fun SyncThemeContent(
     val header: @Composable () -> Unit = { Header(openSettings.takeIf { !hub }) }
     val home = HomeState(
         phonePreview, watchPreview, theme != applied, busy, targets, devices,
-        onDetail = { detail = it }, openThemes = { openTab(Tab.THEMES) }, openSettings = openSettings,
+        onDetail = { detail = it }, editColor = { colorTarget = it }, openThemes = { openTab(Tab.THEMES) }, openSettings = openSettings,
     )
     val settings: LazyListScope.() -> Unit = {
         item(key = "update") { UpdateBanner(vm) }

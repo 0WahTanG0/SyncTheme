@@ -21,6 +21,7 @@ import app.synctheme.core.resolved
 import app.synctheme.core.WatchSettings
 import app.synctheme.core.WallClock
 import app.synctheme.mobile.data.ApplyTargets
+import app.synctheme.mobile.data.ColorChoice
 import app.synctheme.mobile.data.DeviceSet
 import app.synctheme.mobile.data.DeviceSettings
 import app.synctheme.mobile.devices.MyDevices
@@ -33,6 +34,7 @@ import app.synctheme.mobile.link.LinkService
 import app.synctheme.mobile.data.NotAnImageException
 import app.synctheme.mobile.data.SharedImage
 import app.synctheme.mobile.data.ThemeApplier
+import app.synctheme.mobile.data.ThemePalettes
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.DepthException
@@ -94,6 +96,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Маленькие телефоны для выбора картинками на шаге 2: каждая версия яркости и каждый вариант часов. */
     private val _choicePreviews = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
     val choicePreviews: StateFlow<Map<String, ImageBitmap>> = _choicePreviews.asStateFlow()
+
+    /** Блок «Цвета»: палитры из фона темы и его миниатюра для плиток; пересчитываются, когда меняется фон. */
+    class ColorOptions(val thumb: ImageBitmap, val choices: List<ColorChoice>)
+
+    private val _colorOptions = MutableStateFlow<ColorOptions?>(null)
+    val colorOptions: StateFlow<ColorOptions?> = _colorOptions.asStateFlow()
     private val _watchPreview = MutableStateFlow<ImageBitmap?>(null)
     val watchPreview: StateFlow<ImageBitmap?> = _watchPreview.asStateFlow()
     /** Циферблат в режиме Always-On. */
@@ -197,6 +205,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        // Палитры «Цветов» — по тому фону, что виден сейчас (с затемнением и в светлой или тёмной версии темы).
+        viewModelScope.launch {
+            combine(theme, night) { t, _ -> DayNight.of(app, t).let { it.background to it.dim } }.distinctUntilChanged().collectLatest { (bg, dim) ->
+                _colorOptions.value = withContext(Dispatchers.Default) {
+                    runCatching {
+                        val bmp = ThemeRenderer.background(app, bg, dim, 216, 468)
+                        ColorOptions(bmp.asImageBitmap(), ThemePalettes.choices(ThemePalettes.swatches(bmp)))
+                    }.getOrNull()
+                }
+            }
+        }
         // Тему с другого устройства принимают только планшет и телевизор; у телефона этой настройки больше нет.
         if (DeviceSettings.kind(app) == DeviceKind.PHONE && _receiving.value) setReceiving(false)
         @OptIn(FlowPreview::class)

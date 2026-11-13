@@ -2,6 +2,7 @@ package app.synctheme.mobile.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -53,6 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,6 +70,7 @@ import app.synctheme.core.ThemeMode
 import app.synctheme.core.WallClock
 import app.synctheme.core.WallClockLayout
 import app.synctheme.mobile.data.ApplyTargets
+import app.synctheme.mobile.data.ColorChoice
 import app.synctheme.mobile.data.DeviceSet
 import app.synctheme.mobile.render.DayNight
 import app.synctheme.mobile.render.ThemeRenderer
@@ -85,6 +91,8 @@ class HomeState(
     val targets: ApplyTargets,
     val devices: DeviceSet,
     val onDetail: (WallDetail) -> Unit,
+    /** Свой цвет цифр или акцента — палитрой. */
+    val editColor: (ColorTarget) -> Unit,
     val openThemes: () -> Unit,
     /** Шестерёнка в шапке: «Настройки». */
     val openSettings: () -> Unit,
@@ -98,8 +106,8 @@ private fun wallTitle(wall: WallClock?) = when {
 
 /**
  * Главный экран — тема из фото: сверху «Мои темы», название, «Тёмная» и шестерёнка настроек; превью;
- * поля «Фото» и «Часы на экране»; большая кнопка «Поставить на телефон». При первом запуске вместо
- * полей — «Выбрать фото».
+ * поля «Фото» и «Часы на экране», блок «Цвета»; большая кнопка «Поставить на телефон». При первом
+ * запуске вместо полей — «Выбрать фото».
  */
 fun LazyListScope.home(theme: Theme, a: ScreenActions, s: HomeState, firstRun: Boolean) {
     item(key = "h_top") { TopBar(theme, s) }
@@ -129,6 +137,7 @@ fun LazyListScope.home(theme: Theme, a: ScreenActions, s: HomeState, firstRun: B
         SoftField("Фото", if (theme.background.type == BackgroundType.PHOTO) "Заменить фото" else "Выбрать фото", NavIcons.Camera, a.themeFromPhoto)
     }
     item(key = "h_clock") { ClockField(theme, a, s) }
+    item(key = "h_colors") { ColorsBlock(theme, a, s) }
     item(key = "h_apply") { ApplyButton(a, s) }
 }
 
@@ -212,6 +221,92 @@ private fun ClockField(theme: Theme, a: ScreenActions, s: HomeState) {
             }
         },
     )
+}
+
+/**
+ * «Цвета»: готовые палитры из фона темы — плитка показывает, как лягут цифры и виджет на этом фоне;
+ * касание меняет цвет цифр и акцент сразу (виджеты, часы на обоях, циферблат). Ниже — свой цвет.
+ */
+@Composable
+private fun ColorsBlock(theme: Theme, a: ScreenActions, s: HomeState) {
+    val look = LocalLook.current
+    val context = LocalContext.current
+    val options by a.vm.colorOptions.collectAsStateWithLifecycle()
+    val font = remember(theme.wallClock?.font, theme.digitFont, theme.clockStyle) { ThemeRenderer.wallClockFont(theme).family(context) }
+    val choices = options?.choices.orEmpty()
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text(
+            "Цвета", color = look.text, fontSize = 13.sp, fontWeight = if (look.isClay) FontWeight.SemiBold else null,
+            modifier = Modifier.padding(start = 18.dp, bottom = 8.dp),
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp)) {
+            items(choices, key = { it.title }) { c ->
+                PaletteTile(c, options?.thumb, font, theme.textColor == c.text && theme.accentColor == c.accent) {
+                    a.vm.update { it.copy(textColor = c.text, accentColor = c.accent) }
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Свой цвет", color = look.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            OwnColor("Цифры", theme.textColor) { s.editColor(ColorTarget.Text) }
+            OwnColor("Акцент", theme.accentColor) { s.editColor(ColorTarget.Accent) }
+        }
+    }
+}
+
+/** Плитка палитры: кусочек фона, на нём время цветом цифр и мини-виджет с кольцом и полосой акцента. */
+@Composable
+private fun PaletteTile(choice: ColorChoice, thumb: ImageBitmap?, font: FontFamily, selected: Boolean, onClick: () -> Unit) {
+    val look = LocalLook.current
+    val text = Color(choice.text)
+    val accent = Color(choice.accent)
+    Column(
+        Modifier.width(98.dp).then(if (selected) Modifier.inset(look, 18.dp, 4.dp) else Modifier.raised(look, 18.dp, 4.dp))
+            .clip(RoundedCornerShape(18.dp)).clickable(role = Role.RadioButton, onClick = onClick)
+            .semantics { contentDescription = "Палитра «${choice.title}»" }
+            .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().height(118.dp).clip(RoundedCornerShape(12.dp)).background(Color.Black), contentAlignment = Alignment.Center) {
+            thumb?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize()) }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("10:08", color = text, fontFamily = font, fontSize = 26.sp, maxLines = 1, softWrap = false)
+                Row(
+                    Modifier.clip(RoundedCornerShape(9.dp)).background(Color.Black.copy(alpha = 0.22f)).padding(horizontal = 7.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Box(Modifier.size(15.dp).border(3.dp, accent, CircleShape))
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Box(Modifier.width(26.dp).height(4.dp).clip(CircleShape).background(text))
+                        Box(Modifier.width(18.dp).height(4.dp).clip(CircleShape).background(accent))
+                    }
+                }
+            }
+        }
+        Text(
+            choice.title, color = if (selected) look.text else look.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** Свой цвет: кружок цвета и подпись; касание — выбор цвета палитрой. */
+@Composable
+private fun OwnColor(label: String, color: Int, onClick: () -> Unit) {
+    val look = LocalLook.current
+    Row(
+        Modifier.raised(look, 20.dp, 3.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Свой цвет: $label" }
+            .padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.size(24.dp).clip(CircleShape).background(Color(color)).border(1.5.dp, look.muted.copy(alpha = 0.5f), CircleShape))
+        Text(label, color = look.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+    }
 }
 
 /** Вариант картинкой: выбранный — вдавлен, остальные — выпуклые. */
