@@ -20,6 +20,7 @@ import app.synctheme.core.Background
 import app.synctheme.core.ClockPlace
 import app.synctheme.core.BackgroundType
 import app.synctheme.core.ClockStyle
+import app.synctheme.core.DigitFont
 import app.synctheme.core.Presets
 import app.synctheme.core.Theme
 import app.synctheme.core.TimeShift
@@ -66,6 +67,24 @@ class ArrangeTest {
         val p = Paint().apply { shader = LinearGradient(0f, 0f, 1200f, 1600f, 0xFF2B6CB0.toInt(), 0xFFF6AD55.toInt(), Shader.TileMode.CLAMP) }
         Canvas(bmp).drawRect(0f, 0f, 1200f, 1600f, p)
         ThemeRepository.get(app).photoFile(photo).outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+    }
+
+    /**
+     * Часы во всю ширину и высокие шрифты: границы допустимого места сходились наоборот на долю пикселя,
+     * и перетаскивание роняло приложение (1.28.0). Теперь любое место и размер дают часы на экране.
+     */
+    @Test
+    fun clampNeverCrashes() {
+        for (font in DigitFont.entries) for (stacked in listOf(false, true)) for (scale in listOf(0.3f, 1f, 2.2f, 2.5f, 9f)) {
+            for ((x, y) in listOf(0.5f to 0.5f, -1f to -1f, 2f to 2f, 0f to 1f, 1f to 0f)) {
+                val t = theme().copy(digitFont = font)
+                for ((w, h) in listOf(540 to 1170, 1170 to 540, 300 to 300)) {
+                    val p = ThemeRenderer.clampPlace(t, ClockPlace(x, y, scale, stacked), w, h)
+                    assertTrue("$font $stacked $scale $w×$h: x=${p.x}", p.x in 0f..1f)
+                    assertTrue("$font $stacked $scale $w×$h: y=${p.y}", p.y in 0f..1f)
+                }
+            }
+        }
     }
 
     private fun theme(): Theme = Presets.all[0].copy(

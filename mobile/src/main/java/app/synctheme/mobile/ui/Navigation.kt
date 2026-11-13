@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.synctheme.mobile.data.ApplyTargets
 import app.synctheme.mobile.data.DeviceSet
+import app.synctheme.mobile.util.within
 
 /** Нижнее меню: четыре раздела под большим пальцем. */
 @Composable
@@ -261,7 +262,7 @@ class CollapsingHeader(private val maxPx: Float, private val minPx: Float) : Nes
 
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
         if (available.y >= 0) return Offset.Zero
-        val next = (height + available.y).coerceIn(minPx, maxPx)
+        val next = (height + available.y).within(minPx, maxPx)
         val used = next - height
         height = next
         return Offset(0f, used)
@@ -269,7 +270,7 @@ class CollapsingHeader(private val maxPx: Float, private val minPx: Float) : Nes
 
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
         if (available.y <= 0) return Offset.Zero
-        val next = (height + available.y).coerceIn(minPx, maxPx)
+        val next = (height + available.y).within(minPx, maxPx)
         val used = next - height
         height = next
         return Offset(0f, used)

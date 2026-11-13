@@ -37,6 +37,7 @@ import app.synctheme.faces.FaceState
 import app.synctheme.mobile.data.ThemeRepository
 import app.synctheme.mobile.data.WeatherCodes
 import app.synctheme.mobile.data.WeatherRepository
+import app.synctheme.mobile.util.within
 import app.synctheme.mobile.widget.WidgetRenderer
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -624,20 +625,23 @@ object ThemeRenderer {
         val w = width.toFloat()
         val h = height.toFloat()
         val scale = p.scale.coerceIn(0.3f, 2.5f)
-        // Если и при этом размере часы шире экрана — уменьшаем.
         val base = baseClockSize(font, w, h, p.stacked)
-        val maxScale = (w * 0.94f) / (font.width(if (p.stacked) "00" else "00:00") * base)
-        val s = minOf(scale, maxScale)
+        val text = if (p.stacked) "00" else "00:00"
+        // Если и при этом размере часы шире экрана или выше его (высокие шрифты) — уменьшаем.
+        val maxByWidth = (w * 0.94f) / (font.width(text) * base)
+        val maxByHeight = (h * 0.8f) / (font.digitHeight * base * (if (p.stacked) 2.16f else 1f))
+        val s = minOf(scale, maxByWidth, maxByHeight)
         val size = base * s
-        val halfW = font.width(if (p.stacked) "00" else "00:00") * size / 2 + w * 0.03f
+        val halfW = font.width(text) * size / 2 + w * 0.03f
         val digitH = font.digitHeight * size
         val blockH = if (p.stacked) 2 * digitH + digitH * 0.16f else digitH
         val dateH = w * 0.042f * s.coerceIn(0.75f, 1.3f) * 1.4f + h * 0.012f
         val top = blockH / 2 + dateH + h * 0.03f
         val bottom = blockH / 2 + h * 0.03f
+        // within, а не coerceIn: у часов во всю ширину границы из-за округления сходятся наоборот.
         return p.copy(
-            x = (p.x * w).coerceIn(halfW, w - halfW) / w,
-            y = (p.y * h).coerceIn(top, h - bottom) / h,
+            x = (p.x * w).within(halfW, w - halfW) / w,
+            y = (p.y * h).within(top, h - bottom) / h,
             scale = s,
         )
     }

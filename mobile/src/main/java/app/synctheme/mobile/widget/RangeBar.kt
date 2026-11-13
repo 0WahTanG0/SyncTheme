@@ -50,7 +50,7 @@ object RangeBar {
         paint.shader = null
         if (now != null) {
             // Точка «сейчас»: светлая с тёмной обводкой — видна на любом отрезке.
-            val nx = x(now.coerceIn(min, max))
+            val nx = x(now.coerceIn(minOf(min, max), maxOf(min, max)))
             paint.color = 0x99000000.toInt()
             c.drawCircle(nx, r, r, paint)
             paint.color = 0xFFFFFFFF.toInt()

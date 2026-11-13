@@ -9,6 +9,7 @@ import app.synctheme.core.Background
 import app.synctheme.core.DigitFont
 import app.synctheme.core.TimeShift
 import app.synctheme.core.WatchFaceXml
+import app.synctheme.mobile.util.within
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
@@ -31,8 +32,8 @@ internal object Crop {
         val zoom = bg.zoom.coerceIn(1f, 5f)
         val w = base.width() / zoom
         val h = base.height() / zoom
-        val cx = bg.focusX.coerceIn(w / 2, 1 - w / 2)
-        val cy = bg.focusY.coerceIn(h / 2, 1 - h / 2)
+        val cx = bg.focusX.within(w / 2, 1 - w / 2)
+        val cy = bg.focusY.within(h / 2, 1 - h / 2)
         return RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
     }
 
@@ -230,7 +231,7 @@ internal object WallClockPlacer {
             val total = dateH + (if (showDate) gap else 0f) + blockH
             // По высоте — у верхней части объекта (голова, плечи), но в пределах экрана.
             val wanted = (bounds.top + bounds.height() * 0.3f) * h
-            val centerY = wanted.coerceIn(h * SAFE_TOP + total / 2, h * (1 - SAFE_BOTTOM) - total / 2)
+            val centerY = wanted.within(h * SAFE_TOP + total / 2, h * (1 - SAFE_BOTTOM) - total / 2)
             val blockY = centerY + total / 2 - blockH / 2
             val far = if (left) w * SAFE_SIDE + max(bw, dateW) / 2 else w * (1 - SAFE_SIDE) - max(bw, dateW) / 2
             val near = if (left) w * 0.6f else w * 0.4f
